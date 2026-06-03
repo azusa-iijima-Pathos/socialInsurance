@@ -49,20 +49,30 @@ export class ReachAge {
     this.createdEvents = await this.eventService.getReachAgeEvents(eventId);
   }
 
+  isPendingEvent(event: Event): boolean {
+    return event.approval?.approvalStatus === '申請中';
+  }
+
+  getEventKey(event: Event): string {
+    return event.payload?.['employee']?.employeeId ?? '';
+  }
+
   /** イベントを選択 */
-  onToggle(eventId: string, checked: boolean) {
+  onToggle(event: Event, checked: boolean) {
+    if (!this.isPendingEvent(event)) return;
+    const key = this.getEventKey(event);
     if (checked) {
-      this.selectedEvents.add(eventId);
+      this.selectedEvents.add(key);
     } else {
-      this.selectedEvents.delete(eventId);
+      this.selectedEvents.delete(key);
     }
   }
 
-  /** 全てのイベントを選択 */
+  /** 申請中のイベントを全選択 */
   toggleAll() {
-    this.createdEvents.forEach(event => {
-      this.selectedEvents.add(event.eventId);
-    });
+    this.createdEvents
+      .filter(event => this.isPendingEvent(event))
+      .forEach(event => this.selectedEvents.add(this.getEventKey(event)));
   }
   /** 全てのイベントを選択解除 */
   toggleAllClear() {
@@ -72,38 +82,45 @@ export class ReachAge {
 
   /** 選択されたイベントを承認 */
   async approveSelected() {
-    let count = 0;
-    /** 選択されたイベントを承認 */
-    for (const employeeId of this.selectedEvents) {
-      const event = this.createdEvents.find(event => event.payload?.['employee']?.employeeId === employeeId);
-      if (!event) {
-        continue;
-      } else {
-        event.approval = {
-          approvalStatus: '承認済み',
-          approvedDate: Timestamp.now(),
-          approvedBy: this.loginEmployeeId!,
-        };
-        const eventResult = await this.eventService.updateEvent(employeeId, event.eventId, event);
-        if (!eventResult) {
-          console.log(`${employeeId}のイベント更新に失敗しました`);
-          continue;
-        }
+    await this.updateSelectedEvents('承認済み', true);
+  }
 
-        /** 保険適用を行う(employeeサービス) */
+  /** 選択されたイベントを却下 */
+  async rejectSelected() {
+    await this.updateSelectedEvents('却下', false);
+  }
+
+  private async updateSelectedEvents(status: '承認済み' | '却下', updateEmployee: boolean) {
+    let count = 0;
+    for (const employeeId of this.selectedEvents) {
+      const event = this.createdEvents.find(item => this.getEventKey(item) === employeeId);
+      if (!event || !this.isPendingEvent(event)) {
+        continue;
+      }
+
+      event.approval = {
+        approvalStatus: status,
+        approvedDate: Timestamp.now(),
+        approvedBy: this.loginEmployeeId!,
+      };
+      const eventResult = await this.eventService.updateEvent(employeeId, event.eventId, event);
+      if (!eventResult) {
+        continue;
+      }
+
+      if (updateEmployee && status === '承認済み') {
         const occurredDate = event.occurredDate?.toDate();
-        console.log("occurredDate:", occurredDate);
-        const employee:Employee | null = await this.employeeService.getEmployeeByEmployeeId(employeeId);
+        const employee: Employee | null = await this.employeeService.getEmployeeByEmployeeId(employeeId);
         if (!employee) {
           continue;
         }
-        let updateEmployee:Partial<Employee> = {};
+        let updateEmployeeData: Partial<Employee> = {};
         switch (event.reachAgeType) {
           case '40歳':
-            updateEmployee = {
-              ...employee!,
+            updateEmployeeData = {
+              ...employee,
               insurance: {
-                ...employee!.insurance,
+                ...employee.insurance,
                 nursingCareInsurance: {
                   joined: true,
                   acquiredDate: Timestamp.fromDate(occurredDate!),
@@ -112,10 +129,10 @@ export class ReachAge {
             };
             break;
           case '65歳':
-            updateEmployee = {
-              ...employee!,
+            updateEmployeeData = {
+              ...employee,
               insurance: {
-                ...employee!.insurance,
+                ...employee.insurance,
                 nursingCareInsurance: {
                   joined: false,
                   lostDate: Timestamp.fromDate(occurredDate!),
@@ -124,10 +141,10 @@ export class ReachAge {
             };
             break;
           case '70歳':
-            updateEmployee = {
-              ...employee!,
+            updateEmployeeData = {
+              ...employee,
               insurance: {
-                ...employee!.insurance,
+                ...employee.insurance,
                 employeePensionInsurance: {
                   joined: false,
                   lostDate: Timestamp.fromDate(occurredDate!),
@@ -136,10 +153,10 @@ export class ReachAge {
             };
             break;
           case '75歳':
-            updateEmployee = {
-              ...employee!,
+            updateEmployeeData = {
+              ...employee,
               insurance: {
-                ...employee!.insurance,
+                ...employee.insurance,
                 healthInsurance: {
                   joined: false,
                   lostDate: Timestamp.fromDate(occurredDate!),
@@ -149,14 +166,23 @@ export class ReachAge {
             break;
         }
 
-        const employeeResult = await this.employeeService.updateEmployee(updateEmployee);
+        const employeeResult = await this.employeeService.updateEmployee(updateEmployeeData);
         if (!employeeResult) {
-          console.log(`${employeeId}の社員更新に失敗しました`);
           continue;
         }
-        count++;
-
       }
+
+      count++;
+    }
+
+    if (count > 0) {
+      this.messageTimer = this.commonService.showTimedMessage(
+        `${count}件のイベントを${status === '承認済み' ? '承認' : '却下'}しました`,
+        value => this.message = value,
+        this.messageTimer,
+      );
+      this.selectedEvents.clear();
+      await this.getCreatedEvents();
     }
   }
 }

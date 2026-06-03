@@ -1,0 +1,147 @@
+import { EmployeeEventType } from '../../constants/model-constants';
+
+export type YearMonth = { year: number; month: number };
+
+export function getWorkingYearMonth(): YearMonth {
+  return {
+    year: Number(sessionStorage.getItem('workingYear')),
+    month: Number(sessionStorage.getItem('workingMonth')),
+  };
+}
+
+/** 日付が属する作業月を返す */
+export function getWorkMonthForDate(date: Date, targetPeriodStart: number): YearMonth {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+
+  if (targetPeriodStart === 1) {
+    return { year, month };
+  }
+
+  if (day >= targetPeriodStart) {
+    return { year, month };
+  }
+
+  if (month === 1) {
+    return { year: year - 1, month: 12 };
+  }
+  return { year, month: month - 1 };
+}
+
+export function addMonths(year: number, month: number, delta: number): YearMonth {
+  const date = new Date(year, month - 1 + delta, 1);
+  return { year: date.getFullYear(), month: date.getMonth() + 1 };
+}
+
+function formatYearMonth(year: number, month: number): string {
+  return `${year}_${String(month).padStart(2, '0')}`;
+}
+
+function formatMonthOnly(month: number): string {
+  return String(month).padStart(2, '0');
+}
+
+/** 現在の作業月ベースのイベントID（例: 雇用形態変更_2026_04） */
+export function buildCurrentWorkMonthEventId(eventType: EmployeeEventType, working?: YearMonth): string {
+  const { year, month } = working ?? getWorkingYearMonth();
+  return `${eventType}_${formatYearMonth(year, month)}`;
+}
+
+/** 退社（システム申請）: 退職日を含む作業月の翌月 */
+export function buildRetireSystemEventId(resignationDate: Date, targetPeriodStart: number): string {
+  const workMonth = getWorkMonthForDate(resignationDate, targetPeriodStart);
+  const nextMonth = addMonths(workMonth.year, workMonth.month, 1);
+  return `退社_${formatYearMonth(nextMonth.year, nextMonth.month)}`;
+}
+
+/** 固定給変更（システム申請）: 作業月の3か月後 */
+export function buildFixedSalarySystemEventId(working?: YearMonth): string {
+  const current = working ?? getWorkingYearMonth();
+  const future = addMonths(current.year, current.month, 3);
+  return `固定給変更_${formatYearMonth(future.year, future.month)}`;
+}
+
+/** 入社・年齢到達など従来ルール */
+export function buildEventId(
+  eventType: EmployeeEventType,
+  options: {
+    occurredDate?: Date;
+    targetPeriodStart?: number;
+    workingYear?: number;
+    workingMonth?: number;
+  } = {},
+): string {
+  const working = options.workingYear && options.workingMonth
+    ? { year: options.workingYear, month: options.workingMonth }
+    : getWorkingYearMonth();
+  const targetPeriodStart = options.targetPeriodStart ?? 1;
+
+  switch (eventType) {
+    case '入社': {
+      const workMonth = getWorkMonthForDate(options.occurredDate!, targetPeriodStart);
+      return `入社_${formatYearMonth(workMonth.year, workMonth.month)}`;
+    }
+    case '退社':
+      return buildRetireSystemEventId(options.occurredDate!, targetPeriodStart);
+    case '一定年齢到達':
+      return `一定年齢到達_${working.year}-${formatMonthOnly(working.month)}`;
+    case '固定給変更':
+      return buildFixedSalarySystemEventId(working);
+    case '雇用形態変更':
+    case '勤務状況変更':
+    case '扶養情報変更':
+      return buildCurrentWorkMonthEventId(eventType, working);
+    default:
+      return `${eventType}_${formatYearMonth(working.year, working.month)}`;
+  }
+}
+
+export function parseEventYearMonth(
+  eventId: string,
+  workingYear: number,
+  workingMonth: number,
+): YearMonth | null {
+  const yearMonthSeqMatch = eventId.match(/_(\d{4})_(\d{2})_\d+$/);
+  if (yearMonthSeqMatch) {
+    return { year: Number(yearMonthSeqMatch[1]), month: Number(yearMonthSeqMatch[2]) };
+  }
+
+  const yearMonthMatch = eventId.match(/_(\d{4})_(\d{2})$/);
+  if (yearMonthMatch) {
+    return { year: Number(yearMonthMatch[1]), month: Number(yearMonthMatch[2]) };
+  }
+
+  const dashMatch = eventId.match(/_(\d{4})-(\d{2})$/);
+  if (dashMatch) {
+    return { year: Number(dashMatch[1]), month: Number(dashMatch[2]) };
+  }
+
+  const monthSeqMatch = eventId.match(/_(\d{2})_\d+$/);
+  if (monthSeqMatch) {
+    return { year: workingYear, month: Number(monthSeqMatch[1]) };
+  }
+
+  const monthOnlyMatch = eventId.match(/_(\d{2})$/);
+  if (monthOnlyMatch) {
+    return { year: workingYear, month: Number(monthOnlyMatch[1]) };
+  }
+
+  return null;
+}
+
+export function isEventAtOrBeforeWorkingMonth(
+  eventId: string,
+  workingYear: number,
+  workingMonth: number,
+): boolean {
+  const parsed = parseEventYearMonth(eventId, workingYear, workingMonth);
+  if (!parsed) return false;
+  return parsed.year * 12 + parsed.month <= workingYear * 12 + workingMonth;
+}
+
+export function getFixedSalarySystemOccurredDate(working?: YearMonth): Date {
+  const current = working ?? getWorkingYearMonth();
+  const future = addMonths(current.year, current.month, 3);
+  return new Date(future.year, future.month - 1, 1);
+}

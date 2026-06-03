@@ -1,19 +1,24 @@
 import { inject, Injectable } from '@angular/core';
 import { CrudService } from '../common/crud-service';
 import { Event } from '../../model/event';
-import { Timestamp } from '@angular/fire/firestore';
+import { CompanyService } from './company-service';
+import { EmployeeService } from './employee-service';
+import { buildEventId, getWorkingYearMonth, isEventAtOrBeforeWorkingMonth } from '../logic/event-id-service';
+import { EmployeeEventType } from '../../constants/model-constants';
+
+export type EmployeeEventItem = Event & { employeeId: string };
 
 /**
  * イベントサービス
  */
-//PATH: companies/{companyId}/employees/{employeeId}/events/{eventId}
-
 @Injectable({
   providedIn: 'root',
 })
 export class EventService {
 
   private crudService = inject(CrudService);
+  private companyService = inject(CompanyService);
+  private employeeService = inject(EmployeeService);
 
   private get path() {
     const companyId = sessionStorage.getItem('companyId');
@@ -24,53 +29,111 @@ export class EventService {
     return sessionStorage.getItem('companyId');
   }
 
-  private get workingYear(): number | null {
-    return Number(sessionStorage.getItem('workingYear'));
+  /** イベントIDを自動生成して作成 */
+  async createEvent(employeeId: string, event: Partial<Event>): Promise<string | null> {
+    if (!event.eventType) return null;
+
+    await this.companyService.getCompany();
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const eventId = buildEventId(event.eventType as EmployeeEventType, {
+      occurredDate: event.occurredDate?.toDate(),
+      targetPeriodStart,
+    });
+
+    return this.createEventWithBaseId(employeeId, eventId, event);
   }
 
-  private get workingMonth(): number | null {
-    return Number(sessionStorage.getItem('workingMonth'));
+  /** ベースIDに連番を付けてイベントを作成（例: 雇用形態変更_04_1） */
+  async createEventWithBaseId(employeeId: string, baseId: string, event: Partial<Event>): Promise<string | null> {
+    const eventId = await this.allocateSequentialEventId(employeeId, baseId);
+    return this.createEventWithId(employeeId, eventId, event);
   }
 
-  // イベントを作成（入社/退社/一定年齢到達）
-  async createEvent(employeeId: string, event: Partial<Event>): Promise<boolean> {
-   
-    const type = event.eventType ?? '';
-    const date = this.workingYear! + '-' + this.workingMonth!.toString().padStart(2, '0');
+  /** 指定IDでイベントを作成 */
+  async createEventWithId(employeeId: string, eventId: string, event: Partial<Event>): Promise<string | null> {
     event.companyId = this.companyId ?? '';
-    const eventId = `${type}_${date}`;
     event.eventId = eventId;
     const path = `${this.path}/${employeeId}/events/${eventId}`;
 
-    //同じIDのイベントが存在するか確認
-    const hasSameEvent = await this.hasSameEvent(path);
-    if (hasSameEvent) {
-      return false;
+    if (await this.hasSameEvent(path)) {
+      return null;
     }
-    return await this.crudService.create(path, event);
+
+    const created = await this.crudService.create(path, event);
+    return created ? eventId : null;
   }
 
-  // 年齢到達イベント一覧を取得
+  /** 同一ベースIDの次の連番を返す */
+  async allocateSequentialEventId(employeeId: string, baseId: string): Promise<string> {
+    const events = await this.getEmployeeEvents(employeeId);
+    const escapedBase = baseId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`^${escapedBase}(?:_(\\d+))?$`);
+
+    let maxSeq = 0;
+    for (const event of events) {
+      const match = event.eventId.match(pattern);
+      if (match) {
+        maxSeq = Math.max(maxSeq, match[1] ? Number(match[1]) : 0);
+      }
+    }
+
+    return `${baseId}_${maxSeq + 1}`;
+  }
+
+  async getEmployeeEvents(employeeId: string): Promise<Event[]> {
+    return await this.crudService.getAll<Event>(`${this.path}/${employeeId}/events`, 'eventId');
+  }
+
+  async getPendingEmployeeEvents(employeeId: string): Promise<Event[]> {
+    const events = await this.getEmployeeEvents(employeeId);
+    return events
+      .filter(event => event.approval?.approvalStatus === '申請中')
+      .sort((left, right) => right.eventId.localeCompare(left.eventId));
+  }
+
+  async getEmployeeEventsUpToWorkingMonth(employeeId: string): Promise<Event[]> {
+    const events = await this.getEmployeeEvents(employeeId);
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return [];
+
+    return events
+      .filter(event => event.eventId && isEventAtOrBeforeWorkingMonth(event.eventId, year, month))
+      .sort((left, right) => right.eventId.localeCompare(left.eventId));
+  }
+
+  /** 全社員の申請中イベント（作業月以前） */
+  async getAllPendingEventsUpToWorkingMonth(): Promise<EmployeeEventItem[]> {
+    await this.employeeService.getAllEmployees();
+    const results: EmployeeEventItem[] = [];
+
+    for (const employee of this.employeeService.allEmployees()) {
+      const events = await this.getEmployeeEventsUpToWorkingMonth(employee.employeeId);
+      for (const event of events) {
+        if (event.approval?.approvalStatus !== '申請中') continue;
+        results.push({ ...event, employeeId: employee.employeeId });
+      }
+    }
+
+    return results.sort((left, right) => right.eventId.localeCompare(left.eventId));
+  }
+
   async getReachAgeEvents(evnetId: string): Promise<Event[]> {
-    const events: Event[] = await this.crudService.getByCollectionGroupFields<Event>(
+    return await this.crudService.getByCollectionGroupFields<Event>(
       'events',
       [
         { field: 'companyId', value: this.companyId! },
         { field: 'eventType', value: '一定年齢到達' },
         { field: 'eventId', value: evnetId },
       ],
-      'eventId'
+      'eventId',
     );
-    return events;
   }
 
-  // 同じIDのイベントが存在するか確認
   async hasSameEvent(path: string): Promise<boolean> {
-    const existingEvent = await this.crudService.getById<Event>(path,'eventId');
-    return existingEvent === null ? false : true;
+    const existingEvent = await this.crudService.getById<Event>(path, 'eventId');
+    return existingEvent !== null;
   }
 
-  // イベントを更新
   async updateEvent(employeeId: string, eventId: string, event: Partial<Event>): Promise<boolean> {
     const path = `${this.path}/${employeeId}/events/${eventId}`;
     return await this.crudService.update(path, event);

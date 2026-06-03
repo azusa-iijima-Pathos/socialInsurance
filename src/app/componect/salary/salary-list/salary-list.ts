@@ -25,10 +25,12 @@ export class SalaryList {
   private messageTimer: MessageTimer = null;
   editPayrollModalOpen = false;
 
-  allPayrollListForMonth = computed(() =>
-    this.payrollService.allPayrollListForMonth()
-      .find(item => item.payrollId === this.payrollId)?.payrollList ?? []
-  );
+  allPayrollListForMonth = computed(() => {
+    const retiredIds = this.employeeService.retiredEmployeeIdSet();
+    return this.payrollService.allPayrollListForMonth()
+      .find(item => item.payrollId === this.payrollId)?.payrollList
+      .filter(payroll => !retiredIds.has(payroll.employeeId ?? '')) ?? [];
+  });
 
   @Input() payrollId: string = '';
   @Input() isBonus: boolean = false;

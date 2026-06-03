@@ -355,9 +355,7 @@
                     <div class="im-field-row__control">
                         <input type="text" [id]="'dependentName' + i" formControlName="name">
                         <div class="error">
-                            <p *ngIf="
-                            form.get('name')?.errors?.['required']
-                            && form.get('name')?.touched">
+                            <p *ngIf="getDependentControl(i, 'name')?.errors?.['required'] && getDependentControl(i, 'name')?.touched">
                                 扶養者名前は必須です
                             </p>
                         </div>
@@ -370,9 +368,7 @@
                     <div class="im-field-row__control">
                         <input type="date" [id]="'dependentBirthDate' + i" formControlName="birthDate">
                         <div class="error">
-                            <p *ngIf="
-                            form.get('birthDate')?.errors?.['required']
-                            && form.get('birthDate')?.touched">
+                            <p *ngIf="getDependentControl(i, 'birthDate')?.errors?.['required'] && getDependentControl(i, 'birthDate')?.touched">
                                 生年月日は必須です
                             </p>
                         </div>
@@ -389,9 +385,7 @@
                             </option>
                         </select>
                         <div class="error">
-                            <p *ngIf="
-                            form.get('relationship')?.errors?.['required']
-                            && form.get('relationship')?.touched">
+                            <p *ngIf="getDependentControl(i, 'relationship')?.errors?.['required'] && getDependentControl(i, 'relationship')?.touched">
                                 続柄は必須です
                             </p>
                         </div>

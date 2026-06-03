@@ -7,6 +7,14 @@ import { PayrollService } from '../Firestore/payroll-service';
 import { Payroll } from '../../model/payroll';
 import { CommonService } from '../common/common-service';
 import { CompanyService } from '../Firestore/company-service';
+import { addMonths, YearMonth } from './event-id-service';
+
+export type AdHocRevisionResult = {
+  status: '改定あり' | '変更なし' | '判定不可';
+  currentGrade: number;
+  calculatedGrade?: number;
+  averageSalary?: number;
+};
 
 export type CalculationBaseResult = {
   employeeId: string;
@@ -314,12 +322,57 @@ export class EmployeeLogicService {
     return true;
   }
 
-  /** 随時改定（固定給が変わった場合）　*/
+  /** 随時改定（固定給が変わった場合） */
+  async getAdHocRevisionResult(employee: Employee, changeMonth: YearMonth): Promise<AdHocRevisionResult> {
+    const currentGrade = employee.insurance?.currentGrade ?? 0;
+    const year = changeMonth.year.toString();
+    await this.insuranceRates.getRemunerationData(year);
 
+    const targetMonths: YearMonth[] = [
+      changeMonth,
+      addMonths(changeMonth.year, changeMonth.month, 1),
+      addMonths(changeMonth.year, changeMonth.month, 2),
+    ];
 
+    const payrollList = await this.payrollService.getPayrollListForEmployee(employee.employeeId);
+    const monthlyPayrolls = payrollList.filter(payroll => payroll.type === '毎月');
+    const matchedPayrolls: Payroll[] = [];
 
+    for (const targetMonth of targetMonths) {
+      const payrollId = `${targetMonth.year}-${String(targetMonth.month).padStart(2, '0')}`;
+      const payroll = monthlyPayrolls.find(item => item.payrollId === payrollId);
+      if (!payroll || payroll.actualPaymentAmount === undefined) {
+        return { status: '判定不可', currentGrade };
+      }
+      matchedPayrolls.push(payroll);
+    }
 
+    const averageSalary = matchedPayrolls.reduce((total, payroll) => total + payroll.actualPaymentAmount!, 0) / 3;
+    const remunerationData = this.StandardMonthlyRemuneration[year] ?? [];
+    let calculatedGrade: number | undefined;
 
+    for (const remuneration of remunerationData) {
+      if (averageSalary >= remuneration.monthlyMin && averageSalary <= remuneration.monthlyMax) {
+        calculatedGrade = remuneration.grade;
+        break;
+      }
+    }
+
+    if (calculatedGrade === undefined) {
+      return { status: '判定不可', currentGrade, averageSalary };
+    }
+
+    if (Math.abs(calculatedGrade - currentGrade) >= 2) {
+      return { status: '改定あり', currentGrade, calculatedGrade, averageSalary };
+    }
+
+    return { status: '変更なし', currentGrade, calculatedGrade, averageSalary };
+  }
+
+  async getAdHocRevisionGrade(employee: Employee, changeMonth: YearMonth): Promise<number | undefined> {
+    const result = await this.getAdHocRevisionResult(employee, changeMonth);
+    return result.status === '改定あり' ? result.calculatedGrade : undefined;
+  }
 
   /** 等級から保険料の算出 */
   async getInsuranceRate(prefecture: string, grade: number, targetYearMonth: string) {

@@ -1,91 +1,1038 @@
 <div class="employee-detail-layout">
-    <h1>従業員詳細</h1>
+    <header class="employee-detail-header">
+        <h1>従業員詳細</h1>
+        <div class="information-area">
+            <p>既存社員の情報を確認・編集できます。社員を選択して検索してください。</p>
+            <p>保険の等級や加入の変更、事業所変更を行う場合、現在の作業月の保険料から反映されます。</p>
+            <p>固定給を変更する場合、保険の等級を再確認して下さい。</p>
+        </div>
+    </header>
 
-    <div class="information-area">
-        <p>既存社員の保険情報を表示します。</p>
-        <p>下の検索フォームから社員を選択し、検索ボタンを押下してください。</p>
+    <section class="employee-detail-search-card">
+        <div class="employee-detail-search-card__fields">
+            <label class="employee-detail-search-card__label" for="employeeDetailSearch">社員検索</label>
+            <input id="employeeDetailSearch" type="text" class="employee-detail-search-card__input"
+                [(ngModel)]="employeeSearchText" placeholder="社員ID・氏名で絞り込み">
+            <label class="employee-detail-search-card__label" for="employeeDetailSelect">社員選択</label>
+            <select id="employeeDetailSelect" class="employee-detail-search-card__select"
+                [(ngModel)]="selectedEmployeeId">
+                <option value="">従業員を選択してください</option>
+                <optgroup label="現社員">
+                    <option *ngFor="let employee of getFilteredActiveEmployees()" [value]="employee.employeeId">
+                        {{ employee.employeeId }}：{{ employee.firstName }} {{ employee.lastName }}
+                    </option>
+                </optgroup>
+                <optgroup label="退職済み社員">
+                    <option *ngFor="let employee of getFilteredRetiredEmployees()" [value]="employee.employeeId">
+                        {{ employee.employeeId }}：{{ employee.firstName }} {{ employee.lastName }}
+                    </option>
+                </optgroup>
+            </select>
+            <button type="button" class="im-btn-primary employee-detail-search-card__button"
+                (click)="selectEmployee()">検索</button>
+        </div>
+    </section>
+
+    <p *ngIf="message" class="im-action-message employee-detail-search-card__message">{{ message }}</p>
+    <p *ngIf="showEventNotice" class="employee-detail-event-notice">
+        イベントが作成されました。下記のイベント一覧から確認してください。
+    </p>
+
+
+    <div class="employee-detail-content" *ngIf="selectedEmployee">
+        <h2>従業員情報</h2>
+        <div class="employee-infomation-area">
+            <section class="employee-detail-section">
+                <div class="employee-detail-section__header">
+                    <h2>基本情報</h2>
+                </div>
+                <dl class="employee-detail-info-grid">
+                    <div class="employee-detail-info-grid__item">
+                        <dt>社員ID</dt>
+                        <dd>{{ selectedEmployee.employeeId! }}</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>姓</dt>
+                        <dd>{{ selectedEmployee.firstName! }}</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>名</dt>
+                        <dd>{{ selectedEmployee.lastName! }}</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>年齢</dt>
+                        <dd>{{ commonService.calculateAge(selectedEmployee.birthDate!) }}歳</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>生年月日</dt>
+                        <dd>{{ commonService.formatDate(selectedEmployee.birthDate!) }}</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>入社日</dt>
+                        <dd>{{ commonService.formatDate(selectedEmployee.hireDate!) }}</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>勤務状況</dt>
+                        <dd>{{ selectedEmployee.workStatus! }}</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item" *ngIf="showResignationDateDisplay()">
+                        <dt>退社日</dt>
+                        <dd>{{ commonService.formatDate(selectedEmployee.resignationDate!) }}</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <div class="employee-detail-muted-area" [class.employee-detail-muted-area--active]="isRetiredEmployee()">
+            <section class="employee-detail-section">
+                <div class="employee-detail-section__header">
+                    <h2>雇用契約情報</h2>
+                    <button type="button" class="im-btn-soft" [disabled]="isRetiredEmployee()"
+                        (click)="editContractInfo()">勤務状況・雇用契約情報を編集</button>
+                </div>
+                <dl class="employee-detail-info-grid">
+                    <div class="employee-detail-info-grid__item">
+                        <dt>雇用形態</dt>
+                        <dd>{{ selectedEmployee.employmentContract?.employmentCategory! }}</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>勤務形態</dt>
+                        <dd>{{ selectedEmployee.employmentContract?.workStyle! }}</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>事業所</dt>
+                        <dd>{{ commonService.getOfficeName(selectedEmployee.employmentContract?.officeId!)! }}</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>週労働時間</dt>
+                        <dd>{{ selectedEmployee.employmentContract?.contractedWorkingHoursPerWeek! }}時間</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>月労働日数</dt>
+                        <dd>{{ selectedEmployee.employmentContract?.contractedWorkingDaysPerMonth! }}日</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item">
+                        <dt>基本給</dt>
+                        <dd>{{ selectedEmployee.employmentContract?.fixedSalary! | number }}円</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item"
+                        *ngIf="selectedEmployee.employmentContract?.transportationExpenses !== undefined">
+                        <dt>通勤手当</dt>
+                        <dd>{{ selectedEmployee.employmentContract?.transportationExpenses! | number }}円</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <section class="employee-detail-section">
+                <div class="employee-detail-section__header">
+                    <h2>保険情報</h2>
+                    <button type="button" class="im-btn-soft" [disabled]="isRetiredEmployee()"
+                        (click)="editInsuranceInfo()">保険情報を編集</button>
+                </div>
+
+                <div class="employee-detail-subsection">
+                    <h3>標準報酬等級</h3>
+                    <dl class="employee-detail-info-grid employee-detail-info-grid--compact">
+                        <div class="employee-detail-info-grid__item">
+                            <dt>登録値</dt>
+                            <dd>{{ selectedEmployee.insurance?.currentGrade ?? '未登録' }}</dd>
+                        </div>
+                        <div class="employee-detail-info-grid__item">
+                            <dt>自動計算結果</dt>
+                            <dd>{{ autoInsuranceGrade ? autoInsuranceGrade : '等級判定不能' }}</dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <div class="employee-detail-insurance-cards">
+                    <article class="employee-detail-insurance-card">
+                        <h3>健康保険</h3>
+                        <p class="employee-detail-insurance-card__status">{{
+                            getInsuranceStatus(selectedEmployee.insurance?.healthInsurance) }}</p>
+                        <p class="employee-detail-insurance-card__auto">自動計算：{{ autoHealthInsuranceRequired ? '加入' :
+                            '未加入' }}</p>
+                        <dl class="employee-detail-info-grid employee-detail-info-grid--compact"
+                            *ngIf="selectedEmployee.insurance?.healthInsurance?.joined">
+                            <div class="employee-detail-info-grid__item">
+                                <dt>番号</dt>
+                                <dd>{{ selectedEmployee.insurance?.healthInsurance?.number! }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item">
+                                <dt>取得日</dt>
+                                <dd>{{
+                                    commonService.formatDate(selectedEmployee.insurance?.healthInsurance?.acquiredDate!)
+                                    }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item"
+                                *ngIf="selectedEmployee.insurance?.healthInsurance?.lostDate">
+                                <dt>喪失日</dt>
+                                <dd>{{ commonService.formatDate(selectedEmployee.insurance?.healthInsurance?.lostDate!)
+                                    }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item">
+                                <dt>会社負担率</dt>
+                                <dd>{{ selectedEmployee.insurance?.healthInsurance?.companyBurdenRate! }}%</dd>
+                            </div>
+                        </dl>
+                    </article>
+
+                    <article class="employee-detail-insurance-card">
+                        <h3>介護保険</h3>
+                        <p class="employee-detail-insurance-card__status">{{
+                            getInsuranceStatus(selectedEmployee.insurance?.nursingCareInsurance) }}</p>
+                        <p class="employee-detail-insurance-card__auto">自動計算：{{ autoNursingCareInsuranceRequired ? '加入'
+                            : '未加入' }}</p>
+                        <dl class="employee-detail-info-grid employee-detail-info-grid--compact"
+                            *ngIf="selectedEmployee.insurance?.nursingCareInsurance?.joined">
+                            <div class="employee-detail-info-grid__item">
+                                <dt>番号</dt>
+                                <dd>{{ selectedEmployee.insurance?.nursingCareInsurance?.number! }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item">
+                                <dt>取得日</dt>
+                                <dd>{{
+                                    commonService.formatDate(selectedEmployee.insurance?.nursingCareInsurance?.acquiredDate!)
+                                    }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item"
+                                *ngIf="selectedEmployee.insurance?.nursingCareInsurance?.lostDate">
+                                <dt>喪失日</dt>
+                                <dd>{{
+                                    commonService.formatDate(selectedEmployee.insurance?.nursingCareInsurance?.lostDate!)
+                                    }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item">
+                                <dt>会社負担率</dt>
+                                <dd>{{ selectedEmployee.insurance?.nursingCareInsurance?.companyBurdenRate! }}%</dd>
+                            </div>
+                        </dl>
+                    </article>
+
+                    <article class="employee-detail-insurance-card">
+                        <h3>厚生年金</h3>
+                        <p class="employee-detail-insurance-card__status">{{
+                            getInsuranceStatus(selectedEmployee.insurance?.employeePensionInsurance) }}</p>
+                        <p class="employee-detail-insurance-card__auto">自動計算：{{ autoPensionInsuranceRequired ? '加入' :
+                            '未加入' }}</p>
+                        <dl class="employee-detail-info-grid employee-detail-info-grid--compact"
+                            *ngIf="selectedEmployee.insurance?.employeePensionInsurance?.joined">
+                            <div class="employee-detail-info-grid__item">
+                                <dt>番号</dt>
+                                <dd>{{ selectedEmployee.insurance?.employeePensionInsurance?.number! }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item">
+                                <dt>取得日</dt>
+                                <dd>{{
+                                    commonService.formatDate(selectedEmployee.insurance?.employeePensionInsurance?.acquiredDate!)
+                                    }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item"
+                                *ngIf="selectedEmployee.insurance?.employeePensionInsurance?.lostDate">
+                                <dt>喪失日</dt>
+                                <dd>{{
+                                    commonService.formatDate(selectedEmployee.insurance?.employeePensionInsurance?.lostDate!)
+                                    }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item">
+                                <dt>会社負担率</dt>
+                                <dd>{{ selectedEmployee.insurance?.employeePensionInsurance?.companyBurdenRate! }}%</dd>
+                            </div>
+                        </dl>
+                    </article>
+                </div>
+            </section>
+
+            <section class="employee-detail-section">
+                <div class="employee-detail-section__header">
+                    <h2>扶養情報</h2>
+                    <button type="button" class="im-btn-soft" [disabled]="isRetiredEmployee()"
+                        (click)="editDependentInfo()">扶養情報を編集</button>
+                </div>
+
+                <div class="employee-detail-dependent-list" *ngIf="dependents.length > 0">
+                    <article class="employee-detail-dependent-card" *ngFor="let dependent of dependents">
+                        <dl class="employee-detail-info-grid employee-detail-info-grid--compact">
+                            <div class="employee-detail-info-grid__item">
+                                <dt>名前</dt>
+                                <dd>{{ dependent.name! }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item">
+                                <dt>生年月日</dt>
+                                <dd>{{ commonService.formatDate(dependent.birthDate!) }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item">
+                                <dt>続柄</dt>
+                                <dd>{{ dependent.relationship! }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item">
+                                <dt>扶養状況</dt>
+                                <dd>{{ getDependentStatusLabel(dependent.isDependent) }}</dd>
+                            </div>
+                        </dl>
+                    </article>
+                </div>
+                <p class="employee-detail-empty" *ngIf="dependents.length === 0">扶養の登録はありません</p>
+            </section>
+
+        <h2>イベント一覧</h2>
+        <section class="employee-detail-section employee-detail-events" *ngIf="employeeEvents.length > 0">
+            <div class="employee-detail-events-table-wrap">
+                <table class="employee-detail-events-table">
+                    <thead>
+                        <tr>
+                            <th>操作</th>
+                            <th>イベントID</th>
+                            <th>種別</th>
+                            <th>申請日</th>
+                            <th>承認状況</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let employeeEvent of employeeEvents">
+                            <td class="employee-detail-events-table__actions">
+                                <ng-container *ngIf="isPendingEvent(employeeEvent) && !isRetiredEmployee()">
+                                    <button type="button" class="im-btn-primary im-btn-sm"
+                                        (click)="onApproveEvent(employeeEvent)">承認</button>
+                                    <button type="button" class="im-btn-soft im-btn-sm"
+                                        (click)="onRejectEvent(employeeEvent)">却下</button>
+                                </ng-container>
+                            </td>
+                            <td>{{ employeeEvent.eventId }}</td>
+                            <td>{{ employeeEvent.eventType }}</td>
+                            <td>{{ commonService.formatDate(employeeEvent.appliedDate) }}</td>
+                            <td>{{ employeeEvent.approval?.approvalStatus ?? '' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <section class="employee-detail-section employee-detail-events" *ngIf="employeeEvents.length === 0">
+            <p class="employee-detail-empty">イベントはありません</p>
+        </section>
+        </div>
+        </div>
     </div>
+</div>
 
-    <!-- 検索（IDか名前） -->
-    <select [(ngModel)]="selectedEmployeeId">
-        <option value="">従業員を選択してください</option>
-        <option *ngFor="let employee of employeeMap() | keyvalue" [value]="employee.key">
-            {{ employee.key }}：{{ employee.value }}
-        </option>
-    </select>
-    <button type="button" (click)="selectEmployee()">検索</button>
-
-    <!-- 検索結果 -->
-    <p *ngIf="message">{{ message }}</p>
-
-    <div *ngIf="selectedEmployee">
-        <h3>基本情報</h3>
-        <p>社員ID：{{ selectedEmployee.employeeId! }}</p>
-        <p>姓：{{ selectedEmployee.firstName! }}</p>
-        <p>名：{{ selectedEmployee.lastName! }}</p>
-        <p>年齢：{{ commonService.calculateAge(selectedEmployee.birthDate!) }}</p>
-        <p>生年月日：{{ commonService.formatDate(selectedEmployee.birthDate!) }}</p>
-        <p>入社日：{{ commonService.formatDate(selectedEmployee.hireDate!) }}</p>
-        <p>勤務状況：{{ selectedEmployee.workStatus! }}</p>
-        <p><strong>雇用契約情報</strong></p>
-        <p>雇用形態：{{ selectedEmployee.employmentContract?.employmentCategory! }}</p>
-        <p>勤務形態：{{ selectedEmployee.employmentContract?.workStyle! }}</p>
-        <p>事業所：{{ commonService.getOfficeName(selectedEmployee.employmentContract?.officeId!)! }}</p>
-        <p>週労働時間：{{ selectedEmployee.employmentContract?.contractedWorkingHoursPerWeek! }}時間</p>
-        <p>月労働日数：{{ selectedEmployee.employmentContract?.contractedWorkingDaysPerMonth! }}日</p>
-        <p>基本給：{{ selectedEmployee.employmentContract?.fixedSalary! | number }}円</p>
-        <p>パートのときのみ、交通費基本給とは別で交通費を表示</p>
-
-        <button type="button" class="im-btn-soft" (click)="editContractInfo()">勤務状況・雇用契約情報を編集</button>
-
-        <h3>保険情報</h3>
-        <p>標準報酬等級：{{ selectedEmployee.insurance?.currentGrade! }}</p>
-        <p><small>自動計算結果：{{ autoInsuranceGrade ? autoInsuranceGrade : '等級判定不能' }}</small></p>
-        <p>健康保険：{{ getInsuranceStatus(selectedEmployee.insurance?.healthInsurance) }}</p>
-        <p><small>自動計算結果：{{ autoHealthInsuranceRequired ? '加入' : '未加入' }}</small></p>
-        <div *ngIf="selectedEmployee.insurance?.healthInsurance?.joined">
-            <p>健康保険番号：{{ selectedEmployee.insurance?.healthInsurance?.number! }}</p>
-            <p>健康保険取得日：{{ commonService.formatDate(selectedEmployee.insurance?.healthInsurance?.acquiredDate!) }}</p>
-            <p>健康保険喪失日：{{ commonService.formatDate(selectedEmployee.insurance?.healthInsurance?.lostDate!) }}</p>
-            <p>健康保険会社負担率：{{ selectedEmployee.insurance?.healthInsurance?.companyBurdenRate! }}</p>
+<!-- 勤務状況・雇用契約情報 編集モーダル -->
+<div class="employee-edit-modal" *ngIf="contractModalOpen">
+    <div class="employee-edit-modal__panel">
+        <div class="employee-edit-modal__header">
+            <h2>
+                勤務状況・雇用契約情報を編集
+                <span class="employee-edit-modal__employee-id">社員ID：{{ selectedEmployeeId }}</span>
+            </h2>
         </div>
-        <p>介護保険：{{ getInsuranceStatus(selectedEmployee.insurance?.nursingCareInsurance) }}</p>
-        <p><small>自動計算結果：{{ autoNursingCareInsuranceRequired ? '加入' : '未加入' }}</small></p>
-        <div *ngIf="selectedEmployee.insurance?.nursingCareInsurance?.joined">
-            <p>介護保険番号：{{ selectedEmployee.insurance?.nursingCareInsurance?.number! }}</p>
-            <p>介護保険取得日：{{ commonService.formatDate(selectedEmployee.insurance?.nursingCareInsurance?.acquiredDate!) }}
-            </p>
-            <p>介護保険喪失日：{{ commonService.formatDate(selectedEmployee.insurance?.nursingCareInsurance?.lostDate!) }}</p>
-            <p>介護保険会社負担率：{{ selectedEmployee.insurance?.nursingCareInsurance?.companyBurdenRate! }}</p>
-        </div>
-        <p>厚生年金：{{ getInsuranceStatus(selectedEmployee.insurance?.employeePensionInsurance) }}</p>
-        <p><small>自動計算結果：{{ autoPensionInsuranceRequired ? '加入' : '未加入' }}</small></p>
-        <div *ngIf="selectedEmployee.insurance?.employeePensionInsurance?.joined">
-            <p>厚生年金番号：{{ selectedEmployee.insurance?.employeePensionInsurance?.number! }}</p>
-            <p>厚生年金取得日：{{ commonService.formatDate(selectedEmployee.insurance?.employeePensionInsurance?.acquiredDate!)
-                }}</p>
-            <p>厚生年金喪失日：{{ commonService.formatDate(selectedEmployee.insurance?.employeePensionInsurance?.lostDate!) }}
-            </p>
-            <p>厚生年金会社負担率：{{ selectedEmployee.insurance?.employeePensionInsurance?.companyBurdenRate! }}</p>
-        </div>
-
-        <button type="button" class="im-btn-soft" (click)="editInsuranceInfo()">保険情報を編集</button>
-
-        <div>
-            <h3>扶養情報</h3>
-            <div *ngIf="dependents.length > 0">
-                <div *ngFor="let dependent of dependents">
-                    <p>扶養者名前：{{ dependent.name! }}</p>
-                    <p>扶養者生年月日：{{ commonService.formatDate(dependent.birthDate!) }}</p>
-                    <p>扶養者続柄：{{ dependent.relationship! }}</p>
-                    <p>現在の扶養状況：{{ dependent.isDependent! ? '扶養者' : '扶養者ではない' }}</p>
+        <form class="employee-edit-form" [formGroup]="contractForm" (ngSubmit)="submitContractModal()">
+            <div class="employee-edit-grid">
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label">
+                        <label for="detailWorkStatus">勤務状況</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <select id="detailWorkStatus" formControlName="workStatus">
+                            <option *ngFor="let workStatus of WORK_STATUSES" [value]="workStatus">{{ workStatus }}
+                            </option>
+                        </select>
+                        <div class="error">
+                            <p
+                                *ngIf="contractForm.get('workStatus')?.errors?.['required'] && contractForm.get('workStatus')?.touched">
+                                勤務状況は必須です</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="showLeaveTypesField()">
+                    <div class="im-field-row__label">
+                        <label for="detailLeaveTypes">休職種別</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <select id="detailLeaveTypes" formControlName="leaveTypes">
+                            <option value="">休職種別を選択してください</option>
+                            <option *ngFor="let leaveType of LEAVE_TYPES" [value]="leaveType">{{ leaveType }}</option>
+                        </select>
+                        <div class="error">
+                            <p
+                                *ngIf="contractForm.get('leaveTypes')?.errors?.['required'] && contractForm.get('leaveTypes')?.touched">
+                                休職種別は必須です</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="showResignationDateField()">
+                    <div class="im-field-row__label">
+                        <label for="detailResignationDate">退社日</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input id="detailResignationDate" type="date" formControlName="resignationDate">
+                        <div class="error">
+                            <p
+                                *ngIf="contractForm.get('resignationDate')?.errors?.['required'] && contractForm.get('resignationDate')?.touched">
+                                退社日は必須です</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div *ngIf="dependents.length === 0">
-                <p>扶養の登録はありません</p>
+
+            <span class="employee-edit-section-title">《雇用契約情報》</span>
+            <div class="employee-edit-grid" formGroupName="employmentContract">
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label">
+                        <label for="detailEmploymentCategory">雇用区分</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <select id="detailEmploymentCategory" formControlName="employmentCategory">
+                            <option *ngFor="let employmentCategory of EMPLOYMENT_CATEGORIES"
+                                [value]="employmentCategory">{{ employmentCategory }}</option>
+                        </select>
+                        <div class="error">
+                            <p
+                                *ngIf="contractForm.get('employmentContract.employmentCategory')?.errors?.['required'] && contractForm.get('employmentContract.employmentCategory')?.touched">
+                                雇用区分は必須です</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label">
+                        <label for="detailWorkStyle">勤務形態</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <select id="detailWorkStyle" formControlName="workStyle">
+                            <option *ngFor="let workStyle of WORK_STYLES" [value]="workStyle">{{ workStyle }}</option>
+                        </select>
+                        <div class="error">
+                            <p
+                                *ngIf="contractForm.get('employmentContract.workStyle')?.errors?.['required'] && contractForm.get('employmentContract.workStyle')?.touched">
+                                勤務形態は必須です</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label">
+                        <label for="detailOfficeId">事業所</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <select id="detailOfficeId" formControlName="officeId">
+                            <option value="">事業所を選択してください</option>
+                            <option *ngFor="let office of officeNameMap() | keyvalue" [value]="office.key">{{
+                                office.value }}</option>
+                        </select>
+                        <div class="error">
+                            <p
+                                *ngIf="contractForm.get('employmentContract.officeId')?.errors?.['required'] && contractForm.get('employmentContract.officeId')?.touched">
+                                事業所は必須です</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label">
+                        <label for="detailContractedWorkingHoursPerWeek">契約労働時間（週）</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="number" id="detailContractedWorkingHoursPerWeek" min="0"
+                            formControlName="contractedWorkingHoursPerWeek">
+                        <div class="error">
+                            <p
+                                *ngIf="contractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.errors?.['required'] && contractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.touched">
+                                契約労働時間は必須です</p>
+                            <p
+                                *ngIf="contractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.errors?.['min'] && contractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.touched">
+                                0以上で入力してください</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label">
+                        <label for="detailContractedWorkingDaysPerMonth">契約労働日数（月）</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="number" id="detailContractedWorkingDaysPerMonth" min="0"
+                            formControlName="contractedWorkingDaysPerMonth">
+                        <div class="error">
+                            <p
+                                *ngIf="contractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.errors?.['required'] && contractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.touched">
+                                契約労働日数は必須です</p>
+                            <p
+                                *ngIf="contractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.errors?.['min'] && contractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.touched">
+                                0以上で入力してください</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label">
+                        <label for="detailFixedSalary">固定給</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="number" id="detailFixedSalary" min="0" formControlName="fixedSalary">
+                        <div class="error">
+                            <p
+                                *ngIf="contractForm.get('employmentContract.fixedSalary')?.errors?.['required'] && contractForm.get('employmentContract.fixedSalary')?.touched">
+                                固定給は必須です</p>
+                            <p
+                                *ngIf="contractForm.get('employmentContract.fixedSalary')?.errors?.['min'] && contractForm.get('employmentContract.fixedSalary')?.touched">
+                                0以上で入力してください</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="showTransportationExpensesField()">
+                    <div class="im-field-row__label">
+                        <label for="detailTransportationExpenses">通勤手当</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="number" id="detailTransportationExpenses" min="0"
+                            formControlName="transportationExpenses">
+                        <div class="error">
+                            <p
+                                *ngIf="contractForm.get('employmentContract.transportationExpenses')?.errors?.['required'] && contractForm.get('employmentContract.transportationExpenses')?.touched">
+                                通勤手当は必須です</p>
+                            <p
+                                *ngIf="contractForm.get('employmentContract.transportationExpenses')?.errors?.['min'] && contractForm.get('employmentContract.transportationExpenses')?.touched">
+                                0以上で入力してください</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="employee-edit-actions">
+                <button type="submit" class="im-btn-primary">保存</button>
+                <button type="button" class="im-btn-soft" (click)="closeContractModal()">キャンセル</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 保険情報 編集モーダル -->
+<div class="employee-edit-modal" *ngIf="insuranceModalOpen">
+    <div class="employee-edit-modal__panel employee-edit-modal__panel--wide">
+        <div class="employee-edit-modal__header">
+            <h2>
+                保険情報を編集
+                <span class="employee-edit-modal__employee-id">社員ID：{{ selectedEmployeeId }}</span>
+            </h2>
+        </div>
+        <form class="employee-edit-form employee-insurance-form" [formGroup]="insuranceForm"
+            (ngSubmit)="submitInsuranceModal()">
+            <div class="employee-insurance-grade-row">
+                <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                    <div class="im-field-row__label">
+                        <label for="detailCurrentGrade">標準報酬等級</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="number" id="detailCurrentGrade" formControlName="currentGrade">
+                        <p class="employee-detail-field-note">※保険未加入の場合は0で入力してください</p>
+                        <div class="error">
+                            <p
+                                *ngIf="insuranceForm.get('currentGrade')?.errors?.['required'] && insuranceForm.get('currentGrade')?.touched">
+                                標準報酬等級は必須です</p>
+                            <p
+                                *ngIf="insuranceForm.get('currentGrade')?.errors?.['min'] && insuranceForm.get('currentGrade')?.touched">
+                                標準報酬等級は0以上です</p>
+                            <p
+                                *ngIf="insuranceForm.get('currentGrade')?.errors?.['max'] && insuranceForm.get('currentGrade')?.touched">
+                                標準報酬等級は50以下です</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="employee-insurance-form-group" formGroupName="healthInsurance">
+                <label>健康保険</label>
+                <div class="im-radio-group">
+                    <label class="im-radio-option" for="detailHealthJoined1">
+                        <input type="radio" id="detailHealthJoined1" formControlName="joined" value="joined">
+                        <span>加入</span>
+                    </label>
+                    <label class="im-radio-option" for="detailHealthJoined2">
+                        <input type="radio" id="detailHealthJoined2" formControlName="joined" value="notJoined">
+                        <span>未加入</span>
+                    </label>
+                    <label class="im-radio-option" for="detailHealthJoined3">
+                        <input type="radio" id="detailHealthJoined3" formControlName="joined" value="lost">
+                        <span>喪失</span>
+                    </label>
+                </div>
+                <div class="insurance-detail-fields"
+                    [class.insurance-detail-fields--disabled]="insuranceForm.get('healthInsurance.joined')?.value === 'notJoined'">
+                    <div class="employee-insurance-detail-grid">
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label for="detailHealthNumber">健康保険番号</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" id="detailHealthNumber" formControlName="number">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('healthInsurance.number')?.errors?.['required'] && insuranceForm.get('healthInsurance.number')?.touched">
+                                        健康保険番号は必須です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('healthInsurance.number')?.errors?.['pattern'] && insuranceForm.get('healthInsurance.number')?.touched">
+                                        半角で入力してください</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label for="detailHealthAcquiredDate">健康保険取得日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" id="detailHealthAcquiredDate" formControlName="acquiredDate">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('healthInsurance.acquiredDate')?.errors?.['required'] && insuranceForm.get('healthInsurance.acquiredDate')?.touched">
+                                        健康保険取得日は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label for="detailHealthLostDate">健康保険喪失日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" id="detailHealthLostDate" formControlName="lostDate">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('healthInsurance.lostDate')?.errors?.['required'] && insuranceForm.get('healthInsurance.lostDate')?.touched">
+                                        健康保険喪失日は必須です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('healthInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && insuranceForm.get('healthInsurance.lostDate')?.touched">
+                                        健康保険喪失日は取得日より後の日付で入力してください</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label for="detailHealthCompanyBurdenRate">会社負担率（％）</label>
+                            </div>
+                            <div class="im-field-row__control">
+                                <input type="number" id="detailHealthCompanyBurdenRate"
+                                    formControlName="companyBurdenRate">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('healthInsurance.companyBurdenRate')?.errors?.['required'] && insuranceForm.get('healthInsurance.companyBurdenRate')?.touched">
+                                        会社負担率は必須です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('healthInsurance.companyBurdenRate')?.errors?.['min'] && insuranceForm.get('healthInsurance.companyBurdenRate')?.touched">
+                                        会社負担率は0以上です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('healthInsurance.companyBurdenRate')?.errors?.['max'] && insuranceForm.get('healthInsurance.companyBurdenRate')?.touched">
+                                        会社負担率は100以下です</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="employee-insurance-form-group" formGroupName="nursingCareInsurance">
+                <label>介護保険</label>
+                <div class="im-radio-group">
+                    <label class="im-radio-option" for="detailNursingJoined1">
+                        <input type="radio" id="detailNursingJoined1" formControlName="joined"
+                            value="joined"><span>加入</span>
+                    </label>
+                    <label class="im-radio-option" for="detailNursingJoined2">
+                        <input type="radio" id="detailNursingJoined2" formControlName="joined"
+                            value="notJoined"><span>未加入</span>
+                    </label>
+                    <label class="im-radio-option" for="detailNursingJoined3">
+                        <input type="radio" id="detailNursingJoined3" formControlName="joined"
+                            value="lost"><span>喪失</span>
+                    </label>
+                </div>
+                <div class="insurance-detail-fields"
+                    [class.insurance-detail-fields--disabled]="insuranceForm.get('nursingCareInsurance.joined')?.value === 'notJoined'">
+                    <div class="employee-insurance-detail-grid">
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label for="detailNursingNumber">介護保険番号</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" id="detailNursingNumber" formControlName="number">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('nursingCareInsurance.number')?.errors?.['required'] && insuranceForm.get('nursingCareInsurance.number')?.touched">
+                                        介護保険番号は必須です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('nursingCareInsurance.number')?.errors?.['pattern'] && insuranceForm.get('nursingCareInsurance.number')?.touched">
+                                        半角で入力してください</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label for="detailNursingAcquiredDate">介護保険取得日</label>
+                            </div>
+                            <div class="im-field-row__control">
+                                <input type="date" id="detailNursingAcquiredDate" formControlName="acquiredDate">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('nursingCareInsurance.acquiredDate')?.errors?.['required'] && insuranceForm.get('nursingCareInsurance.acquiredDate')?.touched">
+                                        介護保険取得日は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label for="detailNursingLostDate">介護保険喪失日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" id="detailNursingLostDate" formControlName="lostDate">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('nursingCareInsurance.lostDate')?.errors?.['required'] && insuranceForm.get('nursingCareInsurance.lostDate')?.touched">
+                                        介護保険喪失日は必須です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('nursingCareInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && insuranceForm.get('nursingCareInsurance.lostDate')?.touched">
+                                        介護保険喪失日は取得日より後の日付で入力してください</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label
+                                    for="detailNursingCompanyBurdenRate">会社負担率（％）</label></div>
+                            <div class="im-field-row__control">
+                                <input type="number" id="detailNursingCompanyBurdenRate"
+                                    formControlName="companyBurdenRate">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('nursingCareInsurance.companyBurdenRate')?.errors?.['required'] && insuranceForm.get('nursingCareInsurance.companyBurdenRate')?.touched">
+                                        会社負担率は必須です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('nursingCareInsurance.companyBurdenRate')?.errors?.['min'] && insuranceForm.get('nursingCareInsurance.companyBurdenRate')?.touched">
+                                        会社負担率は0以上です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('nursingCareInsurance.companyBurdenRate')?.errors?.['max'] && insuranceForm.get('nursingCareInsurance.companyBurdenRate')?.touched">
+                                        会社負担率は100以下です</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="employee-insurance-form-group" formGroupName="employeePensionInsurance">
+                <label>厚生年金</label>
+                <div class="im-radio-group">
+                    <label class="im-radio-option" for="detailPensionJoined1">
+                        <input type="radio" id="detailPensionJoined1" formControlName="joined"
+                            value="joined"><span>加入</span>
+                    </label>
+                    <label class="im-radio-option" for="detailPensionJoined2">
+                        <input type="radio" id="detailPensionJoined2" formControlName="joined"
+                            value="notJoined"><span>未加入</span>
+                    </label>
+                    <label class="im-radio-option" for="detailPensionJoined3">
+                        <input type="radio" id="detailPensionJoined3" formControlName="joined"
+                            value="lost"><span>喪失</span>
+                    </label>
+                </div>
+                <div class="insurance-detail-fields"
+                    [class.insurance-detail-fields--disabled]="insuranceForm.get('employeePensionInsurance.joined')?.value === 'notJoined'">
+                    <div class="employee-insurance-detail-grid">
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label for="detailPensionNumber">厚生年金番号</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" id="detailPensionNumber" formControlName="number">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('employeePensionInsurance.number')?.errors?.['required'] && insuranceForm.get('employeePensionInsurance.number')?.touched">
+                                        厚生年金番号は必須です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('employeePensionInsurance.number')?.errors?.['pattern'] && insuranceForm.get('employeePensionInsurance.number')?.touched">
+                                        半角で入力してください</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label for="detailPensionAcquiredDate">厚生年金取得日</label>
+                            </div>
+                            <div class="im-field-row__control">
+                                <input type="date" id="detailPensionAcquiredDate" formControlName="acquiredDate">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('employeePensionInsurance.acquiredDate')?.errors?.['required'] && insuranceForm.get('employeePensionInsurance.acquiredDate')?.touched">
+                                        厚生年金取得日は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label for="detailPensionLostDate">厚生年金喪失日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" id="detailPensionLostDate" formControlName="lostDate">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('employeePensionInsurance.lostDate')?.errors?.['required'] && insuranceForm.get('employeePensionInsurance.lostDate')?.touched">
+                                        厚生年金喪失日は必須です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('employeePensionInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && insuranceForm.get('employeePensionInsurance.lostDate')?.touched">
+                                        厚生年金喪失日は取得日より後の日付で入力してください</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label
+                                    for="detailPensionCompanyBurdenRate">会社負担率（％）</label></div>
+                            <div class="im-field-row__control">
+                                <input type="number" id="detailPensionCompanyBurdenRate"
+                                    formControlName="companyBurdenRate">
+                                <div class="error">
+                                    <p
+                                        *ngIf="insuranceForm.get('employeePensionInsurance.companyBurdenRate')?.errors?.['required'] && insuranceForm.get('employeePensionInsurance.companyBurdenRate')?.touched">
+                                        会社負担率は必須です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('employeePensionInsurance.companyBurdenRate')?.errors?.['min'] && insuranceForm.get('employeePensionInsurance.companyBurdenRate')?.touched">
+                                        会社負担率は0以上です</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('employeePensionInsurance.companyBurdenRate')?.errors?.['max'] && insuranceForm.get('employeePensionInsurance.companyBurdenRate')?.touched">
+                                        会社負担率は100以下です</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="employee-detail-auto-calc">
+                <h3>自動計算結果</h3>
+                <p>標準報酬等級：{{ modalAutoInsuranceGrade ?? '等級判定不能' }}</p>
+                <p>健康保険：{{ modalAutoInsuranceJudgement?.isHealthInsuranceRequired ? '加入' : '未加入' }}</p>
+                <p>介護保険：{{ modalAutoInsuranceJudgement?.isNursingCareInsuranceRequired ? '加入' : '未加入' }}</p>
+                <p>厚生年金：{{ modalAutoInsuranceJudgement?.isPensionInsuranceRequired ? '加入' : '未加入' }}</p>
+            </div>
+
+            <div class="employee-edit-actions">
+                <button type="submit" class="im-btn-primary">保存</button>
+                <button type="button" class="im-btn-soft" (click)="closeInsuranceModal()">キャンセル</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 扶養情報 編集モーダル -->
+<div class="employee-edit-modal" *ngIf="dependentModalOpen">
+    <div class="employee-edit-modal__panel employee-edit-modal__panel--wide">
+        <div class="employee-edit-modal__header">
+            <h2>
+                扶養情報を編集
+                <span class="employee-edit-modal__employee-id">社員ID：{{ selectedEmployeeId }}</span>
+            </h2>
+        </div>
+        <form class="employee-edit-form" [formGroup]="dependentForm" (ngSubmit)="submitDependentModal()">
+            <div class="employee-dependent-list" formArrayName="dependents">
+                <div class="employee-dependent-row" *ngFor="let dependent of dependentsArray.controls; let i = index"
+                    [formGroupName]="i">
+                    <div class="employee-dependent-row__fields">
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'detailDependentName' + i">扶養者名前</label>
+                            </div>
+                            <div class="im-field-row__control">
+                                <input type="text" [id]="'detailDependentName' + i" formControlName="name">
+                                <div class="error">
+                                    <p
+                                        *ngIf="dependent.get('name')?.errors?.['required'] && dependent.get('name')?.touched">
+                                        扶養者名前は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'detailDependentBirthDate' + i">生年月日</label>
+                            </div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'detailDependentBirthDate' + i" formControlName="birthDate">
+                                <div class="error">
+                                    <p
+                                        *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">
+                                        生年月日は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'detailDependentRelationship' + i">続柄</label>
+                            </div>
+                            <div class="im-field-row__control">
+                                <select [id]="'detailDependentRelationship' + i" formControlName="relationship">
+                                    <option value="">続柄を選択してください</option>
+                                    <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{
+                                        relationship }}</option>
+                                </select>
+                                <div class="error">
+                                    <p
+                                        *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">
+                                        続柄は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide employee-dependent-status-field"
+                            *ngIf="isExistingDependentRow(i)">
+                            <div class="im-field-row__label"><span>現在の扶養状況</span></div>
+                            <div class="im-field-row__control">
+                                <div class="im-radio-group">
+                                    <label class="im-radio-option" [for]="'detailDependentStatus1_' + i">
+                                        <input type="radio" [id]="'detailDependentStatus1_' + i"
+                                            formControlName="isDependentStatus" value="dependent">
+                                        <span>扶養対象</span>
+                                    </label>
+                                    <label class="im-radio-option" [for]="'detailDependentStatus2_' + i">
+                                        <input type="radio" [id]="'detailDependentStatus2_' + i"
+                                            formControlName="isDependentStatus" value="notDependent">
+                                        <span>扶養対象外</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="im-btn-soft" *ngIf="!isExistingDependentRow(i)"
+                        (click)="removeNewDependent(i)">削除</button>
+                </div>
+            </div>
+            <button type="button" class="im-btn-soft employee-detail-add-dependent"
+                (click)="addNewDependentRow()">扶養情報を追加</button>
+
+            <div class="employee-edit-actions">
+                <button type="submit" class="im-btn-primary">保存</button>
+                <button type="button" class="im-btn-soft" (click)="closeDependentModal()">キャンセル</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 固定給変更 承認モーダル -->
+<div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'fixedSalary' && fixedSalaryDraft">
+    <div class="employee-edit-modal__panel employee-approval-modal">
+        <div class="employee-edit-modal__header">
+            <h2>固定給変更の承認</h2>
+        </div>
+        <div class="employee-approval-modal__body">
+            <dl class="employee-detail-info-grid">
+                <div class="employee-detail-info-grid__item">
+                    <dt>現在の等級</dt>
+                    <dd>{{ fixedSalaryDraft.currentGrade }}</dd>
+                </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>変更後（自動計算）</dt>
+                    <dd>{{ fixedSalaryDraft.revisionLabel }}</dd>
+                </div>
+            </dl>
+            <div class="im-field-block im-field-row employee-edit-field" *ngIf="fixedSalaryDraft.canRevise">
+                <div class="im-field-row__label"><label for="approvalGrade">承認等級</label></div>
+                <div class="im-field-row__control">
+                    <input id="approvalGrade" type="number" min="0" max="50"
+                        [(ngModel)]="fixedSalaryDraft.approvedGrade">
+                </div>
             </div>
         </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-primary" (click)="confirmApprovalModal()">承認</button>
+            <button type="button" class="im-btn-soft" (click)="rejectApprovalModal()">却下</button>
+            <button type="button" class="im-btn-soft" (click)="cancelApprovalModal()">キャンセル</button>
+        </div>
+    </div>
+</div>
 
-        <button type="button" class="im-btn-soft" (click)="editDependentInfo()">扶養情報を編集</button>
+<!-- 雇用形態変更（保険） 承認モーダル -->
+<div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'insurance' && insuranceDraft">
+    <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
+        <div class="employee-edit-modal__header">
+            <h2>雇用形態変更の承認（保険）</h2>
+        </div>
+        <div class="employee-approval-modal__body">
+            <dl class="employee-detail-info-grid">
+                <div class="employee-detail-info-grid__item">
+                    <dt>現在の等級</dt>
+                    <dd>{{ insuranceDraft.currentGrade }}</dd>
+                </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>変更後（自動計算）</dt>
+                    <dd>{{ insuranceDraft.autoGrade ?? '判定不能' }}</dd>
+                </div>
+            </dl>
+            <div class="im-field-block im-field-row employee-edit-field">
+                <div class="im-field-row__label"><label for="insuranceApprovalGrade">承認等級</label></div>
+                <div class="im-field-row__control">
+                    <input id="insuranceApprovalGrade" type="number" min="0" max="50"
+                        [(ngModel)]="insuranceDraft.approvedGrade">
+                </div>
+            </div>
 
-        <p>表示情報と計算結果が違う場合、アラート表示。適用するか確認するダイアログを表示。</p>
+            <div class="employee-approval-insurance-block">
+                <h3>健康保険</h3>
+                <p class="employee-approval-insurance-compare">
+                    現在：{{ getInsuranceStatusLabel(insuranceDraft.currentHealthStatus) }}
+                    → 自動計算：{{ getInsuranceStatusLabel(insuranceDraft.healthStatus) }}
+                </p>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><span>変更後</span></div>
+                    <div class="im-field-row__control">
+                        <select [(ngModel)]="insuranceDraft.healthStatus">
+                            <option value="joined">加入</option>
+                            <option value="notJoined">未加入</option>
+                            <option value="lost">喪失</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.healthStatus === 'joined'">
+                    <div class="im-field-row__label"><label for="healthAcquiredDate">取得日</label></div>
+                    <div class="im-field-row__control">
+                        <input id="healthAcquiredDate" type="date" [(ngModel)]="insuranceDraft.healthAcquiredDate">
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.healthStatus === 'lost'">
+                    <div class="im-field-row__label"><label for="healthLostDate">喪失日</label></div>
+                    <div class="im-field-row__control">
+                        <input id="healthLostDate" type="date" [(ngModel)]="insuranceDraft.healthLostDate">
+                    </div>
+                </div>
+            </div>
+
+            <div class="employee-approval-insurance-block">
+                <h3>介護保険</h3>
+                <p class="employee-approval-insurance-compare">
+                    現在：{{ getInsuranceStatusLabel(insuranceDraft.currentNursingStatus) }}
+                    → 自動計算：{{ getInsuranceStatusLabel(insuranceDraft.nursingStatus) }}
+                </p>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><span>変更後</span></div>
+                    <div class="im-field-row__control">
+                        <select [(ngModel)]="insuranceDraft.nursingStatus">
+                            <option value="joined">加入</option>
+                            <option value="notJoined">未加入</option>
+                            <option value="lost">喪失</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.nursingStatus === 'joined'">
+                    <div class="im-field-row__label"><label for="nursingAcquiredDate">取得日</label></div>
+                    <div class="im-field-row__control">
+                        <input id="nursingAcquiredDate" type="date" [(ngModel)]="insuranceDraft.nursingAcquiredDate">
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.nursingStatus === 'lost'">
+                    <div class="im-field-row__label"><label for="nursingLostDate">喪失日</label></div>
+                    <div class="im-field-row__control">
+                        <input id="nursingLostDate" type="date" [(ngModel)]="insuranceDraft.nursingLostDate">
+                    </div>
+                </div>
+            </div>
+
+            <div class="employee-approval-insurance-block">
+                <h3>厚生年金</h3>
+                <p class="employee-approval-insurance-compare">
+                    現在：{{ getInsuranceStatusLabel(insuranceDraft.currentPensionStatus) }}
+                    → 自動計算：{{ getInsuranceStatusLabel(insuranceDraft.pensionStatus) }}
+                </p>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><span>変更後</span></div>
+                    <div class="im-field-row__control">
+                        <select [(ngModel)]="insuranceDraft.pensionStatus">
+                            <option value="joined">加入</option>
+                            <option value="notJoined">未加入</option>
+                            <option value="lost">喪失</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.pensionStatus === 'joined'">
+                    <div class="im-field-row__label"><label for="pensionAcquiredDate">取得日</label></div>
+                    <div class="im-field-row__control">
+                        <input id="pensionAcquiredDate" type="date" [(ngModel)]="insuranceDraft.pensionAcquiredDate">
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.pensionStatus === 'lost'">
+                    <div class="im-field-row__label"><label for="pensionLostDate">喪失日</label></div>
+                    <div class="im-field-row__control">
+                        <input id="pensionLostDate" type="date" [(ngModel)]="insuranceDraft.pensionLostDate">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-primary" (click)="confirmApprovalModal()">承認</button>
+            <button type="button" class="im-btn-soft" (click)="rejectApprovalModal()">却下</button>
+            <button type="button" class="im-btn-soft" (click)="cancelApprovalModal()">キャンセル</button>
+        </div>
+    </div>
+</div>

@@ -20,6 +20,7 @@ import { CalculationBasePendingList } from './componect/calculation/calculation-
 import { HireEntry } from './componect/employee/hire-entry/hire-entry';
 import { RetireEntry } from './componect/employee/retire-entry/retire-entry';
 import { ReachAge } from './componect/employee/reach-age/reach-age';
+import { SystemApplicationList } from './componect/employee/system-application-list/system-application-list';
 
 export const routes: Routes = [
     { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -54,6 +55,7 @@ export const routes: Routes = [
     { path: 'insurance-for-bonus/:payrollId', component: InsuranceForBonus , title: '賞与保険料確認 ｜ 社会保険管理システム'},
     { path: 'calculation-base-pending-list', component: CalculationBasePendingList , title: '算定基礎反映待ち一覧 ｜ 社会保険管理システム'},
     { path: 'reach-age', component: ReachAge , title: '年齢到達一括検索 ｜ 社会保険管理システム'},
+    { path: 'system-application-list', component: SystemApplicationList , title: '今月の申請一覧（システム） ｜ 社会保険管理システム'},
 
     { path: '**', redirectTo: '/login' }
 ];

@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, computed, inject } from '@angular/core';
-import { AbstractControl, FormArray, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Timestamp } from '@angular/fire/firestore';
 import { CREATE_MESSAGES } from '../../../constants/constants';
@@ -92,15 +92,17 @@ export class HireEntry {
         companyBurdenRate: [50],
       }),
     }),
-    dependents: this.fb.array([
-      this.createDependentForm(),
-    ]),
+    dependents: this.fb.array<FormGroup>([]),
   });
 
   async ngOnInit() {
     // プルダウン表示と社員ID重複チェックに使うマスタを読み込む
     await this.officeService.getAllOffice();
     await this.employeeService.getAllEmployees(true);
+
+    if (this.dependents.length === 0) {
+      this.addDependent();
+    }
 
     // 加入判定では会社が特定適用事業所かどうかを使う
     this.isSpecificApplicableOffice = await this.companyService.isSpecificApplicableOffice();
@@ -206,6 +208,10 @@ export class HireEntry {
     }
   }
 
+  getDependentControl(index: number, fieldName: string): AbstractControl | null {
+    return this.dependents.at(index).get(fieldName);
+  }
+
   // 従業員データを作る
   private createEmployee(): Partial<Employee> {
     // 登録保存用の従業員データを作る
@@ -292,11 +298,20 @@ export class HireEntry {
 
   // 扶養情報のFormGroupを作る
   private createDependentForm() {
-    // 扶養情報は1行でも入力があれば、その行の必須チェックを有効にする
-    return this.fb.nonNullable.group({
-      name: ['', [this.requiredIfAnyDependentFieldEntered.bind(this)]],
-      birthDate: ['', [this.requiredIfAnyDependentFieldEntered.bind(this)]],
-      relationship: ['' as Relationship | '', [this.requiredIfAnyDependentFieldEntered.bind(this)]],
+    const group = this.fb.nonNullable.group({
+      name: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      birthDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      relationship: ['' as Relationship | '', [this.validationService.requiredIfAnyDependentFieldEntered]],
+    });
+    this.setupDependentRowValidation(group);
+    return group;
+  }
+
+  private setupDependentRowValidation(group: FormGroup) {
+    (['name', 'birthDate', 'relationship'] as const).forEach(fieldName => {
+      group.get(fieldName)?.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.validationService.refreshDependentRowValidation(group));
     });
   }
 
@@ -475,20 +490,6 @@ export class HireEntry {
       this.dependents.removeAt(0);
     }
     this.addDependent();
-  }
-
-  // 扶養情報の必須チェックを切り替える
-  private requiredIfAnyDependentFieldEntered(control: AbstractControl): ValidationErrors | null {
-    // 扶養行の一部だけ入力された場合、残りの項目も必須にする
-    const parent = control.parent;
-    if (!parent) return null;
-    const name = parent.get('name')?.value;
-    const birthDate = parent.get('birthDate')?.value;
-    const relationship = parent.get('relationship')?.value;
-    const hasAnyValue = Boolean(name || birthDate || relationship);
-
-    return hasAnyValue && !control.value ? { required: true } : null;
-    
   }
 
   // 通勤手当の入力可否を判定する

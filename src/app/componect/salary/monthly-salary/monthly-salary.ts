@@ -12,6 +12,7 @@ import { MonthlySalaryCSV } from '../monthly-salary-csv/monthly-salary-csv';
 import { SalaryList } from '../salary-list/salary-list';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { EmployeeService } from '../../../service/Firestore/employee-service';
 
 @Component({
   selector: 'app-monthly-salary',
@@ -29,6 +30,7 @@ export class MonthlySalary {
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  private employeeService = inject(EmployeeService);
 
   companyId = sessionStorage.getItem('companyId');
   workingYear = Number(sessionStorage.getItem('workingYear'));
@@ -224,6 +226,12 @@ export class MonthlySalary {
     };
 
     const employeeId = this.form.value.employeeId!;
+    const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
+    if (this.employeeService.isRetired(employee)) {
+      this.message = `社員ID ${employeeId} は退社済みのため、給与入力の対象外です`;
+      return;
+    }
+
     const existingPayroll = await this.payrollService.getPayroll(employeeId, salary);
     if (existingPayroll) {
       this.message = `社員ID ${employeeId} の同じ対象月の給与・勤務実績は既に登録済みです`;

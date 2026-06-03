@@ -1,0 +1,296 @@
+<h1>今月の申請一覧（システム）</h1>
+
+<div class="information-area">
+    <p>{{ workingYear }}年{{ workingMonth }}月作業分以前の、申請中イベントを一覧表示します。</p>
+</div>
+
+<p *ngIf="message" class="im-action-message">{{ message }}</p>
+
+<!-- 一定年齢到達 -->
+<section class="employee-detail-section employee-detail-events">
+    <div class="system-application-section-header">
+        <h2>一定年齢到達</h2>
+        <button type="button" class="im-btn-soft" (click)="searchReachAge()">年齢到達一括検出</button>
+    </div>
+    <p *ngIf="reachAgeMessage" class="im-action-message">{{ reachAgeMessage }}</p>
+    <div *ngIf="reachAgeEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
+    <ng-container *ngIf="reachAgeEvents.length > 0">
+        <div class="employee-detail-events-table-wrap">
+            <table class="employee-detail-events-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>操作</th>
+                        <th>社員ID</th>
+                        <th>氏名</th>
+                        <th>イベントID</th>
+                        <th>到達年齢</th>
+                        <th>申請日</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let event of reachAgeEvents">
+                        <td>
+                            <input type="checkbox" [checked]="selectedReachAge.has(getEventKey(event))"
+                                (change)="toggleReachAge(event, $any($event.target).checked)">
+                        </td>
+                        <td class="employee-detail-events-table__actions">
+                            <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveEvent(event)">承認</button>
+                            <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectEvent(event)">却下</button>
+                        </td>
+                        <td>{{ event.employeeId }}</td>
+                        <td>
+                            <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                                {{ getEmployeeName(event.employeeId) }}
+                            </a>
+                        </td>
+                        <td>{{ event.eventId }}</td>
+                        <td>{{ event.reachAgeType }}</td>
+                        <td>{{ commonService.formatDate(event.appliedDate) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="system-application-bulk-actions">
+            <div class="system-application-bulk-actions__left">
+                <button type="button" class="im-btn-soft" (click)="toggleAllReachAgeClear()">全選択解除</button>
+                <button type="button" class="im-btn-soft" (click)="toggleAllReachAge()">全選択</button>
+            </div>
+            <div class="system-application-bulk-actions__right">
+                <button type="button" class="im-btn-primary" (click)="bulkApproveReachAge()">選択済みを一括承認</button>
+            </div>
+        </div>
+    </ng-container>
+</section>
+
+<!-- 随時改定（固定給変更） -->
+<section class="employee-detail-section employee-detail-events">
+    <h2>随時改定（固定給変更）</h2>
+    <div *ngIf="fixedSalaryEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
+    <div *ngIf="fixedSalaryEvents.length > 0" class="employee-detail-events-table-wrap">
+        <table class="employee-detail-events-table">
+            <thead>
+                <tr>
+                    <th>操作</th>
+                    <th>社員ID</th>
+                    <th>氏名</th>
+                    <th>イベントID</th>
+                    <th>申請日</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let event of fixedSalaryEvents">
+                    <td class="employee-detail-events-table__actions">
+                        <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveEvent(event)">承認</button>
+                        <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectEvent(event)">却下</button>
+                    </td>
+                    <td>{{ event.employeeId }}</td>
+                    <td>
+                        <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                            {{ getEmployeeName(event.employeeId) }}
+                        </a>
+                    </td>
+                    <td>{{ event.eventId }}</td>
+                    <td>{{ commonService.formatDate(event.appliedDate) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- 退社処理 -->
+<section class="employee-detail-section employee-detail-events">
+    <h2>退社処理</h2>
+    <div *ngIf="retireEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
+    <ng-container *ngIf="retireEvents.length > 0">
+        <div class="employee-detail-events-table-wrap">
+            <table class="employee-detail-events-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>操作</th>
+                        <th>社員ID</th>
+                        <th>氏名</th>
+                        <th>イベントID</th>
+                        <th>退社予定日</th>
+                        <th>申請日</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let event of retireEvents">
+                        <td>
+                            <input type="checkbox" [checked]="selectedRetire.has(getEventKey(event))"
+                                (change)="toggleRetire(event, $any($event.target).checked)">
+                        </td>
+                        <td class="employee-detail-events-table__actions">
+                            <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveEvent(event)">承認</button>
+                            <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectEvent(event)">却下</button>
+                        </td>
+                        <td>{{ event.employeeId }}</td>
+                        <td>
+                            <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                                {{ getEmployeeName(event.employeeId) }}
+                            </a>
+                        </td>
+                        <td>{{ event.eventId }}</td>
+                        <td>{{ commonService.formatDate(event.occurredDate) }}</td>
+                        <td>{{ commonService.formatDate(event.appliedDate) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="system-application-bulk-actions">
+            <div class="system-application-bulk-actions__left">
+                <button type="button" class="im-btn-soft" (click)="toggleAllRetireClear()">全選択解除</button>
+                <button type="button" class="im-btn-soft" (click)="toggleAllRetire()">全選択</button>
+            </div>
+            <div class="system-application-bulk-actions__right">
+                <button type="button" class="im-btn-primary" (click)="bulkApproveRetire()">選択済みを一括承認</button>
+            </div>
+        </div>
+    </ng-container>
+</section>
+
+<!-- その他 -->
+<section class="employee-detail-section employee-detail-events">
+    <h2>その他</h2>
+    <div *ngIf="otherEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
+    <div *ngIf="otherEvents.length > 0" class="employee-detail-events-table-wrap">
+        <table class="employee-detail-events-table">
+            <thead>
+                <tr>
+                    <th>操作</th>
+                    <th>社員ID</th>
+                    <th>氏名</th>
+                    <th>イベントID</th>
+                    <th>種別</th>
+                    <th>申請日</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let event of otherEvents">
+                    <td class="employee-detail-events-table__actions">
+                        <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveEvent(event)">承認</button>
+                        <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectEvent(event)">却下</button>
+                    </td>
+                    <td>{{ event.employeeId }}</td>
+                    <td>
+                        <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                            {{ getEmployeeName(event.employeeId) }}
+                        </a>
+                    </td>
+                    <td>{{ event.eventId }}</td>
+                    <td>{{ event.eventType }}</td>
+                    <td>{{ commonService.formatDate(event.appliedDate) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- 承認モーダル（従業員詳細と同じ） -->
+<div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'fixedSalary' && fixedSalaryDraft">
+    <div class="employee-edit-modal__panel employee-approval-modal">
+        <div class="employee-edit-modal__header"><h2>固定給変更の承認</h2></div>
+        <div class="employee-approval-modal__body">
+            <dl class="employee-detail-info-grid">
+                <div class="employee-detail-info-grid__item"><dt>現在の等級</dt><dd>{{ fixedSalaryDraft.currentGrade }}</dd></div>
+                <div class="employee-detail-info-grid__item"><dt>変更後（自動計算）</dt><dd>{{ fixedSalaryDraft.revisionLabel }}</dd></div>
+            </dl>
+            <div class="im-field-block im-field-row employee-edit-field" *ngIf="fixedSalaryDraft.canRevise">
+                <div class="im-field-row__label"><label for="sysApprovalGrade">承認等級</label></div>
+                <div class="im-field-row__control">
+                    <input id="sysApprovalGrade" type="number" min="0" max="50" [(ngModel)]="fixedSalaryDraft.approvedGrade">
+                </div>
+            </div>
+        </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-primary" (click)="confirmApprovalModal()">承認</button>
+            <button type="button" class="im-btn-soft" (click)="rejectApprovalModal()">却下</button>
+            <button type="button" class="im-btn-soft" (click)="cancelApprovalModal()">キャンセル</button>
+        </div>
+    </div>
+</div>
+
+<div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'insurance' && insuranceDraft">
+    <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
+        <div class="employee-edit-modal__header"><h2>雇用形態変更の承認（保険）</h2></div>
+        <div class="employee-approval-modal__body">
+            <dl class="employee-detail-info-grid">
+                <div class="employee-detail-info-grid__item"><dt>現在の等級</dt><dd>{{ insuranceDraft.currentGrade }}</dd></div>
+                <div class="employee-detail-info-grid__item"><dt>変更後（自動計算）</dt><dd>{{ insuranceDraft.autoGrade ?? '判定不能' }}</dd></div>
+            </dl>
+            <div class="im-field-block im-field-row employee-edit-field">
+                <div class="im-field-row__label"><label for="sysInsuranceGrade">承認等級</label></div>
+                <div class="im-field-row__control">
+                    <input id="sysInsuranceGrade" type="number" min="0" max="50" [(ngModel)]="insuranceDraft.approvedGrade">
+                </div>
+            </div>
+            <div class="employee-approval-insurance-block">
+                <h3>健康保険</h3>
+                <p class="employee-approval-insurance-compare">現在：{{ getInsuranceStatusLabel(insuranceDraft.currentHealthStatus) }} → 自動計算：{{ getInsuranceStatusLabel(insuranceDraft.healthStatus) }}</p>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><span>変更後</span></div>
+                    <div class="im-field-row__control">
+                        <select [(ngModel)]="insuranceDraft.healthStatus">
+                            <option value="joined">加入</option><option value="notJoined">未加入</option><option value="lost">喪失</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.healthStatus === 'joined'">
+                    <div class="im-field-row__label"><label>取得日</label></div>
+                    <div class="im-field-row__control"><input type="date" [(ngModel)]="insuranceDraft.healthAcquiredDate"></div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.healthStatus === 'lost'">
+                    <div class="im-field-row__label"><label>喪失日</label></div>
+                    <div class="im-field-row__control"><input type="date" [(ngModel)]="insuranceDraft.healthLostDate"></div>
+                </div>
+            </div>
+            <div class="employee-approval-insurance-block">
+                <h3>介護保険</h3>
+                <p class="employee-approval-insurance-compare">現在：{{ getInsuranceStatusLabel(insuranceDraft.currentNursingStatus) }} → 自動計算：{{ getInsuranceStatusLabel(insuranceDraft.nursingStatus) }}</p>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><span>変更後</span></div>
+                    <div class="im-field-row__control">
+                        <select [(ngModel)]="insuranceDraft.nursingStatus">
+                            <option value="joined">加入</option><option value="notJoined">未加入</option><option value="lost">喪失</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.nursingStatus === 'joined'">
+                    <div class="im-field-row__label"><label>取得日</label></div>
+                    <div class="im-field-row__control"><input type="date" [(ngModel)]="insuranceDraft.nursingAcquiredDate"></div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.nursingStatus === 'lost'">
+                    <div class="im-field-row__label"><label>喪失日</label></div>
+                    <div class="im-field-row__control"><input type="date" [(ngModel)]="insuranceDraft.nursingLostDate"></div>
+                </div>
+            </div>
+            <div class="employee-approval-insurance-block">
+                <h3>厚生年金</h3>
+                <p class="employee-approval-insurance-compare">現在：{{ getInsuranceStatusLabel(insuranceDraft.currentPensionStatus) }} → 自動計算：{{ getInsuranceStatusLabel(insuranceDraft.pensionStatus) }}</p>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><span>変更後</span></div>
+                    <div class="im-field-row__control">
+                        <select [(ngModel)]="insuranceDraft.pensionStatus">
+                            <option value="joined">加入</option><option value="notJoined">未加入</option><option value="lost">喪失</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.pensionStatus === 'joined'">
+                    <div class="im-field-row__label"><label>取得日</label></div>
+                    <div class="im-field-row__control"><input type="date" [(ngModel)]="insuranceDraft.pensionAcquiredDate"></div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="insuranceDraft.pensionStatus === 'lost'">
+                    <div class="im-field-row__label"><label>喪失日</label></div>
+                    <div class="im-field-row__control"><input type="date" [(ngModel)]="insuranceDraft.pensionLostDate"></div>
+                </div>
+            </div>
+        </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-primary" (click)="confirmApprovalModal()">承認</button>
+            <button type="button" class="im-btn-soft" (click)="rejectApprovalModal()">却下</button>
+            <button type="button" class="im-btn-soft" (click)="cancelApprovalModal()">キャンセル</button>
+        </div>
+    </div>
+</div>
