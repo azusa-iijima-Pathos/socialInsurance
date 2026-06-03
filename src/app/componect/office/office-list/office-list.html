@@ -1,0 +1,26 @@
+<p class="im-action-message office-delete-message">{{ deleteMessage }}</p>
+
+<div class="im-page-container__content__table office-list-table">
+    <div class="office-empty-message" *ngIf="allOffices().length === 0">
+        <p>事業所が登録されていません</p>
+    </div>
+
+    <table *ngIf="allOffices().length > 0">
+        <thead>
+            <tr>
+                <th>事業所名</th>
+                <th>所在地</th>
+                <th>登録日</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr *ngFor="let office of allOffices()">
+                <td>{{ office.name }}</td>
+                <td>{{ office.prefecture }}</td>
+                <td>{{ commonService.formatDate(office.createdAt) }}</td>
+                <td><button class="im-btn-soft im-btn-soft--danger" (click)="deleteOffice(office)">削除</button></td>
+            </tr>
+        </tbody>
+    </table>
+</div>

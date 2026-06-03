@@ -1,0 +1,72 @@
+<h2>退職処理</h2>
+
+<div class="information-area">
+    <p>退職もしくは退職予定処理を行う従業員を選択してください。</p>
+    <p>退職予定の場合、退職後に承認一覧から退職承認を行ってください。</p>
+</div>
+
+<p *ngIf="message" class="im-action-message">{{ message }}</p>
+
+<div class="retire-entry-form">
+    <form [formGroup]="form" (ngSubmit)="registerRetireEntry()">
+        <div class="im-field-block im-field-row">
+            <div class="im-field-row__label">
+                <label for="employeeId">社員ID（半角）</label>
+            </div>
+            <div class="im-field-row__control">
+                <input type="text" id="employeeId" formControlName="employeeId">
+                <div class="error">
+                    <p *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">社員IDは必須です
+                    </p>
+                    <p *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">
+                        半角で入力してください</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="im-field-block im-field-row">
+            <div class="im-field-row__label">
+                <label for="name">氏名</label>
+            </div>
+            <div class="im-field-row__control">
+                <p>{{ commonService.getEmployeeName(form.get('employeeId')?.value ?? '') }}</p>
+            </div>
+        </div>
+
+        <div class="im-field-block im-field-row">
+            <div class="im-field-row__label">
+                <label for="workStatus">退職</label>
+            </div>
+            <div class="im-field-row__control">
+                <label for="workStatus1">
+                    <input type="radio" id="workStatus1" formControlName="workStatus" value="退社予定">
+                    退社予定</label>
+                <label for="workStatus2">
+                    <input type="radio" id="workStatus2" formControlName="workStatus" value="退社済み">
+                    退社済み</label>
+            </div>
+        </div>
+
+        <div class="im-field-block im-field-row">
+            <div class="im-field-row__label">
+                <label for="occurredDate">退職日(退社予定日)</label>
+            </div>
+            <div class="im-field-row__control">
+                <input type="date" id="occurredDate" formControlName="occurredDate">
+            </div>
+            <div class="error">
+                <p *ngIf="form.get('occurredDate')?.errors?.['required'] && form.get('occurredDate')?.touched">退職日は必須です
+                </p>
+                <p
+                    *ngIf="form.errors?.['retireDateInvalid'] && form.get('occurredDate')?.touched && form.get('workStatus')?.value === '退社予定'">
+                    退職予定日は今日以降の日付にしてください
+                </p>
+                <p
+                    *ngIf="form.errors?.['retireDateInvalid'] && form.get('occurredDate')?.touched && form.get('workStatus')?.value === '退社済み'">
+                    退職済み日は今日以前の日付にしてください
+                </p>
+            </div>
+        </div>
+        <button type="submit" class="im-btn-soft">登録</button>
+    </form>
+</div>

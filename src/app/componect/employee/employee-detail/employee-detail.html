@@ -1,0 +1,91 @@
+<div class="employee-detail-layout">
+    <h1>従業員詳細</h1>
+
+    <div class="information-area">
+        <p>既存社員の保険情報を表示します。</p>
+        <p>下の検索フォームから社員を選択し、検索ボタンを押下してください。</p>
+    </div>
+
+    <!-- 検索（IDか名前） -->
+    <select [(ngModel)]="selectedEmployeeId">
+        <option value="">従業員を選択してください</option>
+        <option *ngFor="let employee of employeeMap() | keyvalue" [value]="employee.key">
+            {{ employee.key }}：{{ employee.value }}
+        </option>
+    </select>
+    <button type="button" (click)="selectEmployee()">検索</button>
+
+    <!-- 検索結果 -->
+    <p *ngIf="message">{{ message }}</p>
+
+    <div *ngIf="selectedEmployee">
+        <h3>基本情報</h3>
+        <p>社員ID：{{ selectedEmployee.employeeId! }}</p>
+        <p>姓：{{ selectedEmployee.firstName! }}</p>
+        <p>名：{{ selectedEmployee.lastName! }}</p>
+        <p>年齢：{{ commonService.calculateAge(selectedEmployee.birthDate!) }}</p>
+        <p>生年月日：{{ commonService.formatDate(selectedEmployee.birthDate!) }}</p>
+        <p>入社日：{{ commonService.formatDate(selectedEmployee.hireDate!) }}</p>
+        <p>勤務状況：{{ selectedEmployee.workStatus! }}</p>
+        <p><strong>雇用契約情報</strong></p>
+        <p>雇用形態：{{ selectedEmployee.employmentContract?.employmentCategory! }}</p>
+        <p>勤務形態：{{ selectedEmployee.employmentContract?.workStyle! }}</p>
+        <p>事業所：{{ commonService.getOfficeName(selectedEmployee.employmentContract?.officeId!)! }}</p>
+        <p>週労働時間：{{ selectedEmployee.employmentContract?.contractedWorkingHoursPerWeek! }}時間</p>
+        <p>月労働日数：{{ selectedEmployee.employmentContract?.contractedWorkingDaysPerMonth! }}日</p>
+        <p>基本給：{{ selectedEmployee.employmentContract?.fixedSalary! | number }}円</p>
+        <p>パートのときのみ、交通費基本給とは別で交通費を表示</p>
+
+        <button type="button" class="im-btn-soft" (click)="editContractInfo()">勤務状況・雇用契約情報を編集</button>
+
+        <h3>保険情報</h3>
+        <p>標準報酬等級：{{ selectedEmployee.insurance?.currentGrade! }}</p>
+        <p><small>自動計算結果：{{ autoInsuranceGrade ? autoInsuranceGrade : '等級判定不能' }}</small></p>
+        <p>健康保険：{{ getInsuranceStatus(selectedEmployee.insurance?.healthInsurance) }}</p>
+        <p><small>自動計算結果：{{ autoHealthInsuranceRequired ? '加入' : '未加入' }}</small></p>
+        <div *ngIf="selectedEmployee.insurance?.healthInsurance?.joined">
+            <p>健康保険番号：{{ selectedEmployee.insurance?.healthInsurance?.number! }}</p>
+            <p>健康保険取得日：{{ commonService.formatDate(selectedEmployee.insurance?.healthInsurance?.acquiredDate!) }}</p>
+            <p>健康保険喪失日：{{ commonService.formatDate(selectedEmployee.insurance?.healthInsurance?.lostDate!) }}</p>
+            <p>健康保険会社負担率：{{ selectedEmployee.insurance?.healthInsurance?.companyBurdenRate! }}</p>
+        </div>
+        <p>介護保険：{{ getInsuranceStatus(selectedEmployee.insurance?.nursingCareInsurance) }}</p>
+        <p><small>自動計算結果：{{ autoNursingCareInsuranceRequired ? '加入' : '未加入' }}</small></p>
+        <div *ngIf="selectedEmployee.insurance?.nursingCareInsurance?.joined">
+            <p>介護保険番号：{{ selectedEmployee.insurance?.nursingCareInsurance?.number! }}</p>
+            <p>介護保険取得日：{{ commonService.formatDate(selectedEmployee.insurance?.nursingCareInsurance?.acquiredDate!) }}
+            </p>
+            <p>介護保険喪失日：{{ commonService.formatDate(selectedEmployee.insurance?.nursingCareInsurance?.lostDate!) }}</p>
+            <p>介護保険会社負担率：{{ selectedEmployee.insurance?.nursingCareInsurance?.companyBurdenRate! }}</p>
+        </div>
+        <p>厚生年金：{{ getInsuranceStatus(selectedEmployee.insurance?.employeePensionInsurance) }}</p>
+        <p><small>自動計算結果：{{ autoPensionInsuranceRequired ? '加入' : '未加入' }}</small></p>
+        <div *ngIf="selectedEmployee.insurance?.employeePensionInsurance?.joined">
+            <p>厚生年金番号：{{ selectedEmployee.insurance?.employeePensionInsurance?.number! }}</p>
+            <p>厚生年金取得日：{{ commonService.formatDate(selectedEmployee.insurance?.employeePensionInsurance?.acquiredDate!)
+                }}</p>
+            <p>厚生年金喪失日：{{ commonService.formatDate(selectedEmployee.insurance?.employeePensionInsurance?.lostDate!) }}
+            </p>
+            <p>厚生年金会社負担率：{{ selectedEmployee.insurance?.employeePensionInsurance?.companyBurdenRate! }}</p>
+        </div>
+
+        <button type="button" class="im-btn-soft" (click)="editInsuranceInfo()">保険情報を編集</button>
+
+        <div>
+            <h3>扶養情報</h3>
+            <div *ngIf="dependents.length > 0">
+                <div *ngFor="let dependent of dependents">
+                    <p>扶養者名前：{{ dependent.name! }}</p>
+                    <p>扶養者生年月日：{{ commonService.formatDate(dependent.birthDate!) }}</p>
+                    <p>扶養者続柄：{{ dependent.relationship! }}</p>
+                    <p>現在の扶養状況：{{ dependent.isDependent! ? '扶養者' : '扶養者ではない' }}</p>
+                </div>
+            </div>
+            <div *ngIf="dependents.length === 0">
+                <p>扶養の登録はありません</p>
+            </div>
+        </div>
+
+        <button type="button" class="im-btn-soft" (click)="editDependentInfo()">扶養情報を編集</button>
+
+        <p>表示情報と計算結果が違う場合、アラート表示。適用するか確認するダイアログを表示。</p>

@@ -1,0 +1,67 @@
+<div class="im-narrow-page">
+  <div class="im-narrow-panel">
+    <div class="im-panel-heading">
+      <h1>ログイン</h1>
+    </div>
+
+    <form class="im-fields-grid" [formGroup]="form" (ngSubmit)="login()">
+      <div class="im-field-block">
+        <label for="email">メールアドレス：</label>
+        <input id="email" type="email" formControlName="email" placeholder="メールアドレス">
+        <div class="error">
+          <p *ngIf="form.controls.email.touched && form.controls.email.invalid">メールアドレスを正しく入力してください</p>
+        </div>
+      </div>
+
+      <div class="im-field-block">
+        <label for="password">パスワード：</label>
+        <div class="im-password-field">
+          <input
+            id="password"
+            [type]="showPassword ? 'text' : 'password'"
+            formControlName="password"
+            placeholder="パスワード"
+            autocomplete="current-password"
+          >
+          <button
+            type="button"
+            class="im-password-reveal"
+            (click)="showPassword = !showPassword"
+            [attr.aria-label]="showPassword ? 'パスワードを隠す' : 'パスワードを表示'"
+            [attr.aria-pressed]="showPassword"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+        <div class="error">
+          <p *ngIf="form.controls.password.touched && form.controls.password.invalid">パスワードは必須です</p>
+        </div>
+      </div>
+
+      <div class="im-action-message" *ngIf="errorMessage">
+        {{ errorMessage }}
+      </div>
+
+      <button type="submit" class="im-btn-primary" [disabled]="form.invalid">
+        ログイン
+      </button>
+    </form>
+
+    <div class="auth-links">
+      <div class="auth-link-block register">
+        <p><small>・アカウントをお持ちでない方は</small>
+          <a routerLink="/register">こちら</a>
+        </p>
+      </div>
+
+      <div class="auth-link-block forgot-password">
+        <p><small>・パスワードを忘れた方は</small>
+          <a routerLink="/forgot-password">こちら</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>

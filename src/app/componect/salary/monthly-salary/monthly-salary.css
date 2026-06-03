@@ -1,0 +1,206 @@
+.monthly-salary-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: calc(var(--im-size-16) + var(--im-size-4));
+}
+
+.monthly-salary-registration-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1fr);
+  gap: var(--im-size-24);
+  align-items: start;
+  margin-top: var(--im-size-24);
+}
+
+.monthly-salary-registration-card,
+.monthly-salary-list-area {
+  min-width: 0;
+  padding: var(--im-size-20);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+}
+
+.monthly-salary-registration-card h2,
+.monthly-salary-registration-card h3,
+.monthly-salary-list-area h3 {
+  margin-top: 0;
+}
+
+.monthly-salary-registration-card--individual form {
+  display: grid;
+  gap: var(--im-size-16);
+}
+
+.monthly-salary-basic-section {
+  max-width: none;
+}
+
+.monthly-salary-basic-field {
+  grid-template-columns: 10rem minmax(0, 1fr);
+}
+
+.monthly-salary-basic-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-8) var(--im-size-12);
+}
+
+.monthly-salary-basic-pair .monthly-salary-basic-field {
+  grid-template-columns: 8rem minmax(0, 1fr);
+}
+
+.monthly-salary-basic-pair .im-field-row__label {
+  padding-top: var(--im-size-8);
+}
+
+.monthly-salary-registration-card--individual .section-title {
+  margin-bottom: var(--im-size-8);
+}
+
+.monthly-salary-inline-control {
+  display: flex;
+  align-items: center;
+  gap: var(--im-size-6);
+  flex-wrap: wrap;
+}
+
+.monthly-salary-inline-control input {
+  width: 7rem;
+  max-width: 100%;
+}
+
+.monthly-salary-inline-control input[id='employeeId'] {
+  width: 100%;
+}
+
+.monthly-salary-period-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--im-size-6);
+}
+
+.monthly-salary-unit,
+.monthly-salary-separator {
+  color: var(--im-color-slate-600);
+  font-size: var(--im-font-14);
+}
+
+.monthly-salary-container__content__form__section {
+  display: grid;
+  gap: var(--im-size-12);
+}
+
+.monthly-salary-form-subsection {
+  padding-top: var(--im-size-12);
+  border-top: 1px solid var(--im-color-gray-150);
+}
+
+.monthly-salary-section-label {
+  color: var(--im-color-slate-700);
+  font-size: var(--im-font-14);
+  font-weight: 700;
+}
+
+.monthly-salary-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-8) var(--im-size-12);
+}
+
+.monthly-salary-container__content__form__item {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr) auto;
+  gap: var(--im-size-6) var(--im-size-8);
+  align-items: center;
+}
+
+.monthly-salary-container__content__form__item label {
+  margin: 0;
+  color: var(--im-color-slate-900);
+  font-weight: 600;
+}
+
+.monthly-salary-container__content__form__item p {
+  grid-column: 2 / -1;
+}
+
+.monthly-salary-container__content__form__item p,
+.monthly-salary-form-error p {
+  margin: 0;
+  color: var(--im-color-red-600);
+  font-size: var(--im-font-13);
+  line-height: 1.2;
+}
+
+.monthly-salary-container__content__form__item input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--im-size-8) var(--im-size-12);
+  border: 1px solid var(--im-color-gray-300);
+  border-radius: var(--im-radius-12);
+  background: var(--im-color-white);
+}
+
+.monthly-salary-container__content__form__item input[readonly] {
+  background: var(--im-color-gray-50);
+  color: var(--im-color-slate-600);
+}
+
+.monthly-salary-container__content__form__item span {
+  color: var(--im-color-slate-600);
+  font-size: var(--im-font-14);
+}
+
+.monthly-salary-form-error {
+  min-height: 1.2em;
+}
+
+.monthly-salary-form-actions {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--im-size-8);
+  margin-top: var(--im-size-8);
+}
+
+.monthly-salary-form-actions button {
+  width: 100%;
+  justify-content: center;
+}
+
+.monthly-salary-list-area {
+  margin-top: var(--im-size-32);
+}
+
+@media (max-width: 960px) {
+  .monthly-salary-registration-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .monthly-salary-container {
+    padding: var(--im-size-12);
+  }
+
+  .monthly-salary-basic-field {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-salary-period-control,
+  .monthly-salary-basic-pair,
+  .monthly-salary-form-grid,
+  .monthly-salary-form-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-salary-basic-pair .monthly-salary-basic-field,
+  .monthly-salary-container__content__form__item {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-salary-container__content__form__item p {
+    grid-column: 1;
+  }
+}

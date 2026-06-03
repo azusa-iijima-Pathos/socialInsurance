@@ -1,0 +1,118 @@
+<div class="top-container">
+    <h1>トップページ</h1>
+
+    <div>
+        <h3>給与情報入力</h3>
+        <div *ngIf="!workingMonth">
+            <p>現在の作業月が設定されていません。</p>
+            <p>保険処理を作業を行う給与の対象月を設定してください。</p>
+            <input type="number" [(ngModel)]="workingYearInput" min="2000">年
+            <input type="number" [(ngModel)]="workingMonthInput" [min]="1" [max]="12">月
+            <button (click)="setWorkingMonth()">設定</button>
+        </div>
+
+        <div *ngIf="workingMonth">
+            <a [routerLink]="['/monthly-salary',`${workingYear}`,`${workingMonth}`]">{{ workingMonth }}月の給与入力（修正可）</a><br>
+
+            <a [routerLink]="['/reach-age']">年齢到達一括検索</a><br>
+
+            <a [routerLink]="['/insurance-confirm',`${workingYear}`,`${workingMonth}`]">作業月保険料確認（作業月の保険料を確認し、必要であれば手動調整）</a>
+        </div>
+
+        <ng-container *ngIf="bonusMonths().length > 0">
+            <ng-container *ngFor="let month of bonusMonths()">
+                <a [routerLink]="['/bonus',`${getBonusPaymentYear(month)}-${month.toString().padStart(2, '0')}_bonus`]">賞与入力・保険料確認（{{
+                    month
+                    }}月）</a><br>
+            </ng-container>
+        </ng-container>
+    </div>
+
+    <div>
+        <h3>社会保険料出力</h3>
+        <a
+            *ngIf="workingMonth"
+            [routerLink]="['/insurance-confirm', getPreviousInsuranceOutputYear(), getPreviousInsuranceOutputMonth()]"
+            [queryParams]="{ mode: 'output' }"
+        >確定後の社会保険料出力（締め後なので修正不可）</a><br>
+        <a
+            *ngIf="latestLockedBonusPayrollId; else noLockedBonusPayroll"
+            [routerLink]="['/insurance-for-bonus', latestLockedBonusPayrollId]"
+            [queryParams]="{ mode: 'output' }"
+        >賞与社保険料情報一括出力</a>
+        <ng-template #noLockedBonusPayroll>
+            <p>賞与社保険料情報一括出力</p>
+        </ng-template>
+        <p>会社社保険料情報一括出力</p>
+    </div>
+
+    <div>
+        <h3>修正作業</h3>
+        <p>給与修正（作業月以前の給与変更）</p>
+        <p>固定給変更（変更内容を従業員情報と、イベントに登録）</p>
+        <p>作業月に対応した差額調整一覧（作業月に対応した差額調整を一覧で確認）</p>
+
+        <p>賞与修正（変更後の賞与と元の賞与で差額を算出し、必要であれば差額調整）</p>
+    </div>
+
+    <div>
+        <h3>承認依頼</h3>
+        <p>従業員申請一覧</p>
+        <p>自動計算反映待ち一覧（給与関連イベント）(ここで年齢到達一括検索するボタンを押してもらう)</p>
+        <a [routerLink]="['/calculation-base-pending-list']">算定基礎</a><br>
+    </div>
+
+    <div>
+        <h3>社員情報</h3>
+        <a [routerLink]="['/employee-detail']">個別従業員情報閲覧(従業員一覧に遷移)</a><br>
+        <a
+            [routerLink]="['/employee-addInsurance']">既存の従業員保険情報追加（←必ずセットアップの時に既存の従業員を全員入れてもらうようにして、その後は既存の従業員情報を追加できない。保険情報の追記のみ）</a>
+        <p>従業員情報編集（）</p>
+        <p>（トップ権限のみ）権限付与/解除</p>
+        <a [routerLink]="['/employee-hire-entry']">入社処理</a><br>
+        <a [routerLink]="['/employee-retire-entry']">退社処理</a>
+    </div>
+
+    <div>
+        <h3>会社情報</h3>
+        <p>会社情報閲覧</p>
+        <p>会社社保険料情報</p>
+        <a [routerLink]="['/company-setting']">（権限：管理）会社設定</a>
+    </div>
+
+    <div>
+        <h3>事業所情報</h3>
+        <p>事業所情報編集</p>
+        <p>事業所情報新規登録</p>
+    </div>
+
+    <div>
+        <h3>書類生成</h3>
+        <p>行政への提出書類</p>
+        <p>従業員への通知書類</p>
+    </div>
+
+    <div>
+        <h3>シュミレーション</h3>
+        <p>個人保険料シュミレーション</p>
+        <p>会社保険料シュミレーション</p>
+    </div>
+
+</div>
+
+
+<button (click)="seedInsuranceRates()">
+    協会けんぽ2026投入
+</button>
+
+<button (click)="seedGrades()">
+    等級マスタ2026投入
+</button>
+
+<button (click)="seedInsuranceRates2025()">
+    協会けんぽ2025投入
+</button>
+
+<button (click)="seedGrades2025()">
+    等級マスタ2025投入
+</button>

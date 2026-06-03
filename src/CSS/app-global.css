@@ -1,0 +1,117 @@
+/**
+ * アプリ横断の最小セット：オーバーレイ付きモーダルの土台のみ。
+ * 認証・ページシェル・レイアウト用ユーティリティは styles.css から
+ * im-layout-primitives.css（ナローフォーム・セグメント・メッセージ含む）/ app-page-shells.css を読み込む。
+ */
+
+/* .modal-overlay — 画面全体を覆う半透明レイヤ。クリック対象の背後に置き、子の .modal を中央に並べる。 */
+.modal-overlay {
+  /* ビューポートに固定しスクロールしても追従 */
+  position: fixed;
+  /* 上下左右いっぱいに広げる → 画面全体がオーバーレイになっている。 */
+  inset: 0;
+  /* 通常コンテンツより手前（ヘッダーやドロップダウンと競合しないようやや高め） */
+  z-index: 1100;
+  /* 背後を薄く暗くしてモーダルに視線を集める */
+  background: var(--im-color-black-40);
+  /* 子 .modal を縦横中央に配置 */
+  display: flex;
+  /* 横方向中央揃え */
+  justify-content: center;
+  /* 縦方向中央揃え */
+  align-items: center;
+  /* 画面端との余白（狭い画面でモーダルが縁に張り付かない） */
+  padding: var(--im-size-16);
+  /* width:100% などを指定した子の幅計算に padding を含める */
+  box-sizing: border-box;
+}
+
+/* .modal — オーバーレイの中央に載る白いダイアログ枠（幅は最大 320px） */
+.modal {
+  background: var(--im-color-white);
+  /* 内側の余白（モーダルの枠と中の文字などとの間隔） */
+  padding: calc(var(--im-size-16) + var(--im-size-4));
+  border-radius: var(--im-radius-12);
+  width: 100%;
+  max-width: 320px;
+  box-shadow: var(--im-shadow-2);
+}
+
+/* .modal 内の textarea — 確認コメントなど複数行入力用の見た目を統一 */
+.modal textarea {
+  width: 100%;
+  box-sizing: border-box;
+  /* 開いたときからある程度の高さを確保（すぐに1行に潰れない） */
+  min-height: calc(var(--im-size-24) + var(--im-size-24) + var(--im-size-24) + var(--im-size-12) + var(--im-size-6));
+  margin: var(--im-size-8) 0;
+  border-radius: var(--im-radius-8);
+  border: 1px solid var(--im-color-gray-300);
+  font-family: inherit;
+  font-size: var(--im-font-14);
+  /* 横方向のリサイズはさせず、縦だけユーザーが伸ばせる */
+  resize: vertical;
+}
+
+/* .modal 内の select と type=date — テキスト入力と揃えたフル幅フォームコントロール */
+.modal select,
+.modal input[type='date'] {
+  width: 100%;
+  box-sizing: border-box;
+  /* 内側の余白（フォームコントロールと入力値の間隔） */
+  padding: var(--im-size-8) var(--im-size-8);
+  border-radius: var(--im-radius-8);
+  border: 1px solid var(--im-color-gray-300);
+  font-size: var(--im-font-14);
+  /* 親要素と同じフォントを使う */
+  font-family: inherit;
+}
+
+/* .modal-title — モーダル見出し（ダイアログタイトル） */
+.modal-title {
+  margin: 0 0 var(--im-size-8);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--im-color-slate-900);
+}
+
+/* .modal-lead — タイトル直下の説明文・注意書き */
+.modal-lead {
+  margin: 0 0 calc(var(--im-size-12) + var(--im-size-4));
+  font-size: var(--im-font-14);
+  color: var(--im-color-slate-600);
+  line-height: 1.5;
+}
+
+/* .modal-form — 入力欄ブロック全体。下にボタン行（.modal-actions）を置く前提の下マージン */
+.modal-form {
+  margin-bottom: var(--im-size-16);
+}
+
+/* .modal-form--stack 配下の .modal-field — 縦積みフォーム時、フィールド同士の間隔 */
+.modal-form--stack .modal-field {
+  margin-bottom: var(--im-size-12);
+}
+
+/* 最後のフィールドは下に余白を二重に付けない */
+.modal-form--stack .modal-field:last-child {
+  margin-bottom: 0;
+}
+
+/* .modal-label — 各入力のラベル（上に載せるブロック表示） */
+.modal-label {
+  display: block;
+  font-size: var(--im-font-13);
+  color: var(--im-color-slate-600);
+  margin-bottom: var(--im-size-6);
+}
+
+/* .modal-actions — キャンセル／OK などボタンを右寄せで横並び（狭いときは折り返し） */
+.modal-actions {
+  display: flex;
+  /* 右寄せ */
+  justify-content: flex-end;
+  /* ボタン間の余白 */
+  gap: var(--im-size-8);
+  /* 狭いときは折り返し */
+  flex-wrap: wrap;
+}

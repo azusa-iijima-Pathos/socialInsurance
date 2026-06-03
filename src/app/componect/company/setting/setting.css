@@ -1,0 +1,52 @@
+.setting-container {
+  max-width: 960px;
+}
+
+.setting-card {
+  margin-top: var(--im-size-16);
+}
+
+.setting-field {
+  grid-template-columns: 12rem minmax(0, 1fr);
+}
+
+.setting-inline-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+}
+
+.setting-inline-control input[type='number'] {
+  width: 7rem;
+  max-width: 100%;
+}
+
+.setting-field--disabled {
+  opacity: 0.55;
+}
+
+.setting-field--disabled input {
+  cursor: not-allowed;
+  background: var(--im-color-gray-50);
+}
+
+.setting-unit,
+.setting-separator {
+  color: var(--im-color-slate-600);
+  font-size: var(--im-font-14);
+}
+
+.setting-submit-actions {
+  justify-content: flex-end;
+}
+
+.setting-submit-actions .im-action-message {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .setting-field {
+    grid-template-columns: 1fr;
+  }
+}

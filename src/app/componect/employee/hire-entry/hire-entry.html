@@ -1,0 +1,413 @@
+<div class="hire-entry-container">
+    <h1 class="im-title">入社処理</h1>
+
+    <div class="information-area">
+        <p>従業員情報を登録してください。</p>
+        <p>扶養情報は従業員が登録することも可能です。（その場合、承認が必要になります。）</p>
+    </div>
+
+    <p *ngIf="message" class="im-action-message">{{ message }}</p>
+
+    <form class="im-fields-grid hire-entry-form" [formGroup]="form" (ngSubmit)="registerHireEntry()">
+        <div class="im-field-block im-field-row">
+            <div class="im-field-row__label">
+                <label for="employeeId">社員ID（半角）</label>
+            </div>
+            <div class="im-field-row__control">
+                <input type="text" id="employeeId" formControlName="employeeId">
+                <div class="error">
+                    <p *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">社員IDは必須です
+                    </p>
+                    <p *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">
+                        半角で入力してください</p>
+                    <p
+                        *ngIf="form.get('employeeId')?.errors?.['employeeIdAlreadyExists'] && form.get('employeeId')?.touched">
+                        このIDは既に登録されています</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="hire-entry-triple">
+            <div class="im-field-block im-field-row">
+                <div class="im-field-row__label">
+                    <label for="firstName">姓</label>
+                </div>
+                <div class="im-field-row__control">
+                    <input type="text" id="firstName" formControlName="firstName">
+                    <div class="error">
+                        <p *ngIf="form.get('firstName')?.errors?.['required'] && form.get('firstName')?.touched">姓は必須です
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="im-field-block im-field-row">
+                <div class="im-field-row__label">
+                    <label for="lastName">名</label>
+                </div>
+                <div class="im-field-row__control">
+                    <input type="text" id="lastName" formControlName="lastName">
+                    <div class="error">
+                        <p *ngIf="form.get('lastName')?.errors?.['required'] && form.get('lastName')?.touched">名は必須です
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="im-field-block im-field-row">
+                <div class="im-field-row__label">
+                    <label for="birthDate">生年月日</label>
+                </div>
+                <div class="im-field-row__control">
+                    <input type="date" id="birthDate" formControlName="birthDate">
+                    <div class="error">
+                        <p *ngIf="form.get('birthDate')?.errors?.['required'] && form.get('birthDate')?.touched">
+                            生年月日は必須です</p>
+                        <p
+                            *ngIf="form.get('birthDate')?.errors?.['invalidBirthDate'] && form.get('birthDate')?.touched">
+                            日付が正しくありません</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hire-entry-triple">
+            <div class="im-field-block im-field-row">
+                <div class="im-field-row__label">
+                    <label for="hireDate">入社日</label>
+                </div>
+                <div class="im-field-row__control">
+                    <input type="date" id="hireDate" formControlName="hireDate">
+                    <div class="error">
+                        <p *ngIf="form.get('hireDate')?.errors?.['required'] && form.get('hireDate')?.touched">入社日は必須です
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="im-field-block im-field-row">
+                <div class="im-field-row__label">
+                    <label for="workStatus">勤務状況</label>
+                </div>
+                <div class="im-field-row__control">
+                    <select id="workStatus" formControlName="workStatus">
+                        <option *ngFor="let workStatus of WORK_STATUSES" [value]="workStatus">{{ workStatus }}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="im-field-block im-field-row" *ngIf="showLeaveTypesField()">
+                <div class="im-field-row__label">
+                    <label for="leaveTypes">休職種別</label>
+                </div>
+                <div class="im-field-row__control">
+                    <select id="leaveTypes" formControlName="leaveTypes">
+                        <option value="">休職種別を選択してください</option>
+                        <option *ngFor="let leaveType of LEAVE_TYPES" [value]="leaveType">{{ leaveType }}</option>
+                    </select>
+                    <div class="error">
+                        <p *ngIf="form.get('leaveTypes')?.errors?.['required'] && form.get('leaveTypes')?.touched">
+                            休職種別は必須です</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <span class="hire-entry-section-title">《雇用契約情報》</span>
+        <div class="im-fields-grid" formGroupName="employmentContract">
+            <div class="hire-entry-triple">
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label for="employmentCategory">雇用区分</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <select id="employmentCategory" formControlName="employmentCategory">
+                            <option *ngFor="let employmentCategory of EMPLOYMENT_CATEGORIES"
+                                [value]="employmentCategory">{{ employmentCategory }}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label for="workStyle">勤務形態</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <select id="workStyle" formControlName="workStyle">
+                            <option *ngFor="let workStyle of WORK_STYLES" [value]="workStyle">{{ workStyle }}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label for="officeId">事業所</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <select id="officeId" formControlName="officeId">
+                            <option value="">事業所を選択してください</option>
+                            <option *ngFor="let office of officeNameMap() | keyvalue" [value]="office.key">{{
+                                office.value }}</option>
+                        </select>
+                    </div>
+                    <div class="error">
+                        <p
+                            *ngIf="form.get('employmentContract.officeId')?.errors?.['required'] && form.get('employmentContract.officeId')?.touched">
+                            事業所は必須です</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hire-entry-triple">
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label for="contractedWorkingHoursPerWeek">契約労働時間（週単位）</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="number" id="contractedWorkingHoursPerWeek" min="0"
+                            formControlName="contractedWorkingHoursPerWeek">
+                        <div class="error">
+                            <p
+                                *ngIf="form.get('employmentContract.contractedWorkingHoursPerWeek')?.errors?.['required'] && form.get('employmentContract.contractedWorkingHoursPerWeek')?.touched">
+                                契約労働時間は必須です
+                            </p>
+                            <p
+                                *ngIf="form.get('employmentContract.contractedWorkingHoursPerWeek')?.errors?.['min'] && form.get('employmentContract.contractedWorkingHoursPerWeek')?.touched">
+                                0以上で入力してください
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label for="contractedWorkingDaysPerMonth">契約労働日数（月単位）</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="number" id="contractedWorkingDaysPerMonth" min="0"
+                            formControlName="contractedWorkingDaysPerMonth">
+                        <div class="error">
+                            <p
+                                *ngIf="form.get('employmentContract.contractedWorkingDaysPerMonth')?.errors?.['required'] && form.get('employmentContract.contractedWorkingDaysPerMonth')?.touched">
+                                契約労働日数は必須です
+                            </p>
+                            <p
+                                *ngIf="form.get('employmentContract.contractedWorkingDaysPerMonth')?.errors?.['min'] && form.get('employmentContract.contractedWorkingDaysPerMonth')?.touched">
+                                0以上で入力してください
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label for="fixedSalary">固定給</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="number" id="fixedSalary" min="0" formControlName="fixedSalary">
+                        <div class="error">
+                            <p
+                                *ngIf="form.get('employmentContract.fixedSalary')?.errors?.['required'] && form.get('employmentContract.fixedSalary')?.touched">
+                                固定給は必須です
+                            </p>
+                            <p
+                                *ngIf="form.get('employmentContract.fixedSalary')?.errors?.['min'] && form.get('employmentContract.fixedSalary')?.touched">
+                                0以上で入力してください
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row" *ngIf="showTransportationExpensesField()">
+                    <div class="im-field-row__label">
+                        <label for="transportationExpenses">通勤手当</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="number" id="transportationExpenses" min="0"
+                            formControlName="transportationExpenses">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <span class="hire-entry-section-title">《保険情報》</span>
+        <div class="im-fields-grid" formGroupName="insurance">
+            <div class="im-field-block im-field-row hire-entry-grade-field">
+                <div class="im-field-row__label">
+                    <label for="currentGrade">等級</label>
+                </div>
+                <div class="im-field-row__control">
+                    <input type="number" id="currentGrade" min="0" max="50" formControlName="currentGrade">
+                    <p class="hire-entry-auto-judgement">等級自動判定：{{ autoGradeJudgement ?? '判定不能' }}</p>
+                    <div class="error">
+                        <p
+                            *ngIf="form.get('insurance.currentGrade')?.errors?.['required'] && form.get('insurance.currentGrade')?.touched">
+                            現在の等級は必須です</p>
+                        <p
+                            *ngIf="form.get('insurance.currentGrade')?.errors?.['min'] && form.get('insurance.currentGrade')?.touched">
+                            現在の等級は0以上で入力してください</p>
+                        <p
+                            *ngIf="form.get('insurance.currentGrade')?.errors?.['max'] && form.get('insurance.currentGrade')?.touched">
+                            現在の等級は50以下で入力してください</p>
+                    </div>
+                </div>
+            </div>
+            <p>※保険未加入予定の場合は等級は0で入力してください</p>
+
+
+            <div class="hire-entry-insurance-grid">
+                <div class="hire-entry-insurance-card" formGroupName="healthInsurance">
+                    <h3>健康保険</h3>
+                    <div class="im-radio-group">
+                        <label class="im-radio-option"><input type="radio" formControlName="joined"
+                                value="joined"><span>加入する</span></label>
+                        <label class="im-radio-option"><input type="radio" formControlName="joined"
+                                value="notJoined"><span>加入しない</span></label>
+                    </div>
+                    <p class="hire-entry-auto-judgement">自動判定：{{ autoInsuranceJudgement?.isHealthInsuranceRequired ?
+                        '加入する' : '加入しない' }}</p>
+                    <label for="healthInsuranceAcquiredDate">取得予定日</label>
+                    <input type="date" id="healthInsuranceAcquiredDate" formControlName="acquiredDate">
+                    <div class="error">
+                        <p *ngIf="
+                        form.get('insurance.healthInsurance.acquiredDate')?.errors?.['required']
+                        && form.get('insurance.healthInsurance.acquiredDate')?.touched">
+                            取得予定日は必須です
+                        </p>
+                    </div>
+                    <label for="healthInsuranceCompanyBurdenRate">会社負担率（％）</label>
+                    <input type="number" id="healthInsuranceCompanyBurdenRate" min="0" max="100"
+                        formControlName="companyBurdenRate">
+                    <div class="error">
+                        <p *ngIf="
+                        form.get('insurance.healthInsurance.companyBurdenRate')?.errors?.['min']
+                        && form.get('insurance.healthInsurance.companyBurdenRate')?.touched">
+                            0以上で入力してください
+                        </p>
+                        <p *ngIf="
+                        form.get('insurance.healthInsurance.companyBurdenRate')?.errors?.['max']
+                        && form.get('insurance.healthInsurance.companyBurdenRate')?.touched">
+                            100以下で入力してください
+                        </p>
+                    </div>
+                </div>
+
+                <div class="hire-entry-insurance-card" formGroupName="nursingCareInsurance">
+                    <h3>介護保険</h3>
+                    <div class="im-radio-group">
+                        <label class="im-radio-option"><input type="radio" formControlName="joined"
+                                value="joined"><span>加入する</span></label>
+                        <label class="im-radio-option"><input type="radio" formControlName="joined"
+                                value="notJoined"><span>加入しない</span></label>
+                    </div>
+                    <p class="hire-entry-auto-judgement">自動判定：{{ autoInsuranceJudgement?.isNursingCareInsuranceRequired
+                        ? '加入する' : '加入しない' }}</p>
+                    <label for="nursingCareInsuranceAcquiredDate">取得予定日</label>
+                    <input type="date" id="nursingCareInsuranceAcquiredDate" formControlName="acquiredDate">
+                    <label for="nursingCareInsuranceCompanyBurdenRate">会社負担率（％）</label>
+                    <input type="number" id="nursingCareInsuranceCompanyBurdenRate" min="0" max="100"
+                        formControlName="companyBurdenRate">
+                    <div class="error">
+                        <p *ngIf="
+                        form.get('insurance.nursingCareInsurance.companyBurdenRate')?.errors?.['min']
+                        && form.get('insurance.nursingCareInsurance.companyBurdenRate')?.touched">
+                            0以上で入力してください
+                        </p>
+                        <p *ngIf="
+                        form.get('insurance.nursingCareInsurance.companyBurdenRate')?.errors?.['max']
+                        && form.get('insurance.nursingCareInsurance.companyBurdenRate')?.touched">
+                            100以下で入力してください
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hire-entry-insurance-card" formGroupName="employeePensionInsurance">
+                <h3>厚生年金</h3>
+                <div class="im-radio-group">
+                    <label class="im-radio-option"><input type="radio" formControlName="joined"
+                            value="joined"><span>加入する</span></label>
+                    <label class="im-radio-option"><input type="radio" formControlName="joined"
+                            value="notJoined"><span>加入しない</span></label>
+                </div>
+                <p class="hire-entry-auto-judgement">自動判定：{{ autoInsuranceJudgement?.isPensionInsuranceRequired ?
+                    '加入する' : '加入しない' }}</p>
+                <label for="employeePensionInsuranceAcquiredDate">取得予定日</label>
+                <input type="date" id="employeePensionInsuranceAcquiredDate" formControlName="acquiredDate">
+                <label for="employeePensionInsuranceCompanyBurdenRate">会社負担率（％）</label>
+                <input type="number" id="employeePensionInsuranceCompanyBurdenRate" min="0" max="100"
+                    formControlName="companyBurdenRate">
+                <div class="error">
+                    <p *ngIf="
+                        form.get('insurance.employeePensionInsurance.companyBurdenRate')?.errors?.['min']
+                        && form.get('insurance.employeePensionInsurance.companyBurdenRate')?.touched">
+                        0以上で入力してください
+                    </p>
+                    <p *ngIf="
+                        form.get('insurance.employeePensionInsurance.companyBurdenRate')?.errors?.['max']
+                        && form.get('insurance.employeePensionInsurance.companyBurdenRate')?.touched">
+                        100以下で入力してください
+                    </p>
+                </div>
+            </div>
+        </div>
+
+
+        <span class="hire-entry-section-title">《現在の扶養情報》</span>
+        <div class="hire-entry-dependent-list" formArrayName="dependents">
+            <div class="hire-entry-dependent-row" *ngFor="let dependent of dependents.controls; let i = index"
+                [formGroupName]="i">
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label [for]="'dependentName' + i">扶養者名前</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="text" [id]="'dependentName' + i" formControlName="name">
+                        <div class="error">
+                            <p *ngIf="
+                            form.get('name')?.errors?.['required']
+                            && form.get('name')?.touched">
+                                扶養者名前は必須です
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label [for]="'dependentBirthDate' + i">生年月日</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="date" [id]="'dependentBirthDate' + i" formControlName="birthDate">
+                        <div class="error">
+                            <p *ngIf="
+                            form.get('birthDate')?.errors?.['required']
+                            && form.get('birthDate')?.touched">
+                                生年月日は必須です
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label [for]="'dependentRelationship' + i">続柄</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <select [id]="'dependentRelationship' + i" formControlName="relationship">
+                            <option value="">続柄を選択してください</option>
+                            <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}
+                            </option>
+                        </select>
+                        <div class="error">
+                            <p *ngIf="
+                            form.get('relationship')?.errors?.['required']
+                            && form.get('relationship')?.touched">
+                                続柄は必須です
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="im-btn-soft" (click)="removeDependent(i)">削除</button>
+            </div>
+            <button type="button" class="im-btn-soft hire-entry-add-dependent-button"
+                (click)="addDependent()">扶養情報を追加</button>
+        </div>
+        
+
+        <div class="hire-entry-actions">
+            <button type="submit" class="im-btn-primary">入社処理を登録</button>
+            <button type="button" class="im-btn-soft" (click)="resetForm()">リセット</button>
+        </div>
+    </form>
+</div>

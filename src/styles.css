@@ -1,1 +1,231 @@
 /* You can add global styles to this file, and also import other style files */
+@import "./CSS/design-tokens.css";
+@import "./CSS/app-global.css";
+@import "./CSS/im-layout-primitives.css";
+@import "./CSS/app-page-shells.css";
+
+html {
+  font-family: var(--im-font-family-sans);
+}
+
+.page-title {
+  margin: var(--im-size-8) 0 var(--im-size-16);
+  padding-left: var(--im-size-8);
+  border-left: var(--im-size-4) solid var(--im-color-gray-150);
+  color: var(--im-color-slate-900);
+  font-size: clamp(1.2rem, 1.05rem + 0.45vw, 1.52rem);
+  font-weight: 600;
+  line-height: var(--im-line-14);
+  letter-spacing: var(--im-track-001);
+}
+
+.page-title small {
+  font-size: 0.65em;
+  color: var(--im-color-slate-600);
+  font-weight: 500;
+  margin-left: var(--im-size-4);
+}
+
+/* ページタイトル直下の補足（色は page-title small と同系） */
+.page-lead {
+  margin: calc(-1 * var(--im-size-6)) 0 var(--im-size-16);
+  padding-left: var(--im-size-16);
+  font-size: 0.92rem;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--im-color-slate-600);
+}
+
+.information-area {
+  margin: var(--im-size-12) 0 var(--im-size-16);
+  padding: var(--im-size-12) var(--im-size-16);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-gray-50);
+  color: var(--im-color-slate-700);
+}
+
+.information-area p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.information-area p + p {
+  margin-top: var(--im-size-4);
+}
+
+.im-action-message {
+  min-height: 20px;
+  margin: 0 0 var(--im-size-8);
+  color: var(--im-color-red-600);
+  text-align: center;
+  font-size: var(--im-font-13);
+  line-height: 1.4;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--im-size-8);
+  margin: var(--im-size-8) 0 var(--im-size-16);
+  color: var(--im-color-slate-900);
+  font-size: clamp(1.08rem, 1rem + 0.25vw, 1.28rem);
+  font-weight: 600;
+  line-height: var(--im-line-14);
+}
+
+.section-title::before {
+  content: "";
+  width: var(--im-size-8);
+  height: var(--im-size-8);
+  border-radius: var(--im-radius-8);
+  background: var(--im-gradient-lilac);
+  flex-shrink: 0;
+}
+
+.section-title small {
+  font-size: 0.72em;
+  color: var(--im-color-slate-500);
+  font-weight: 500;
+}
+
+.card-title {
+  margin: 0 0 var(--im-size-16);
+  font-size: var(--im-font-108r);
+  font-weight: 600;
+  line-height: var(--im-line-14);
+  color: var(--im-color-slate-900);
+}
+
+/* =============================================================================
+   共通ボタン（機能に依存しない見た目。ページ見出しと同様にアプリ単位で定義）
+   - im-btn-primary … 青の主操作（ログイン・登録・各フォーム送信など）
+   - im-btn-soft … 白地＋薄い枠の副操作（キャンセル・戻る・認証のサブリンク・削除の枠線など）
+   - im-btn-soft--danger … 削除・プロジェクト退出/終了など危険操作（im-btn-soft と併用）
+   - im-btn-muted … 薄グレー地＋枠（テーブル「詳細」・確認依頼のコメント送信など）
+   モーダル内のボタンは .im-btn-primary / .im-btn-soft を付けて区別する
+   ============================================================================= */
+
+/* 白地＋薄い枠の副操作（キャンセル・戻る・ヘッダー等） */
+.im-btn-soft {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--im-size-6) var(--im-size-12);
+  font-size: var(--im-font-13);
+  line-height: 1.35;
+  font-weight: 400;
+  color: var(--im-color-slate-900);
+  background: var(--im-color-white);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  box-shadow: var(--im-shadow-1);
+  cursor: pointer;
+  transition:
+    border-color var(--im-time-200) ease,
+    background var(--im-time-200) ease;
+}
+
+.im-btn-soft:hover {
+  border-color: var(--im-color-gray-300);
+  background: var(--im-color-gray-50);
+}
+
+.im-btn-soft:focus-visible {
+  outline: 2px solid var(--im-color-violet-400);
+  outline-offset: 2px;
+}
+
+.im-btn-soft:active {
+  background: var(--im-color-gray-100);
+}
+
+/* 削除・退出など：枠と文字を赤系に（im-btn-softをベース）（"im-btn-soft im-btn-soft--danger"に適用） */
+.im-btn-soft.im-btn-soft--danger {
+  border-color: var(--im-color-red-100);
+  color: var(--im-color-red-800);
+}
+
+.im-btn-soft.im-btn-soft--danger:hover {
+  background: var(--im-color-red-50);
+  border-color: var(--im-color-red-100);
+  color: var(--im-color-red-800);
+}
+
+/* 薄グレー地＋枠（テーブル「詳細」・確認依頼のコメント送信など） */
+.im-btn-muted {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--im-size-6) var(--im-size-12);
+  font-size: var(--im-font-13);
+  line-height: 1.35;
+  font-weight: 400;
+  color: var(--im-color-slate-900);
+  background: var(--im-color-gray-100);
+  border: 1px solid var(--im-color-gray-300);
+  border-radius: var(--im-radius-8);
+  cursor: pointer;
+  transition:
+    border-color var(--im-time-200) ease,
+    background var(--im-time-200) ease;
+}
+
+.im-btn-muted:hover:not(:disabled) {
+  background: var(--im-color-gray-200);
+  border-color: var(--im-color-gray-400);
+}
+
+.im-btn-muted:focus-visible {
+  outline: 2px solid var(--im-color-violet-400);
+  outline-offset: 2px;
+}
+
+.im-btn-muted:active:not(:disabled) {
+  background: var(--im-color-gray-200);
+}
+
+.im-btn-muted:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 青ボタンと、form-footer-actions の直下にある送信ボタン */
+.im-btn-primary,
+.form-footer-actions > button[type='submit'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--im-radius-8);
+  padding: var(--im-size-6) var(--im-size-12);
+  font-size: var(--im-font-13);
+  font-weight: 400;
+  line-height: 1.35;
+  cursor: pointer;
+  border: 1px solid var(--im-color-blue-500);
+  background: var(--im-color-blue-500);
+  color: var(--im-color-white);
+  transition:
+    background var(--im-time-200) ease,
+    border-color var(--im-time-200) ease;
+}
+
+.im-btn-primary:hover:not(:disabled),
+.form-footer-actions > button[type='submit']:hover:not(:disabled) {
+  background: var(--im-color-blue-600);
+  border-color: var(--im-color-blue-600);
+}
+
+.im-btn-primary:focus-visible,
+.form-footer-actions > button[type='submit']:focus-visible {
+  outline: 2px solid var(--im-color-violet-400);
+  outline-offset: 2px;
+}
+
+.im-btn-primary:disabled,
+.form-footer-actions > button[type='submit']:disabled {
+  border-color: var(--im-color-blue-300);
+  background: var(--im-color-blue-300);
+  color: var(--im-color-white);
+  cursor: not-allowed;
+}

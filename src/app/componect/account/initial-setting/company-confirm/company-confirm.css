@@ -1,0 +1,96 @@
+.company-confirm-important {
+  color: var(--im-color-red-800);
+  font-weight: 700;
+}
+
+.company-confirm-card {
+  display: grid;
+  gap: var(--im-size-16);
+  margin-top: var(--im-size-16);
+  padding: var(--im-size-20);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+}
+
+.company-confirm-section h3 {
+  margin: 0 0 var(--im-size-8);
+  font-size: var(--im-font-16);
+}
+
+.company-confirm-main-row,
+.company-confirm-triple,
+.company-confirm-insurance-row {
+  display: grid;
+  gap: var(--im-size-2) var(--im-size-8);
+  align-items: start;
+}
+
+.company-confirm-main-row {
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(240px, 2fr);
+}
+
+.company-confirm-triple {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.company-confirm-insurance-row {
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+}
+
+.company-confirm-section {
+  display: grid;
+  gap: var(--im-size-8);
+}
+
+.company-confirm-id-row,
+.company-confirm-field {
+  min-width: 0;
+}
+
+.company-confirm-id-row span,
+.company-confirm-field span {
+  display: block;
+  margin-bottom: var(--im-size-4);
+  color: var(--im-color-slate-600);
+  font-size: var(--im-font-14);
+  font-weight: 600;
+}
+
+.company-confirm-id-row strong,
+.company-confirm-field strong {
+  display: block;
+  box-sizing: border-box;
+  min-height: 38px;
+  padding: var(--im-size-8) var(--im-size-12);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+  color: var(--im-color-slate-900);
+  font-size: var(--im-font-16);
+  line-height: 1.4;
+}
+
+.company-confirm-id-row strong {
+  border-color: var(--im-color-red-100);
+  background: var(--im-color-red-50);
+  color: var(--im-color-red-800);
+  letter-spacing: 0.04em;
+}
+
+.company-confirm-id-row span {
+  color: var(--im-color-red-800);
+}
+
+.company-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .company-confirm-main-row,
+  .company-confirm-triple,
+  .company-confirm-insurance-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,89 @@
+.hire-entry-container {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.hire-entry-form {
+    margin-top: 1rem;
+}
+
+.hire-entry-triple {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.hire-entry-section-title {
+    display: block;
+    margin: 1rem 0 0.5rem;
+    font-weight: bold;
+}
+
+.hire-entry-grade-field {
+    max-width: 360px;
+}
+
+.hire-entry-auto-judgement {
+    margin: 0;
+    color: #555;
+    font-size: 0.9rem;
+}
+
+.hire-entry-insurance-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.hire-entry-insurance-card {
+    display: grid;
+    gap: 0.5rem;
+    padding: 1rem;
+    border: 1px solid #d9e2ec;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.hire-entry-insurance-card h3 {
+    margin: 0;
+}
+
+.hire-entry-dependent-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.hire-entry-dependent-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.4fr) minmax(160px, 1fr) minmax(150px, 0.8fr) auto;
+    gap: 0.75rem;
+    align-items: end;
+    padding: 0.75rem;
+    border: 1px solid #d9e2ec;
+    border-radius: 8px;
+}
+
+.hire-entry-dependent-row .im-field-row {
+    display: block;
+}
+
+.hire-entry-dependent-row .im-field-row__label {
+    margin-bottom: 0.25rem;
+}
+
+.hire-entry-dependent-row .im-field-row__control input,
+.hire-entry-dependent-row .im-field-row__control select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.hire-entry-add-dependent-button {
+    justify-self: start;
+}
+
+.hire-entry-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}

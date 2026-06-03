@@ -1,0 +1,22 @@
+<div class="header">
+
+    <div class="header-left">
+        <h1 class="app-title">
+            <button type="button" class="app-title-button" (click)="toTop()">社会保険管理システム</button>
+        </h1>
+    </div>
+
+
+    <div class="header-right">
+        <ng-container *ngIf="showHeaderActions()">
+            <button type="button" class="im-btn-soft" (click)="back()">◀</button>
+            <button type="button" class="im-btn-soft" (click)="logout()">ログアウト</button>
+            <p>loginEmployeeId: {{ loginEmployeeId() }}</p>
+            <p>companyId: {{ companyId() }}</p>
+            <p>permission: {{ permission() }}</p>
+            <p>作業年: {{ workingYear() }}</p>
+            <p>作業月: {{ workingMonth() }}</p>
+        </ng-container>
+    </div>
+
+</div>

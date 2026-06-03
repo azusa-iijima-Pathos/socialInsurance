@@ -1,0 +1,138 @@
+.bonus-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.bonus-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: calc(var(--im-size-16) + var(--im-size-4));
+}
+
+.bonus-container__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--im-size-24);
+}
+
+.bonus-registration-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1fr);
+  gap: var(--im-size-24);
+  align-items: start;
+  margin-top: var(--im-size-24);
+}
+
+.bonus-registration-card,
+.bonus-list-area {
+  min-width: 0;
+  padding: var(--im-size-20);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+}
+
+.bonus-registration-card h2,
+.bonus-registration-card h3,
+.bonus-list-area h3 {
+  margin-top: 0;
+}
+
+.bonus-registration-card--individual form {
+  display: grid;
+  gap: var(--im-size-16);
+}
+
+.bonus-basic-section {
+  display: grid;
+  gap: var(--im-size-12);
+  max-width: none;
+}
+
+.bonus-basic-field {
+  grid-template-columns: 10rem minmax(0, 1fr);
+  width: 100%;
+}
+
+.bonus-basic-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-8) var(--im-size-12);
+}
+
+.bonus-basic-pair .bonus-basic-field {
+  grid-template-columns: 8rem minmax(0, 1fr);
+}
+
+.bonus-basic-pair .im-field-row__label {
+  padding-top: var(--im-size-8);
+}
+
+.bonus-inline-control {
+  display: flex;
+  align-items: center;
+  gap: var(--im-size-6);
+  flex-wrap: wrap;
+}
+
+.bonus-inline-control input {
+  width: 7rem;
+  max-width: 100%;
+}
+
+.bonus-period-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--im-size-6);
+}
+
+.bonus-unit,
+.bonus-separator {
+  color: var(--im-color-slate-600);
+  font-size: var(--im-font-14);
+  white-space: nowrap;
+}
+
+.bonus-period-error {
+  grid-column: 1 / -1;
+}
+
+.bonus-form-actions {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--im-size-8);
+  margin-top: var(--im-size-8);
+}
+
+.bonus-form-actions button {
+  width: 100%;
+  justify-content: center;
+}
+
+.bonus-list-area {
+  margin-top: var(--im-size-32);
+}
+
+@media (max-width: 900px) {
+  .bonus-registration-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .bonus-container {
+    padding: var(--im-size-12);
+  }
+
+  .bonus-basic-field,
+  .bonus-period-control,
+  .bonus-basic-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .bonus-basic-pair .bonus-basic-field {
+    grid-template-columns: 1fr;
+  }
+}

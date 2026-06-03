@@ -1,0 +1,77 @@
+<section class="add-insurance-csv-container">
+    <h2>CSV一括登録</h2>
+    <p *ngIf="csvImportMessage" class="im-action-message add-insurance-csv-message">{{ csvImportMessage }}</p>
+    <p>ひな形をダウンロードして、保険情報を入力してください。</p>
+    <p>
+        ・すべて半角で入力してください。<br>
+        ・保険に入っていない場合、標準報酬等級は0で入力してください。<br>
+        ・加入有無は「1: 加入」「0: 未加入」「2: 喪失」で入力してください。<br>
+        ・加入または喪失の場合は、番号・取得日・会社負担率が必須です。<br>
+        ・喪失の場合は喪失日も必須です。加入の場合、喪失日は任意です。
+    </p>
+    <div class="add-insurance-csv-file-actions">
+        <button type="button" class="im-btn-soft" (click)="downloadCsvTemplate()">CSVひな形ダウンロード</button>
+        <label class="im-btn-primary add-insurance-csv-file-select" for="insuranceCsvFile">CSVファイルを選択</label>
+    </div>
+    <div class="add-insurance-csv-actions">
+        <input id="insuranceCsvFile" class="add-insurance-csv-file-input" type="file" accept=".csv" (change)="onCsvFileSelected($event)">
+        <p *ngIf="selectedCsvFileName">選択中のファイル：{{ selectedCsvFileName }}</p>
+        <button type="button" class="im-btn-primary" (click)="importCsv()" [disabled]="!selectedCsvFile">
+            CSV内容を確認する
+        </button>
+    </div>
+</section>
+
+<div class="add-insurance-csv-preview-modal" *ngIf="csvPreviewModalOpen">
+    <div class="add-insurance-csv-preview-modal__panel">
+        <div class="add-insurance-csv-preview-modal__header">
+            <div>
+                <h3>CSV取り込み確認</h3>
+                <p>登録したい行にチェックを入れて、登録ボタンを押してください。エラーのある行は選択できません。</p>
+            </div>
+            <button type="button" class="im-btn-soft" (click)="closeCsvPreviewModal()">閉じる</button>
+        </div>
+        <div class="add-insurance-csv-preview-actions">
+            <button type="button" class="im-btn-soft" (click)="selectAllCsvPreviewRows()">全選択</button>
+            <button type="button" class="im-btn-soft" (click)="clearAllCsvPreviewRows()">全解除</button>
+            <button type="button" class="im-btn-primary" (click)="registerSelectedCsvRows()" [disabled]="selectedCsvPreviewCount() === 0">
+                チェックした保険情報を登録する
+            </button>
+            <span>選択中：{{ selectedCsvPreviewCount() }}件</span>
+        </div>
+        <div class="add-insurance-csv-preview-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>登録</th>
+                        <th>社員ID</th>
+                        <th>標準報酬等級</th>
+                        <th>健康保険</th>
+                        <th>介護保険</th>
+                        <th>厚生年金</th>
+                        <th>エラー</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let row of csvPreviewRows" [class.add-insurance-csv-preview-row--error]="!row.canRegister">
+                        <td>
+                            <input
+                                type="checkbox"
+                                [checked]="row.selected"
+                                [disabled]="!row.canRegister"
+                                (change)="setCsvPreviewRowSelected(row, $any($event.target).checked)">
+                        </td>
+                        <td>{{ row.employeeId }}</td>
+                        <td>{{ row.currentGrade }}</td>
+                        <td>{{ row.healthInsuranceJoined === '1' ? '加入' : row.healthInsuranceJoined === '2' ? '喪失' : '未加入' }}</td>
+                        <td>{{ row.nursingCareInsuranceJoined === '1' ? '加入' : row.nursingCareInsuranceJoined === '2' ? '喪失' : '未加入' }}</td>
+                        <td>{{ row.employeePensionInsuranceJoined === '1' ? '加入' : row.employeePensionInsuranceJoined === '2' ? '喪失' : '未加入' }}</td>
+                        <td>
+                            <p *ngFor="let error of row.errors">{{ error }}</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

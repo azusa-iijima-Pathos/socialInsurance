@@ -1,0 +1,55 @@
+<h2>年齢到達検索</h2>
+
+<div class="information-area">
+    <p>年齢到達一括検索は、下記ボタンを押下することで、現在の作業対象期間で一定年齢に到達する社員を検出します。</p>
+    <p>検出した社員に対して、社会保険適用条件が変わるため、内容を確認の上承認を行ってください。</p>
+    <p>※保険追加加入の場合、保険確定次第保険番号を従業員詳細より登録してください。</p>
+</div>
+
+<button type="button" class="im-btn-soft" (click)="searchReachAge()">年齢到達一括検出</button>
+
+<span *ngIf="message" class="im-action-message">{{ message }}</span>
+
+<h3>作成されたイベント一覧</h3>
+<table>
+    <thead>
+        <tr>
+            <th></th>
+            <th>社員ID</th>
+            <th>氏名</th>
+            <th>生年月日</th>
+            <th>到達年齢</th>
+            <th>承認状況</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr *ngFor="let event of createdEvents">
+            <td>
+                <input type="checkbox" [checked]="selectedEvents.has(event.payload?.['employee']?.employeeId ?? '')" (change)="onToggle(event.payload?.['employee']?.employeeId ?? '', $event.target.checked)" />
+            </td>
+            <td>{{ event.payload?.['employee']?.employeeId ?? '' }}</td>
+            <td>{{ commonService.getEmployeeName(event.payload?.['employee']?.employeeId ?? '') }}</td>
+            <td>{{ commonService.formatDate(event.payload?.['employee']?.birthDate ?? null) }}</td>
+            <td>{{ event.reachAgeType }}</td>
+            <td>{{ event.approval?.approvalStatus ?? '' }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<button type="button" class="im-btn-soft" (click)="toggleAllClear()">全選択解除</button>
+<button type="button" class="im-btn-soft" (click)="toggleAll()">全選択</button>
+<button type="button" class="im-btn-soft" (click)="approveSelected()">
+    選択したイベントを承認
+</button>
+
+<div class="information-area">
+    <h4>年齢到達時の保険適用方法</h4>
+    <p>40歳：介護保険が適用になります</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(健康保険：〇　介護保険：〇　厚生年金：〇)</p>
+    <p>65歳：介護保険が会社経由ではなくなるので、このシステム上では喪失とします。</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(健康保険：〇　介護保険：×　厚生年金：〇)</p>
+    <p>70歳：厚生年金が適用外になるため、このシステム上では喪失とします。</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(健康保険：〇　介護保険：×　厚生年金：×)</p>
+    <p>75歳：健康保険が適用外となるため、このシステム上では喪失とします。</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(健康保険：×　介護保険：×　厚生年金：×)</p>
+</div>

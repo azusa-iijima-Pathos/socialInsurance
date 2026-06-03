@@ -1,0 +1,147 @@
+.im-page-container__content__table {
+  overflow-x: auto;
+}
+
+.im-page-container__content__table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.im-page-container__content__table th,
+.im-page-container__content__table td {
+  padding: var(--im-size-8);
+  border: 1px solid var(--im-color-gray-150);
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.im-page-container__content__table th {
+  background: var(--im-color-gray-50);
+  font-weight: 600;
+}
+
+.im-page-container__content__delete-message p {
+  margin: 0 0 var(--im-size-8);
+}
+
+.employee-edit-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--im-size-24);
+  background: var(--im-color-black-40);
+}
+
+.employee-edit-modal__panel {
+  width: min(720px, 100%);
+  max-height: 85vh;
+  padding: var(--im-size-20);
+  overflow: auto;
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+  box-shadow: var(--im-shadow-2);
+}
+
+.employee-edit-modal__header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--im-size-12);
+}
+
+.employee-edit-modal__header h2 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--im-size-12);
+  margin: 0;
+}
+
+.employee-edit-modal__employee-id {
+  color: var(--im-color-slate-600);
+  font-size: var(--im-font-14);
+  font-weight: 600;
+}
+
+.employee-edit-form {
+  display: grid;
+  gap: var(--im-size-12);
+}
+
+.employee-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 180px);
+  gap: var(--im-size-2) var(--im-size-12);
+  align-items: start;
+}
+
+.employee-edit-field {
+  display: block;
+  min-width: 0;
+  width: 180px;
+  height: 82px;
+}
+
+.employee-edit-field .im-field-row__label {
+  padding-top: 0;
+  margin-bottom: var(--im-size-2);
+}
+
+.employee-edit-field .im-field-row__label label {
+  margin-bottom: var(--im-size-2);
+}
+
+.employee-edit-field .im-field-row__control {
+  gap: var(--im-size-2);
+}
+
+.employee-edit-field .im-field-row__control input,
+.employee-edit-field .im-field-row__control select {
+  width: 180px;
+  max-width: 180px;
+  box-sizing: border-box;
+}
+
+.employee-edit-section-title {
+  font-weight: 700;
+  margin-top: var(--im-size-2);
+  margin-bottom: calc(-1 * var(--im-size-2));
+}
+
+.employee-edit-form .im-fields-grid {
+  gap: var(--im-size-6);
+}
+
+.employee-edit-modal .error {
+  width: 180px;
+  min-height: 16px;
+  margin-top: 0;
+  overflow: hidden;
+  font-size: var(--im-font-13);
+  white-space: nowrap;
+}
+
+.employee-edit-modal .error p {
+  overflow: hidden;
+  margin: 0;
+  line-height: 1;
+  text-overflow: ellipsis;
+}
+
+.employee-edit-actions {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--im-size-8);
+  margin-top: var(--im-size-2);
+}
+
+.employee-edit-actions button {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .employee-edit-grid {
+    grid-template-columns: 1fr;
+  }
+}

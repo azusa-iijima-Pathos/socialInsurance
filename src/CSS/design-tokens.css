@@ -1,0 +1,87 @@
+/**
+ * デザイントークン
+ *
+ * 値はリテラルのみ（トークン同士の var 連鎖なし）。
+ * 名前は色名・段階・寸法のみ（用途語なし）。
+ */
+:root {
+  /* 色 */
+  --im-color-white: #ffffff;
+  --im-color-black: #000000;
+  --im-color-black-40: rgb(0 0 0 / 40%);
+  --im-color-slate-900: #1e293b;
+  --im-color-slate-600: #475569;
+  --im-color-slate-500: #64748b;
+  --im-color-slate-a8: rgb(15 23 42 / 8%);
+  --im-color-gray-50: #f8fafc;
+  --im-color-gray-50-a69: rgb(248 250 252 / 0.69);
+  --im-color-gray-100: #f1f5f9;
+  --im-color-gray-150: #e8ecf0;
+  --im-color-gray-200: #e8edf3;
+  --im-color-gray-300: #cbd5e1;
+  --im-color-gray-400: #94a3b8;
+  --im-color-blue-300: #93c5fd;
+  --im-color-blue-500: #3b82f6;
+  --im-color-blue-600: #2563eb;
+  --im-color-red-50: #fef2f2;
+  --im-color-red-100: #f1c9c9;
+  --im-color-red-600: #dc2626;
+  --im-color-red-800: #9f2a2a;
+  --im-color-green-700: #15803d;
+  --im-color-amber-100: #fff3cd;
+  --im-color-amber-600: #d97706;
+  --im-color-amber-900: #854d0e;
+  --im-color-violet-400: #8ca1ff;
+
+  /* 影 */
+  --im-shadow-1: 0 1px 3px rgb(15 23 42 / 8%);
+  --im-shadow-2: 0 6px 18px rgb(0 0 0 / 12%);
+  --im-shadow-3: 0 0 0 2px rgb(106 147 255 / 24%);
+
+  /* グラデーション */
+  --im-gradient-lilac: linear-gradient(135deg, #93a6f2, #b8c7f5);
+
+  /* 寸法（長さ・余白） */
+  --im-size-2: 2px;
+  --im-size-4: 4px;
+  --im-size-6: 6px;
+  --im-size-8: 8px;
+  --im-size-10: 10px;
+  --im-size-12: 12px;
+  --im-size-16: 16px;
+  --im-size-20: 20px;
+  --im-size-24: 24px;
+  --im-size-28: 28px;
+  --im-size-32: 32px;
+  --im-size-36: 36px;
+  --im-size-48: 48px;
+
+  /* 角丸 */
+  --im-radius-8: 8px;
+  --im-radius-12: 12px;
+  --im-radius-full: 999px;
+
+  /* 書体スタック（本文・フォーム共通。html で参照） */
+  --im-font-family-sans:
+    system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+
+  /* フォント寸法 */
+  --im-font-13: 13px;
+  --im-font-14: 14px;
+  --im-font-16: 16px;
+  --im-font-18: 18px;
+  --im-font-20: 20px;
+  --im-font-09r: 0.9rem;
+  --im-font-095r: 0.95rem;
+  --im-font-108r: 1.08rem;
+  --im-line-14: 1.4;
+  --im-line-16: 1.6;
+  --im-track-001: 0.01em;
+
+  --im-time-200: 0.2s;
+
+  --im-break-960: 960px;
+  --im-max-h-520: min(520px, 70vh);
+  --im-max-h-400: 400px;
+  --im-max-w-420: 420px;
+}

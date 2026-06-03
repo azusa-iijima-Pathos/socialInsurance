@@ -1,0 +1,194 @@
+.add-insurance-info-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: calc(var(--im-size-16) + var(--im-size-4));
+}
+
+.add-insurance-info-container h1 {
+  margin-bottom: var(--im-size-16);
+}
+
+.add-insurance-info-registration-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1fr);
+  gap: var(--im-size-24);
+  align-items: start;
+  margin-top: var(--im-size-24);
+}
+
+.add-insurance-info-form-card,
+app-add-insurance-csv {
+  display: block;
+  min-width: 0;
+  padding: var(--im-size-20);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+}
+
+.add-insurance-info-form-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-8) var(--im-size-12);
+  align-items: center;
+  margin-bottom: var(--im-size-16);
+}
+
+.add-insurance-info-form-header h2 {
+  margin: 0;
+}
+
+.add-insurance-info-selected-employee {
+  margin: 0;
+  padding: var(--im-size-4) var(--im-size-10);
+  border-radius: var(--im-radius-12);
+  background: var(--im-color-gray-50);
+  color: var(--im-color-slate-700);
+  font-size: var(--im-font-14);
+  font-weight: 600;
+}
+
+.add-insurance-info-form-card form {
+  display: grid;
+  gap: var(--im-size-16);
+}
+
+.add-insurance-info-form-group {
+  display: grid;
+  gap: var(--im-size-6);
+}
+
+.add-insurance-info-form-group > label {
+  margin: 0;
+  color: var(--im-color-slate-900);
+  font-weight: 600;
+}
+
+.add-insurance-info-form-group > input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.add-insurance-info-form-group > p {
+  margin: 0;
+  color: var(--im-color-slate-600);
+  font-size: var(--im-font-13);
+  line-height: 1.5;
+}
+
+.add-insurance-info-basic-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-12);
+  align-items: start;
+}
+
+.add-insurance-info-grade-field {
+  width: 100%;
+}
+
+.add-insurance-info-form-group[formGroupName] {
+  padding: var(--im-size-16);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-12);
+  background: var(--im-color-gray-50);
+}
+
+.add-insurance-info-form-group[formGroupName] > label {
+  color: var(--im-color-slate-900);
+  font-size: var(--im-font-16);
+  font-weight: 700;
+}
+
+.im-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+}
+
+.im-radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--im-size-6);
+  padding: var(--im-size-8) var(--im-size-12);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-12);
+  background: var(--im-color-white);
+  cursor: pointer;
+}
+
+.insurance-detail-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-12);
+  margin-top: var(--im-size-8);
+  padding-top: var(--im-size-12);
+  border-top: 1px solid var(--im-color-gray-150);
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+.insurance-detail-fields .add-insurance-info-form-group:last-child label {
+  display: flex;
+  align-items: center;
+  gap: var(--im-size-6);
+}
+
+.insurance-detail-fields input[type='number'] {
+  width: 7rem;
+}
+
+.insurance-detail-fields--disabled {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.insurance-detail-fields--disabled label,
+.insurance-detail-fields--disabled input {
+  cursor: not-allowed;
+}
+
+.insurance-detail-fields--disabled input {
+  background: var(--im-color-gray-50);
+  color: var(--im-color-slate-500);
+}
+
+.add-insurance-info-submit {
+  justify-content: center;
+  width: 100%;
+  margin-top: var(--im-size-8);
+}
+
+.add-insurance-info-form-card .error {
+  min-height: 1.2em;
+}
+
+.add-insurance-info-form-card .error p {
+  margin: 0;
+  color: var(--im-color-red-800);
+  font-size: var(--im-font-13);
+  line-height: 1.3;
+}
+
+@media (max-width: 1000px) {
+  .add-insurance-info-registration-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .add-insurance-info-container {
+    padding: var(--im-size-16);
+  }
+
+  .insurance-detail-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .add-insurance-info-basic-row {
+    grid-template-columns: 1fr;
+  }
+
+  .add-insurance-info-grade-field {
+    width: 100%;
+  }
+}

@@ -1,0 +1,231 @@
+<div class="im-page-container">
+    <div class="im-page-container__content">
+        <div class="im-page-container__content__delete-message">
+            <p *ngIf="message" class="im-action-message">{{ message }}</p>
+        </div>
+        <div class="im-page-container__content__table" >
+            <div *ngIf="allEmployees().length === 0">
+                <p>社員が登録されていません</p>
+            </div>
+            <table *ngIf="allEmployees().length > 0">
+                <thead>
+                    <tr>
+                        <th>社員ID</th>
+                        <th>社員名</th>
+                        <th>生年月日</th>
+                        <th>入社日</th>
+                        <th>勤務状況</th>
+                        <th>雇用区分</th>
+                        <th>勤務形態</th>
+                        <th>事業所</th>
+                        <th>労働時間</th>
+                        <th>労働日数</th>
+                        <th>固定給</th>
+                        <th>通勤手当</th>
+                        <th>登録日</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let employee of allEmployees()">
+                        <td>{{ employee.employeeId }}</td>
+                        <td>{{ employee.firstName }} {{ employee.lastName }}</td>
+                        <td>{{ commonService.formatDate(employee.birthDate) }}</td>
+                        <td>{{ commonService.formatDate(employee.hireDate) }}</td>
+                        <td>{{ employee.workStatus }}</td>
+                        <td>{{ employee.employmentContract?.employmentCategory }}</td>
+                        <td>{{ employee.employmentContract?.workStyle }}</td>
+                        <td>{{ commonService.getOfficeName(employee.employmentContract?.officeId!) }}</td>
+                        <td>{{ employee.employmentContract?.contractedWorkingHoursPerWeek }}時間</td>
+                        <td>{{ employee.employmentContract?.contractedWorkingDaysPerMonth }}日</td>
+                        <td>{{ employee.employmentContract?.fixedSalary | number }}円</td>
+                        <td>{{ employee.employmentContract?.transportationExpenses !== undefined ? (employee.employmentContract?.transportationExpenses | number) + '円' : '' }}</td>
+                        <td>{{ commonService.formatDate(employee.createdAt) }}</td>
+                        <td><button class="im-btn-soft" (click)="editEmployee(employee)">編集</button>
+                            <span>&nbsp;</span>
+                        <button class="im-btn-soft im-btn-soft--danger" (click)="deleteEmployee(employee)">削除</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="employee-edit-modal" *ngIf="editEmployeeModalOpen">
+        <div class="employee-edit-modal__panel">
+            <div class="employee-edit-modal__header">
+                <h2>
+                    社員編集
+                    <span class="employee-edit-modal__employee-id">社員ID：{{ form.value.employeeId }}</span>
+                </h2>
+            </div>
+            <form class="employee-edit-form" [formGroup]="form" (ngSubmit)="editEmployeeModalSubmit()">
+                <div class="employee-edit-grid">
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editFirstName">姓</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="text" id="editFirstName" formControlName="firstName">
+                            <div class="error">
+                                <p *ngIf="form.get('firstName')?.errors?.['required'] && form.get('firstName')?.touched">姓は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editLastName">名</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="text" id="editLastName" formControlName="lastName">
+                            <div class="error">
+                                <p *ngIf="form.get('lastName')?.errors?.['required'] && form.get('lastName')?.touched">名は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editBirthDate">生年月日</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="date" id="editBirthDate" formControlName="birthDate">
+                            <div class="error">
+                                <p *ngIf="form.get('birthDate')?.errors?.['required'] && form.get('birthDate')?.touched">生年月日は必須です</p>
+                                <p *ngIf="form.get('birthDate')?.errors?.['invalidBirthDate'] && form.get('birthDate')?.touched">日付が正しくありません</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editHireDate">入社日</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="date" id="editHireDate" formControlName="hireDate">
+                            <div class="error">
+                                <p *ngIf="form.get('hireDate')?.errors?.['required'] && form.get('hireDate')?.touched">入社日は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editWorkStatus">勤務状況</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <select id="editWorkStatus" formControlName="workStatus">
+                                <option *ngFor="let workStatus of WORK_STATUSES" [value]="workStatus">{{ workStatus }}</option>
+                            </select>
+                            <div class="error">
+                                <p *ngIf="form.get('workStatus')?.errors?.['required'] && form.get('workStatus')?.touched">勤務状況は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field" *ngIf="showLeaveTypesField()">
+                        <div class="im-field-row__label">
+                            <label for="editLeaveTypes">休職種別</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <select id="editLeaveTypes" formControlName="leaveTypes">
+                                <option value="">休職種別を選択してください</option>
+                                <option *ngFor="let leaveType of LEAVE_TYPES" [value]="leaveType">{{ leaveType }}</option>
+                            </select>
+                            <div class="error">
+                                <p *ngIf="form.get('leaveTypes')?.errors?.['required'] && form.get('leaveTypes')?.touched">休職種別は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <span class="employee-edit-section-title">《雇用契約情報》</span>
+                <div class="employee-edit-grid" formGroupName="employmentContract">
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editEmploymentCategory">雇用区分</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <select id="editEmploymentCategory" formControlName="employmentCategory">
+                                <option *ngFor="let employmentCategory of EMPLOYMENT_CATEGORIES" [value]="employmentCategory">{{ employmentCategory }}</option>
+                            </select>
+                            <div class="error">
+                                <p *ngIf="form.get('employmentContract.employmentCategory')?.errors?.['required'] && form.get('employmentContract.employmentCategory')?.touched">雇用区分は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editWorkStyle">勤務形態</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <select id="editWorkStyle" formControlName="workStyle">
+                                <option *ngFor="let workStyle of WORK_STYLES" [value]="workStyle">{{ workStyle }}</option>
+                            </select>
+                            <div class="error">
+                                <p *ngIf="form.get('employmentContract.workStyle')?.errors?.['required'] && form.get('employmentContract.workStyle')?.touched">勤務形態は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editOfficeId">事業所</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <select id="editOfficeId" formControlName="officeId">
+                                <option *ngFor="let office of officeNameMap() | keyvalue" [value]="office.key">{{ office.value }}</option>
+                            </select>
+                            <div class="error">
+                                <p *ngIf="form.get('employmentContract.officeId')?.errors?.['required'] && form.get('employmentContract.officeId')?.touched">事業所は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editContractedWorkingHoursPerWeek">労働時間</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="number" id="editContractedWorkingHoursPerWeek" min="0" formControlName="contractedWorkingHoursPerWeek">
+                            <div class="error">
+                                <p *ngIf="form.get('employmentContract.contractedWorkingHoursPerWeek')?.errors?.['min'] && form.get('employmentContract.contractedWorkingHoursPerWeek')?.touched">0以上で入力してください</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editContractedWorkingDaysPerMonth">労働日数</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="number" id="editContractedWorkingDaysPerMonth" min="0" formControlName="contractedWorkingDaysPerMonth">
+                            <div class="error">
+                                <p *ngIf="form.get('employmentContract.contractedWorkingDaysPerMonth')?.errors?.['min'] && form.get('employmentContract.contractedWorkingDaysPerMonth')?.touched">0以上で入力してください</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editFixedSalary">固定給</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="number" id="editFixedSalary" min="0" formControlName="fixedSalary">
+                            <div class="error">
+                                <p *ngIf="form.get('employmentContract.fixedSalary')?.errors?.['min'] && form.get('employmentContract.fixedSalary')?.touched">0以上で入力してください</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row employee-edit-field" *ngIf="showTransportationExpensesInModal">
+                        <div class="im-field-row__label">
+                            <label for="editTransportationExpenses">通勤手当</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="number" id="editTransportationExpenses" min="0" formControlName="transportationExpenses">
+                            <div class="error">
+                                <p *ngIf="form.get('employmentContract.transportationExpenses')?.errors?.['min'] && form.get('employmentContract.transportationExpenses')?.touched">0以上で入力してください</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="employee-edit-actions">
+                    <button type="submit" class="im-btn-primary">保存</button>
+                    <button type="button" class="im-btn-soft" (click)="closeEditEmployeeModal()">キャンセル</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

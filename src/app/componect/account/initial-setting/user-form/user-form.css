@@ -1,0 +1,78 @@
+.user-registration-card {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding: var(--im-size-20);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+}
+
+.user-registration-card h2 {
+  margin: 0;
+}
+
+.user-form-pair,
+.user-form-triple {
+  display: grid;
+  gap: var(--im-size-2) var(--im-size-8);
+}
+
+.user-form-pair {
+  grid-template-columns: repeat(2, 220px);
+}
+
+.user-form-triple {
+  grid-template-columns: repeat(3, 180px);
+}
+
+.user-form-field {
+  display: block;
+  width: 100%;
+}
+
+.user-form-field .im-field-row__label {
+  margin-bottom: 0;
+  padding-top: 0;
+}
+
+.user-form-field .im-field-row__control {
+  gap: 0;
+}
+
+.user-form-field .im-field-row__control input {
+  width: 100%;
+  max-width: 100%;
+}
+
+.user-form-field .error {
+  min-height: var(--im-size-10);
+  margin-top: 0;
+}
+
+.user-form-field .error p {
+  margin: 0;
+  line-height: 1;
+}
+
+.user-submit-actions {
+  margin-top: var(--im-size-8);
+  width: 556px;
+  max-width: 100%;
+}
+
+.user-submit-actions button {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .user-form-pair,
+  .user-form-triple {
+    grid-template-columns: 1fr;
+  }
+
+  .user-submit-actions {
+    width: 100%;
+  }
+}

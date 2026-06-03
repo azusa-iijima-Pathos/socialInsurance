@@ -1,0 +1,77 @@
+import { Component, computed, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Location } from '@angular/common';
+import { AuthService } from '../../../service/Firestore/auth-service';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+@Component({
+  selector: 'app-header',
+  imports: [CommonModule],
+  templateUrl: './header.html',
+  styleUrl: './header.css',
+})
+export class Header {
+
+  private location = inject(Location);
+  private authService = inject(AuthService);
+  private router = inject(Router);
+
+  private hasSession = signal(false);
+
+  loginEmployeeId = signal<string | null>(null);
+  companyId = signal<string | null>(null);
+  permission = signal<string | null>(null);
+  workingYear = signal<string | null>(null);
+  workingMonth = signal<string | null>(null);
+  showHeaderActions = computed(() => this.hasSession());
+
+  constructor() {
+    this.syncSession();
+    this.router.events
+      .pipe(
+        //NavigationEnd は、Angular Router の「画面遷移が完了したタイミング」を表すイベント
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        //filter(...) の結果が次の takeUntilDestroyed() に渡って、takeUntilDestroyed() は、ヘッダーが破棄されたときに購読を自動解除するためのAngular標準の書き方
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => {
+        this.syncSession();
+      });
+  }
+
+  // セッションストレージのログイン情報をヘッダー表示用のsignalへ反映する
+  private syncSession() {
+    //!! は、値を boolean（true / false）に変換する 書き方
+    this.hasSession.set(!!sessionStorage.getItem('loginEmployeeId') || !!sessionStorage.getItem('loginUserUID'));
+    this.loginEmployeeId.set(sessionStorage.getItem('loginEmployeeId'));
+    this.companyId.set(sessionStorage.getItem('companyId'));
+    this.permission.set(sessionStorage.getItem('permission'));
+    this.workingYear.set(sessionStorage.getItem('workingYear'));
+    this.workingMonth.set(sessionStorage.getItem('workingMonth'));
+  }
+
+  toTop() {
+    this.router.navigate(['/top']);
+  }
+
+  //戻る
+  back() {
+    this.location.back();
+  }
+
+  //ログアウト
+  logout() {
+    sessionStorage.removeItem('loginEmployeeId');
+    sessionStorage.removeItem('loginUserUID');
+    sessionStorage.removeItem('companyId');
+    sessionStorage.removeItem('permission');
+    sessionStorage.removeItem('workingYear');
+    sessionStorage.removeItem('workingMonth');
+    this.hasSession.set(false);
+    this.authService.logout();
+    this.router.navigate(['/login']);
+  }
+
+}

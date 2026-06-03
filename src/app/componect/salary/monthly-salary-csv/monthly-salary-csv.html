@@ -1,0 +1,84 @@
+<section class="monthly-salary-csv-container">
+    <h2>CSV一括登録</h2>
+    <p *ngIf="csvImportMessage" class="im-action-message monthly-salary-csv-message">{{ csvImportMessage }}</p>
+    <p>ひな形をダウンロードして、給与・勤務実績を入力してください。</p>
+    <p>
+        ・すべて半角で入力してください。<br>
+        ・対象期間、支給日が未記入の場合<br>
+        &nbsp;&nbsp;設定されている対象期間、支給日として登録します。<br>
+        <span *ngIf="inputFormat === 1">
+            ・勤務手当、変動手当が未記入の場合<br>
+            &nbsp;&nbsp;勤務手当、変動手当は0円として登録します。<br>
+            ・固定給、総支給額は自動計算されます。<br>
+        </span>
+    </p>
+    <div class="monthly-salary-csv-file-actions">
+        <button type="button" class="im-btn-soft" (click)="downloadCsvTemplate()">CSVひな形ダウンロード</button>
+        <label class="im-btn-primary monthly-salary-csv-file-select" for="monthlySalaryCsvFile">CSVファイルを選択</label>
+    </div>
+    <div class="monthly-salary-csv-actions">
+        <input id="monthlySalaryCsvFile" class="monthly-salary-csv-file-input" type="file" accept=".csv" (change)="onCsvFileSelected($event)">
+        <p *ngIf="selectedCsvFileName">選択中のファイル：{{ selectedCsvFileName }}</p>
+        <button type="button" class="im-btn-primary" (click)="importCsv()" [disabled]="!selectedCsvFile">
+            CSV内容を確認する
+        </button>
+    </div>
+</section>
+
+<div class="monthly-salary-csv-preview-modal" *ngIf="csvPreviewModalOpen">
+    <div class="monthly-salary-csv-preview-modal__panel">
+        <div class="monthly-salary-csv-preview-modal__header">
+            <div>
+                <h3>CSV取り込み確認</h3>
+                <p>登録したい行にチェックを入れて、登録ボタンを押してください。エラーのある行は選択できません。</p>
+            </div>
+            <button type="button" class="im-btn-soft" (click)="closeCsvPreviewModal()">閉じる</button>
+        </div>
+        <div class="monthly-salary-csv-preview-actions">
+            <button type="button" class="im-btn-soft" (click)="selectAllCsvPreviewRows()">全選択</button>
+            <button type="button" class="im-btn-soft" (click)="clearAllCsvPreviewRows()">全解除</button>
+            <button type="button" class="im-btn-primary" (click)="registerSelectedCsvRows()" [disabled]="selectedCsvPreviewCount() === 0">
+                チェックした給与・勤務実績を登録する
+            </button>
+            <span>選択中：{{ selectedCsvPreviewCount() }}件</span>
+        </div>
+        <div class="monthly-salary-csv-preview-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>登録</th>
+                        <th>社員ID</th>
+                        <th>勤務日数</th>
+                        <th>勤務時間</th>
+                        <th>対象期間</th>
+                        <th>支給日</th>
+                        <th>固定給</th>
+                        <th>総支給額</th>
+                        <th>エラー</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let row of csvPreviewRows" [class.monthly-salary-csv-preview-row--error]="!row.canRegister">
+                        <td>
+                            <input
+                                type="checkbox"
+                                [checked]="row.selected"
+                                [disabled]="!row.canRegister"
+                                (change)="setCsvPreviewRowSelected(row, $any($event.target).checked)">
+                        </td>
+                        <td>{{ row.employeeId }}</td>
+                        <td>{{ row.actualWorkingDays }}</td>
+                        <td>{{ row.actualWorkingHours }}</td>
+                        <td>{{ row.targetPeriodStart }} ～ {{ row.targetPeriodEnd }}</td>
+                        <td>{{ row.paymentDate }}</td>
+                        <td>{{ row.fixedSalary | number }}</td>
+                        <td>{{ row.actualPaymentAmount | number }}</td>
+                        <td>
+                            <p *ngFor="let error of row.errors">{{ error }}</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

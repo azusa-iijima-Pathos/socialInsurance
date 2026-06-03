@@ -1,0 +1,155 @@
+<div class="monthly-salary-list-container" [class.monthly-salary-list-container--bonus]="isBonus">
+
+    <div class="monthly-salary-list-container__delete-message">
+        <p *ngIf="message" class="im-action-message">{{ message }}</p>
+    </div>
+
+    <div class="monthly-salary-list-container__content">
+        <div *ngIf="allPayrollListForMonth().length === 0">
+            <p>給与・勤務実績が登録されていません</p>
+        </div>
+        <div *ngIf="allPayrollListForMonth().length > 0">
+            <table class="monthly-salary-list-container__content__table">
+                <thead>
+                    <tr>
+                        <th>社員ID</th>
+                        <th>社員名</th>
+                        <th *ngIf="!isBonus">勤務日数</th>
+                        <th *ngIf="!isBonus">勤務時間</th>
+                        <th>対象期間</th>
+                        <th>支給日</th>
+                        <th *ngIf="!isBonus">固定給</th>
+                        <th>総支給額</th>
+                        <th>登録日</th>
+                        <th *ngIf="!disabled"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let payroll of allPayrollListForMonth()">
+                        <td>{{ payroll.employeeId }}</td>
+                        <td>{{ commonService.getEmployeeName(payroll.employeeId!) }}</td>
+                        <td *ngIf="!isBonus">{{ payroll.actualWorkingDays }}日</td>
+                        <td *ngIf="!isBonus">{{ payroll.actualWorkingHours }}時間</td>
+                        <td>{{ commonService.formatDate(payroll.targetPeriod?.[0]) }} ～ {{
+                            commonService.formatDate(payroll.targetPeriod?.[1]) }}</td>
+                        <td>{{ commonService.formatDate(payroll.paymentDate) }}</td>
+                        <td *ngIf="!isBonus">{{ payroll.fixedSalary | number }}円</td>
+                        <td>{{ payroll.actualPaymentAmount | number }}円</td>
+                        <td>{{ commonService.formatDate(payroll.createdAt) }}</td>
+                        <td *ngIf="!disabled"><button class="im-btn-soft" (click)="editPayroll(payroll)" [disabled]="disabled">編集</button>
+                            <span>&nbsp;</span>
+                        <button class="im-btn-soft im-btn-soft--danger" (click)="deletePayroll(payroll)" [disabled]="disabled">削除</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="salary-edit-modal" *ngIf="editPayrollModalOpen">
+        <div class="salary-edit-modal__panel">
+            <div class="salary-edit-modal__header">
+                <h2>
+                    {{ isBonus ? '賞与編集' : '給与・勤務実績編集' }}
+                    <span class="salary-edit-modal__payroll-id">社員ID：{{ form.value.employeeId }} 　 {{ isBonus ? '支給月' : '対象月' }}：{{ form.value.payrollId }}</span>
+                </h2>
+            </div>
+            <form class="salary-edit-form" [formGroup]="form" (ngSubmit)="editPayrollModalSubmit()">
+                <div class="salary-edit-grid salary-edit-grid--work" *ngIf="!isBonus">
+                    <div class="im-field-block im-field-row salary-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editActualWorkingDays">勤務日数</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="number" id="editActualWorkingDays" formControlName="actualWorkingDays">
+                            <div class="error">
+                                <p *ngIf="form.get('actualWorkingDays')?.errors?.['required'] && form.get('actualWorkingDays')?.touched">勤務日数は必須です</p>
+                                <p *ngIf="form.get('actualWorkingDays')?.errors?.['min'] && form.get('actualWorkingDays')?.touched">0以上で入力してください</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row salary-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editActualWorkingHours">勤務時間</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="number" id="editActualWorkingHours" formControlName="actualWorkingHours">
+                            <div class="error">
+                                <p *ngIf="form.get('actualWorkingHours')?.errors?.['required'] && form.get('actualWorkingHours')?.touched">勤務時間は必須です</p>
+                                <p *ngIf="form.get('actualWorkingHours')?.errors?.['min'] && form.get('actualWorkingHours')?.touched">0以上で入力してください</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="salary-edit-grid salary-edit-grid--dates" [class.salary-edit-grid--bonus-dates]="isBonus">
+                    <div class="im-field-block im-field-row salary-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editTargetPeriodStart">対象期間開始日</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="date" id="editTargetPeriodStart" formControlName="targetPeriodStart">
+                            <div class="error">
+                                <p *ngIf="form.get('targetPeriodStart')?.errors?.['required'] && form.get('targetPeriodStart')?.touched">対象期間開始日は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row salary-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editTargetPeriodEnd">対象期間終了日</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="date" id="editTargetPeriodEnd" formControlName="targetPeriodEnd">
+                            <div class="error">
+                                <p *ngIf="form.get('targetPeriodEnd')?.errors?.['required'] && form.get('targetPeriodEnd')?.touched">対象期間終了日は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row salary-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editPaymentDate">支給日</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="date" id="editPaymentDate" formControlName="paymentDate">
+                            <div class="error">
+                                <p *ngIf="form.get('paymentDate')?.errors?.['required'] && form.get('paymentDate')?.touched">支給日は必須です</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="salary-edit-grid salary-edit-grid--amounts" [class.salary-edit-grid--bonus-amounts]="isBonus">
+                    <div class="im-field-block im-field-row salary-edit-field" *ngIf="!isBonus">
+                        <div class="im-field-row__label">
+                            <label for="editFixedSalary">固定給</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="number" id="editFixedSalary" formControlName="fixedSalary">
+                            <div class="error">
+                                <p *ngIf="form.get('fixedSalary')?.errors?.['required'] && form.get('fixedSalary')?.touched">固定給は必須です</p>
+                                <p *ngIf="form.get('fixedSalary')?.errors?.['min'] && form.get('fixedSalary')?.touched">0以上で入力してください</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row salary-edit-field">
+                        <div class="im-field-row__label">
+                            <label for="editActualPaymentAmount">総支給額</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="number" id="editActualPaymentAmount" formControlName="actualPaymentAmount">
+
+                            <div class="error">
+                                <p *ngIf="form.get('actualPaymentAmount')?.errors?.['required'] && form.get('actualPaymentAmount')?.touched">総支給額は必須です</p>
+                                <p *ngIf="form.get('actualPaymentAmount')?.errors?.['min'] && form.get('actualPaymentAmount')?.touched">0以上で入力してください</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="salary-edit-actions">
+                    <button type="submit" class="im-btn-primary" [disabled]="disabled">保存</button>
+                    <button type="button" class="im-btn-soft" (click)="closeEditPayrollModal()">キャンセル</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

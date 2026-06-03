@@ -1,0 +1,392 @@
+/**
+ * 課題・プロジェクト・2カラム等のページ単位ラッパー
+ */
+
+.ticket-page-bg {
+  padding: calc(var(--im-size-16) + var(--im-size-4));
+  background: var(--im-color-gray-50);
+}
+
+.ticket-page-bg > .layout {
+  display: flex;
+  gap: calc(var(--im-size-16) + var(--im-size-4));
+  align-items: flex-start;
+}
+
+.ticket-page-bg > .layout > .left {
+  flex: 2;
+  min-width: 0;
+}
+
+.ticket-page-bg .im-surface-panel {
+  display: block;
+  padding: var(--im-size-16);
+  box-shadow: var(--im-shadow-1);
+}
+
+.ticket-page-bg .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.ticket-body {
+  display: flex;
+  gap: var(--im-size-8);
+  margin-top: var(--im-size-8);
+  align-items: stretch;
+}
+
+.ticket-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  position: sticky;
+  top: calc(var(--im-size-16) + var(--im-size-4));
+  height: calc(100vh - (var(--im-size-16) + var(--im-size-24)));
+  overflow-y: auto;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--im-size-8);
+  flex-shrink: 0;
+  margin-bottom: var(--im-size-8);
+  min-height: calc(var(--im-size-24) + var(--im-size-8));
+}
+
+.detail-title {
+  margin: 0;
+  font-weight: bold;
+  color: var(--im-color-slate-600);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.detail-format-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.detail-box {
+  flex: 1;
+  min-height: 420px;
+  max-height: 520px;
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-12);
+  padding: calc(var(--im-size-12) + var(--im-size-4));
+  background: var(--im-color-gray-50);
+  line-height: 1.6;
+  font-size: var(--im-font-13);
+  overflow-y: auto;
+}
+
+.ticket-page-bg .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+  align-items: center;
+}
+
+.form-alert {
+  margin-top: var(--im-size-8);
+  padding: var(--im-size-8) var(--im-size-12);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-red-50);
+  color: var(--im-color-red-800);
+  font-size: var(--im-font-14);
+}
+
+.flash-error-line {
+  text-align: center;
+  color: var(--im-color-red-800);
+  margin-top: var(--im-size-12);
+  padding: var(--im-size-8) var(--im-size-12);
+  font-size: var(--im-font-14);
+}
+
+.project-page-shell {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: calc(var(--im-size-16) + var(--im-size-4)) calc(var(--im-size-16) + var(--im-size-4)) calc(var(--im-size-24) + var(--im-size-4));
+}
+
+.project-page-shell > .layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.project-page-shell .im-surface-panel {
+  width: 100%;
+  font-size: 1rem;
+  line-height: var(--im-line-16);
+  padding: calc(var(--im-size-16) + var(--im-size-4)) calc(var(--im-size-16) + var(--im-size-4));
+}
+
+.project-page-shell .content-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--im-size-16) + var(--im-size-4));
+  align-items: start;
+}
+
+.project-page-shell .left-pane,
+.project-page-shell .center-pane,
+.project-page-shell .right-pane {
+  min-width: 0;
+}
+
+.project-page-shell .info-grid {
+  display: grid;
+  grid-template-columns: clamp(72px, 7vw, 110px) minmax(0, 1fr);
+  gap: var(--im-size-8) var(--im-size-4);
+  align-items: start;
+}
+
+.project-page-shell .info-grid > div:nth-child(odd) {
+  color: var(--im-color-slate-500);
+  font-weight: 500;
+  line-height: 1.8;
+  padding-top: 2px;
+}
+
+.project-page-shell .info-grid > div:nth-child(even) {
+  min-width: 0;
+  color: var(--im-color-slate-900);
+  line-height: 1.8;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.project-page-shell .side-block {
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-12);
+  background: transparent;
+  padding: calc(var(--im-size-12) + var(--im-size-4));
+}
+
+.project-page-shell .side-block + .side-block {
+  margin-top: var(--im-size-8);
+}
+
+.project-page-shell .side-block h4 {
+  margin: 0 0 var(--im-size-12);
+  font-size: var(--im-font-108r);
+  font-weight: 600;
+  color: var(--im-color-slate-900);
+}
+
+.project-page-shell .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+  align-items: center;
+  margin-top: var(--im-size-16);
+}
+
+.project-page-shell .message {
+  margin: var(--im-size-12) 0;
+  color: var(--im-color-red-800);
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .project-page-shell .im-surface-panel {
+    width: 100%;
+  }
+
+  .project-page-shell .content-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   汎用 .info-grid（ラベル列＋値列）。.project-page-shell 内は上記のより詳細なセレクタが優先。
+   -------------------------------------------------------------------------- */
+
+.info-grid {
+  display: grid;
+  grid-template-columns: clamp(140px, 18vw, 240px) minmax(0, 1fr);
+  gap: 10px 8px;
+  align-items: start;
+}
+
+.info-grid.announce-new-grid {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 2ch;
+  row-gap: var(--im-size-8);
+}
+
+.info-grid.announce-new-grid > div:nth-child(odd) {
+  white-space: nowrap;
+  padding-right: 0;
+}
+
+.info-grid > div:nth-child(odd) {
+  color: var(--im-color-slate-500);
+  font-weight: 500;
+  line-height: 1.8;
+  padding-top: 2px;
+}
+
+.info-grid > div:nth-child(even) {
+  min-width: 0;
+  color: var(--im-color-slate-900);
+  line-height: 1.8;
+}
+
+.info-grid input,
+.info-grid textarea {
+  width: min(100%, 680px);
+  border: 1px solid var(--im-color-gray-300);
+  border-radius: var(--im-radius-8);
+  padding: var(--im-size-8) 10px;
+  font-size: var(--im-font-14);
+  background: var(--im-color-white);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.info-grid textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.info-grid textarea.announce-body-input {
+  width: 100%;
+  max-width: none;
+  min-height: 220px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* 課題新規：ラベル幅広め・値セルを flex で折り返し */
+.info-grid.info-grid--ticket-form {
+  flex: 1.2;
+  grid-template-columns: clamp(148px, 16vw, 260px) minmax(0, 1fr);
+  gap: 10px 4px;
+}
+
+.info-grid.info-grid--ticket-form > div:nth-child(odd) {
+  font-weight: 700;
+  color: var(--im-color-slate-600);
+  padding-top: var(--im-size-6);
+}
+
+.info-grid.info-grid--ticket-form > div:nth-child(even) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--im-size-8);
+  min-width: 0;
+  max-width: 66.666%;
+}
+
+.info-grid.info-grid--ticket-form select,
+.info-grid.info-grid--ticket-form input[type='text'],
+.info-grid.info-grid--ticket-form input[type='date'] {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  padding: var(--im-size-8) 10px;
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  font-size: var(--im-font-13);
+  background: var(--im-color-white);
+  box-sizing: border-box;
+}
+
+.info-grid.info-grid--ticket-form > div:nth-child(even) > select,
+.info-grid.info-grid--ticket-form > div:nth-child(even) > input {
+  flex: 1 1 200px;
+}
+
+.info-grid.info-grid--ticket-form > div:nth-child(even) > .error {
+  flex-basis: 100%;
+  width: 100%;
+}
+
+.info-grid.info-grid--ticket-form button[type='button'] {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+/* 課題詳細：閲覧グリッド */
+.info-grid.info-grid--ticket-detail {
+  flex: 1.2;
+  grid-template-columns: 120px 1fr;
+  gap: 10px 5px;
+}
+
+.info-grid.info-grid--ticket-detail > div:nth-child(odd) {
+  font-weight: 700;
+  color: var(--im-color-slate-600);
+}
+
+.info-grid.info-grid--ticket-detail .error {
+  grid-column: 2;
+}
+
+.im-surface-panel {
+  background: var(--im-color-white);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-12);
+  box-shadow: var(--im-shadow-1);
+  padding: calc(var(--im-size-16) + var(--im-size-4)) calc(var(--im-size-16) + var(--im-size-4));
+}
+
+.im-surface-panel.im-surface-panel--compact {
+  padding: var(--im-size-12);
+}
+
+.content-2col-page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: calc(var(--im-size-16) + var(--im-size-4)) calc(var(--im-size-16) + var(--im-size-4)) calc(var(--im-size-24) + var(--im-size-4));
+}
+
+.content-2col-page > .layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: calc(var(--im-size-16) + var(--im-size-4));
+  align-items: start;
+}
+
+.content-2col-page .left,
+.content-2col-page .right {
+  min-width: 0;
+}
+
+@media (max-width: 1120px) {
+  .content-2col-page > .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.form-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+  margin-top: var(--im-size-16);
+  align-items: center;
+}
+
+.im-embed-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--im-size-16);
+}
+
+.im-embed-cards > app-request-search,
+.im-embed-cards > app-history-search {
+  display: block;
+  background: var(--im-color-white);
+  border-radius: var(--im-radius-12);
+  padding: var(--im-size-16);
+  box-shadow: var(--im-shadow-1);
+}

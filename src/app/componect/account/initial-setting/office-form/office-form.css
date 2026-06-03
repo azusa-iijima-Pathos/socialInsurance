@@ -1,0 +1,107 @@
+.office-registration-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(360px, 1fr);
+  gap: var(--im-size-24);
+  align-items: start;
+  margin-top: var(--im-size-24);
+  --office-card-height: 320px;
+}
+
+.office-registration-card,
+.office-list-area {
+  min-width: 0;
+  height: var(--office-card-height);
+  padding: var(--im-size-20);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+  box-sizing: border-box;
+}
+
+.office-registration-card h3,
+.office-list-area h3 {
+  margin-top: 0;
+}
+
+.office-list-area {
+  display: flex;
+  flex-direction: column;
+}
+
+.office-list-area app-office-list {
+  display: block;
+  min-height: 0;
+  flex: 1;
+}
+
+.office-registration-card .im-field-row {
+  grid-template-columns: 9rem 260px;
+  gap: var(--im-size-2) var(--im-size-12);
+  min-height: 54px;
+}
+
+.office-registration-card .im-field-row__label {
+  padding-top: var(--im-size-8);
+}
+
+.office-registration-card .im-field-row__control input,
+.office-registration-card .im-field-row__control select {
+  width: 260px;
+  max-width: 260px;
+}
+
+.office-registration-card .im-fields-grid {
+  gap: var(--im-size-2);
+}
+
+.office-registration-card .error {
+  min-height: var(--im-size-10);
+  margin-top: 0;
+}
+
+.office-registration-card .error p {
+  margin: 0;
+  line-height: 1;
+}
+
+.office-register-message {
+  min-height: var(--im-size-20);
+  margin: 0 0 var(--im-size-6);
+}
+
+.office-submit-actions {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--im-size-8);
+  margin-top: var(--im-size-8);
+  width: 416px;
+  max-width: 100%;
+}
+
+.office-submit-actions button {
+  width: 100%;
+  justify-content: center;
+}
+
+.office-navigation-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--im-size-16);
+}
+
+.office-navigation-button {
+  box-sizing: border-box;
+  height: var(--im-size-36);
+  min-height: var(--im-size-36);
+  padding-top: 0;
+  padding-bottom: 0;
+  align-items: center;
+  line-height: 1;
+}
+
+@media (max-width: 900px) {
+  .office-registration-layout {
+    grid-template-columns: 1fr;
+  }
+}

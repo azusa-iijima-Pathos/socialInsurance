@@ -1,0 +1,188 @@
+<div class="setting-container content-2col-page">
+    <h1 class="im-title">設定</h1>
+    <div class="information-area">
+        <p>給与設定を行ってください。</p>
+    </div>
+
+<button type="button" class="im-btn-primary" (click)="toEmployeePermissionSetting()">従業員権限設定へ</button>
+
+
+    <form class="im-fields-grid im-surface-panel setting-card" [formGroup]="form" (ngSubmit)="register()">
+        <div class="im-field-block im-field-row setting-field">
+            <div class="im-field-row__label">
+                <label>給与入力フォーマット</label>
+            </div>
+            <div class="im-field-row__control">
+                <div class="im-radio-group">
+                    <label class="im-radio-option" for="salaryInputFormat1">
+                        <input type="radio" id="salaryInputFormat1" formControlName="salaryInputFormat" [value]="1">
+                        <span>詳細項目別入力</span>
+                    </label>
+                    <label class="im-radio-option" for="salaryInputFormat2">
+                        <input type="radio" id="salaryInputFormat2" formControlName="salaryInputFormat" [value]="2">
+                        <span>固定給と総支給額のみ入力</span>
+                    </label>
+                </div>
+                <span>※時短の契約社員かパートの方がいる場合、項目別を選択してください。</span>
+            </div>
+        </div>
+
+        <div class="im-field-block im-field-row setting-field">
+            <div class="im-field-row__label">
+                <label>給与出力フォーマット</label>
+            </div>
+            <div class="im-field-row__control">
+                <div class="im-radio-group">
+                    <label class="im-radio-option" for="salaryOutputFormat1">
+                        <input type="radio" id="salaryOutputFormat1" formControlName="salaryOutputFormat" [value]="1">
+                        <span>給与と社会保険料出力</span>
+                    </label>
+                    <label class="im-radio-option" for="salaryOutputFormat2">
+                        <input type="radio" id="salaryOutputFormat2" formControlName="salaryOutputFormat" [value]="2">
+                        <span>社会保険料のみ出力</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="im-field-block im-field-row setting-field">
+            <div class="im-field-row__label">
+                <label>給与支払日</label>
+            </div>
+            <div class="im-field-row__control">
+                <div class="setting-inline-control">
+                    <div class="im-radio-group">
+                        <label class="im-radio-option" for="paymentMonth1">
+                            <input type="radio" id="paymentMonth1" formControlName="paymentMonth" [value]="'当月'">
+                            <span>当月</span>
+                        </label>
+                        <label class="im-radio-option" for="paymentMonth2">
+                            <input type="radio" id="paymentMonth2" formControlName="paymentMonth" [value]="'翌月'">
+                            <span>翌月</span>
+                        </label>
+                    </div>
+                    <input type="number" id="paymentDate" formControlName="paymentDate">
+                    <span class="setting-unit">日</span>
+                </div>
+                <div class="error">
+                    <p *ngIf="form.get('paymentDate')?.errors?.['required'] && form.get('paymentDate')?.touched">
+                        支払日は必須です</p>
+                    <p *ngIf="form.get('paymentDate')?.errors?.['min'] && form.get('paymentDate')?.touched">支払日は1以上です
+                    </p>
+                    <p *ngIf="form.get('paymentDate')?.errors?.['max'] && form.get('paymentDate')?.touched">支払日は31以下です
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="im-field-block im-field-row setting-field">
+            <div class="im-field-row__label">
+                <label>給与該当期間（毎月）</label>
+            </div>
+            <div class="im-field-row__control">
+                <div class="setting-inline-control">
+                    <input type="number" id="targetPeriodStart" formControlName="targetPeriodStart">
+                    <span class="setting-unit">日から1か月</span>
+                </div>
+                <div class="error">
+                    <p
+                        *ngIf="form.get('targetPeriodStart')?.errors?.['required'] && form.get('targetPeriodStart')?.touched">
+                        該当期開始日は必須です</p>
+                    <p *ngIf="form.get('targetPeriodStart')?.errors?.['min'] && form.get('targetPeriodStart')?.touched">
+                        該当期開始日は1以上です</p>
+                    <p *ngIf="form.get('targetPeriodStart')?.errors?.['max'] && form.get('targetPeriodStart')?.touched">
+                        該当期開始日は31以下です</p>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- 要確認！！！！！！！！！！！！！！！ 
+        <div class="im-field-block im-field-row setting-field">
+            <div class="im-field-row__label">
+                <label>保険料確定月</label>
+            </div>
+            <div class="im-field-row__control">
+                <div class="im-radio-group">
+                    <label class="im-radio-option" for="insuranceCloseingMonth1">
+                        <input type="radio" id="insuranceCloseingMonth1" formControlName="insuranceCloseingMonth" [value]="'当月'">
+                        <span>当月</span>
+                    </label>
+                    <label class="im-radio-option" for="insuranceCloseingMonth2">
+                        <input type="radio" id="insuranceCloseingMonth2" formControlName="insuranceCloseingMonth" [value]="'翌月'">
+                        <span>翌月</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="im-field-block im-field-row setting-field">
+            <div class="im-field-row__label">
+                <label>保険料確定日</label>
+            </div>
+            <div class="im-field-row__control">
+                <input type="number" id="insuranceCloseingDate" formControlName="insuranceCloseingDate">
+                <span class="setting-unit">日</span>
+            </div>
+        </div>
+        <div class="error">
+            <p *ngIf="form.get('insuranceCloseingDate')?.errors?.['required'] && form.get('insuranceCloseingDate')?.touched">保険料確定日は必須です</p>
+            <p *ngIf="form.get('insuranceCloseingDate')?.errors?.['min'] && form.get('insuranceCloseingDate')?.touched">保険料確定日は1以上です</p>
+            <p *ngIf="form.get('insuranceCloseingDate')?.errors?.['max'] && form.get('insuranceCloseingDate')?.touched">保険料確定日は31以下です</p>
+        </div>
+        -->
+
+
+        <div class="im-field-block im-field-row setting-field">
+            <div class="im-field-row__label">
+                <label>ボーナス</label>
+            </div>
+            <div class="im-field-row__control">
+                <div class="im-radio-group">
+                    <label class="im-radio-option" for="bonus">
+                        <input type="radio" id="bonus" formControlName="bonus" [value]="true">
+                        <span>あり(年1～3回の支給)</span>
+                    </label>
+                    <label class="im-radio-option" for="bonus2">
+                        <input type="radio" id="bonus2" formControlName="bonus" [value]="false">
+                        <span>なし(もしくは年4回以上の支給)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="im-field-block im-field-row setting-field" [class.setting-field--disabled]="!form.value.bonus">
+            <div class="im-field-row__label">
+                <label>ボーナス支払い月</label>
+            </div>
+            <div class="im-field-row__control">
+                <div class="setting-inline-control">
+                    <input type="number" id="bonusMonth1" formControlName="bonusMonth1" placeholder="１回">
+                    <span class="setting-unit">月</span>
+                    <input type="number" id="bonusMonth2" formControlName="bonusMonth2" placeholder="２回">
+                    <span class="setting-unit">月</span>
+                    <input type="number" id="bonusMonth3" formControlName="bonusMonth3" placeholder="３回">
+                    <span class="setting-unit">月</span>
+                    <p><small>※ボーナスがある回数分入力してください</small></p>
+                </div>
+                <div class="error">
+                    <p *ngIf="form.get('bonusMonth1')?.errors?.['required'] && form.get('bonusMonth1')?.touched">
+                        ボーナスありの場合、1回目の支払い月は必須です</p>
+                    <p *ngIf="form.get('bonusMonth1')?.errors?.['min'] && form.get('bonusMonth1')?.touched">ボーナス月は1以上です
+                    </p>
+                    <p *ngIf="form.get('bonusMonth1')?.errors?.['max'] && form.get('bonusMonth1')?.touched">ボーナス月は12以下です
+                    </p>
+                    <p *ngIf="form.get('bonusMonth2')?.errors?.['min'] && form.get('bonusMonth2')?.touched">ボーナス月は1以上です
+                    </p>
+                    <p *ngIf="form.get('bonusMonth2')?.errors?.['max'] && form.get('bonusMonth2')?.touched">ボーナス月は12以下です
+                    </p>
+                    <p *ngIf="form.get('bonusMonth3')?.errors?.['min'] && form.get('bonusMonth3')?.touched">ボーナス月は1以上です
+                    </p>
+                    <p *ngIf="form.get('bonusMonth3')?.errors?.['max'] && form.get('bonusMonth3')?.touched">ボーナス月は12以下です
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="im-form-actions setting-submit-actions">
+            <p class="im-action-message">{{ message }}</p>
+            <button type="submit" class="im-btn-primary">登録</button>
+        </div>
+    </form>
+</div>

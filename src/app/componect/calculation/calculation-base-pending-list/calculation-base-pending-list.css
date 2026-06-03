@@ -1,0 +1,73 @@
+.calculation-base-control,
+.calculation-base-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.calculation-base-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.calculation-base-status-badge {
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--im-border-color, #d8dee9);
+    border-radius: 999px;
+    background: var(--im-table-header-bg, #f5f7fb);
+    font-weight: 600;
+}
+
+.calculation-base-control input {
+    width: 100px;
+    margin-left: 8px;
+}
+
+.calculation-base-list-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+}
+
+.calculation-base-list-table th,
+.calculation-base-list-table td {
+    border: 1px solid var(--im-border-color, #d8dee9);
+    padding: 0.5rem;
+    text-align: center;
+}
+
+.calculation-base-list-table thead th {
+    background: var(--im-table-header-bg, #f5f7fb);
+    vertical-align: middle;
+}
+
+.calculation-base-list-table tbody td {
+    white-space: nowrap;
+}
+
+.calculation-base-edit-input {
+    width: 7rem;
+    max-width: 100%;
+    padding: 0.25rem;
+    text-align: right;
+}
+
+.calculation-base-edit-input--small {
+    width: 5rem;
+}
+
+.calculation-base-edit-errors {
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d9534f;
+    border-radius: 0.5rem;
+    color: #b00020;
+    background: #fff5f5;
+}
+
+.calculation-base-edit-errors p {
+    margin: 0.25rem 0;
+}

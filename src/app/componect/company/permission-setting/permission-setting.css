@@ -1,0 +1,48 @@
+.permission-setting-container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: calc(var(--im-size-16) + var(--im-size-4));
+}
+
+.permission-setting-table {
+  margin-top: var(--im-size-20);
+  overflow-x: auto;
+}
+
+.permission-setting-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--im-color-white);
+}
+
+.permission-setting-table th,
+.permission-setting-table td {
+  padding: var(--im-size-8);
+  border: 1px solid var(--im-color-gray-150);
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.permission-setting-table th {
+  background: var(--im-color-gray-50);
+  color: var(--im-color-slate-700);
+  font-weight: 600;
+}
+
+.permission-setting-table select {
+  width: 10rem;
+  max-width: 100%;
+}
+
+.permission-setting-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: var(--im-size-16);
+}
+
+.permission-setting-actions button {
+  justify-content: center;
+  min-width: 12rem;
+}

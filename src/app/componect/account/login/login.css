@@ -1,0 +1,20 @@
+/* 認証フォーム共通は src/app-global.css */
+
+.auth-links {
+  margin-top: calc(var(--im-size-16) + var(--im-size-4));
+  display: grid;
+  gap: calc(var(--im-size-12) + var(--im-size-4));
+}
+
+.auth-link-block p {
+  margin: 0 0 var(--im-size-6);
+  color: var(--im-color-slate-500);
+}
+
+.auth-link-block a {
+  color: var(--im-color-blue-600);
+}
+
+.auth-link-block a:hover {
+  color: var(--im-color-blue-500);
+}

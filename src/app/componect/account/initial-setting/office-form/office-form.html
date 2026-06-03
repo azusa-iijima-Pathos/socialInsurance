@@ -1,0 +1,59 @@
+<div class="office-form-container">
+    <h1 class="im-title">事業所情報初期登録</h1>
+
+    <div class="information-area">
+        <p>すべての事業所情報の登録をお願いします。</p>
+        <p>※本社のみ自動登録されています。</p>
+        <p>※事業所情報を登録していない場合、社員情報の登録ができません。</p>
+    </div>
+
+    <div class="office-navigation-actions">
+        <button type="button" class="im-btn-soft office-navigation-button" (click)="backToCompanyConfirm()">◀登録済み会社情報を再確認する</button>
+        <button type="button" class="im-btn-primary office-navigation-button" (click)="toEmployeeForm()">社員情報初期登録へ進む▶</button>
+    </div>
+
+    <div class="office-registration-layout">
+        <section class="office-registration-card">
+            <h3>事業所登録</h3>
+            <p class="im-action-message office-register-message">{{ message }}</p>
+            <form class="im-fields-grid" [formGroup]="form" (ngSubmit)="register()">
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label for="name">事業所名</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="text" id="name" formControlName="name">
+                        <div class="error">
+                            <p *ngIf="form.get('name')?.errors?.['required'] && form.get('name')?.touched">事業所名は必須です</p>
+                            <p *ngIf="form.get('name')?.errors?.['maxLength'] && form.get('name')?.touched">事業所名は20文字以内で入力してください</p>
+                            <p *ngIf="form.get('name')?.errors?.['officeNameAlreadyExists'] && form.get('name')?.touched">入力された事業所名は既に登録されています</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label for="prefecture">所在地(都道府県)</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <select id="prefecture" formControlName="prefecture">
+                            <option value="">都道府県を選択してください</option>
+                            <option *ngFor="let prefecture of PREFECTURES" [value]="prefecture">{{ prefecture }}</option>
+                        </select>
+                        <div class="error">
+                            <p *ngIf="form.get('prefecture')?.errors?.['required'] && form.get('prefecture')?.touched">所在地(都道府県)は必須です</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="office-submit-actions">
+                    <button type="submit" class="im-btn-primary">登録する</button>
+                    <button type="button" class="im-btn-soft" (click)="resetForm()">リセット</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="office-list-area">
+            <h3>登録済み事業所一覧</h3>
+            <app-office-list></app-office-list>
+        </section>
+    </div>
+</div>

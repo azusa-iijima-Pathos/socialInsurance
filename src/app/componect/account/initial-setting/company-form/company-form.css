@@ -1,0 +1,190 @@
+.company-registration-card {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--im-size-20);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+}
+
+.company-form-pair,
+.company-form-triple {
+  display: grid;
+  gap: var(--im-size-2) var(--im-size-8);
+}
+
+.company-form-pair {
+  grid-template-columns: minmax(180px, 1fr) minmax(240px, 2fr);
+}
+
+.company-form-triple {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.company-basic-field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.company-basic-field .im-field-row__label {
+  margin-bottom: 0;
+  padding-top: 0;
+}
+
+.company-basic-field .im-field-row__control {
+  gap: 0;
+}
+
+.company-basic-field .im-field-row__control input,
+.company-basic-field .im-field-row__control select {
+  width: 100%;
+  max-width: 100%;
+}
+
+.company-basic-field .im-radio-group {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: var(--im-size-28);
+  align-items: center;
+  min-height: 35px;
+}
+
+.company-basic-field .im-radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  column-gap: 0;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.company-basic-field .im-radio-option input[type='radio'] {
+  margin-right: var(--im-size-2);
+}
+
+.company-basic-field .company-business-type-radio-group {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: var(--im-size-28);
+  align-items: center;
+}
+
+.company-basic-field .company-business-type-radio-option {
+  display: inline-grid;
+  grid-template-columns: max-content max-content;
+  column-gap: var(--im-size-2);
+  align-items: center;
+  width: max-content;
+  margin: 0;
+}
+
+.company-basic-field .company-business-type-radio-option input[type='radio'] {
+  margin: 0;
+}
+
+.company-basic-field .company-business-type-radio-option span {
+  margin: 0;
+}
+
+.company-judgement-pair {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 2cm;
+  row-gap: var(--im-size-8);
+  justify-content: start;
+}
+
+.company-judgement-pair .im-field-row {
+  grid-template-columns: 10rem max-content;
+  gap: var(--im-size-6) var(--im-size-12);
+}
+
+.company-judgement-pair .im-field-row__label,
+.company-judgement-pair .im-field-row__label label,
+.company-judgement-pair .im-field-row__label span {
+  white-space: nowrap;
+}
+
+.company-judgement-pair .im-field-row__control {
+  min-width: 0;
+}
+
+.company-judgement-pair .im-field-row__control > span {
+  display: inline-block;
+  min-width: 8rem;
+}
+
+.company-auto-judgement-result {
+  padding-top: var(--im-size-8);
+  line-height: 1.4;
+}
+
+.company-judgement-pair .im-field-label-with-popover {
+  gap: var(--im-size-6);
+}
+
+.company-judgement-pair .im-radio-group,
+.company-judgement-pair .im-checkbox-option {
+  flex-wrap: nowrap;
+}
+
+.company-judgement-pair .im-radio-group {
+  align-items: center;
+  padding-top: var(--im-size-10);
+}
+
+.company-judgement-pair .im-checkbox-option {
+  align-items: center;
+  padding-top: var(--im-size-10);
+}
+
+.company-judgement-pair .company-manual-checkbox {
+  padding-top: var(--im-size-8);
+}
+
+.company-judgement-pair .im-popover {
+  display: block;
+  left: 0;
+  right: auto;
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - var(--im-size-48)));
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.company-judgement-pair .im-field-row__label .im-popover,
+.company-judgement-pair .im-field-row__label .im-popover span {
+  white-space: normal;
+}
+
+.company-auto-judgement-result--muted {
+  color: var(--im-color-slate-500);
+  opacity: 0.55;
+}
+
+.company-basic-field .error {
+  min-height: var(--im-size-10);
+  margin-top: 0;
+}
+
+.company-basic-field .error p {
+  margin: 0;
+  line-height: 1;
+}
+
+@media (max-width: 640px) {
+  .company-form-pair,
+  .company-form-triple,
+  .company-judgement-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .company-basic-field,
+  .company-basic-field .im-field-row__control input,
+  .company-basic-field .im-field-row__control select {
+    width: 100%;
+    max-width: 100%;
+  }
+}

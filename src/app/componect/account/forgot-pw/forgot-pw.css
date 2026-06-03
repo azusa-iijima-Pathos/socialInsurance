@@ -1,0 +1,5 @@
+/* 認証フォーム共通は src/app-global.css */
+
+.forgot-pw-login-link {
+  margin-top: var(--im-size-16);
+}

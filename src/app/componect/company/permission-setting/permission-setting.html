@@ -1,0 +1,50 @@
+<div class="permission-setting-container">
+    <h1 class="im-title">従業員権限設定</h1>
+
+    <div class="information-area">
+        <p>会社に紐づいているユーザーの現在の権限を確認し、必要に応じて変更してください。</p>
+        <p>※アカウント連携が完了していないユーザーは権限設定できません。</p>
+    </div>
+
+    <button type="button" class="im-btn-primary" (click)="toSetting()">◀給与設定に戻る</button>
+    <button type="button" class="im-btn-primary" (click)="toAddEmployee()">従業員保険情報を追加へ▶</button>
+
+    <p *ngIf="message" class="im-action-message">{{ message }}</p>
+
+    <div class="permission-setting-table" *ngIf="users().length > 0; else noUsers">
+        <table>
+            <thead>
+                <tr>
+                    <th>社員ID</th>
+                    <th>社員名</th>
+                    <th>現在の権限</th>
+                    <th>変更後の権限</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let user of users()">
+                    <td>{{ user.employeeId || '未連携' }}</td>
+                    <td>{{ user.employeeId ? commonService.getEmployeeName(user.employeeId) : '-' }}</td>
+                    <td>{{ user.permission || '未設定' }}</td>
+                    <td>
+                        <select [(ngModel)]="permissionForUpdate[user.uid]" [disabled]="user.employeeId === loginEmployeeId">
+                            <option *ngFor="let permission of PERMISSIONS" [ngValue]="permission">{{ permission }}</option>
+                        </select>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="permission-setting-actions">
+            <button
+                type="button"
+                class="im-btn-primary"
+                (click)="saveAllPermissions()">
+                更新
+            </button>
+        </div>
+    </div>
+
+    <ng-template #noUsers>
+        <p>会社に紐づくユーザーがいません。</p>
+    </ng-template>
+</div>

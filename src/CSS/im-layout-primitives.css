@@ -1,0 +1,560 @@
+/**
+ * .im-* レイアウト補助・セクション間隔・ナローフォームシェル・セグメント切替・帯/検証メッセージ。
+ * （旧 app-guard-auth.css / app-form-feedback.css をここへ統合）
+ *
+ * 構成（上から）:
+ *   1) ページヘッダー／ツール列・2カラム・フォーム縦積みなど汎用レイアウト
+ *   2) 帯メッセージ（.im-alert-banner）
+ *   3) フィールド直下エラー（.im-field-block .error / .modal .error / .error）
+ *   4) セグメント切替（.im-segmented）
+ *   5) 中央寄せナローパネル＋1列フィールド（.im-narrow-* / .im-field-block）
+ * ラベル+値の横並びグリッド（.info-grid）は app-page-shells.css 側。
+ * ヘッダー付きアプリ枠（.im-app-shell）は app/layout/main-shell（Router の親）。
+ */
+
+/* =============================================================================
+   ページ上部: ツール縦積み・見出し行（タイトル + 右端アクション）
+   ============================================================================= */
+
+.im-tool-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--im-size-8);
+}
+
+.im-page-header-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--im-size-24) + var(--im-size-8));
+  min-height: calc(var(--im-size-24) + var(--im-size-24));
+  flex-wrap: wrap;
+}
+
+.im-page-header-row .section-title {
+  margin: 0;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.im-page-header-trailing {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--im-size-16) + var(--im-size-4));
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .im-page-header-row {
+    align-items: flex-start;
+  }
+
+  .im-page-header-trailing {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+}
+
+/* =============================================================================
+   補助表示: 件数の淡色表示・空リストのヒント文
+   ============================================================================= */
+
+.im-subdued-count {
+  font-size: var(--im-font-13);
+  font-weight: 500;
+  color: var(--im-color-slate-500);
+  white-space: nowrap;
+}
+
+.im-empty-hint {
+  padding: var(--im-size-8);
+  color: var(--im-color-slate-500);
+  font-size: var(--im-font-13);
+}
+
+/* 表セル内に置くテキストエリア（幅・高さをセルに収める） */
+.im-textarea-table-cell {
+  width: 100%;
+  max-width: 300px;
+  min-width: 200px;
+  height: calc(var(--im-size-24) + var(--im-size-24) + var(--im-size-12));
+  padding: var(--im-size-4) var(--im-size-6);
+  border: 1px solid var(--im-color-gray-300);
+  border-radius: var(--im-radius-8);
+  font-size: var(--im-font-13);
+  resize: vertical;
+  overflow: auto;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+/* キー値の行リスト（左: 本文、右: 操作ボタン等） */
+.im-detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--im-size-4);
+}
+
+.im-detail-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--im-size-8);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--im-color-gray-150);
+}
+
+.im-detail-list li:last-child {
+  border-bottom: none;
+}
+
+.im-detail-list li span {
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+/* 隣接する .section-block 同士の縦間隔（ユーティリティではなく隣接セレクタ） */
+.section-block + .section-block {
+  margin-top: calc(var(--im-size-16) + var(--im-size-6));
+}
+
+/* メイン（可変）+ 固定幅サイドの横並び */
+.im-split-2col {
+  display: flex;
+  gap: var(--im-size-16);
+  align-items: flex-start;
+}
+
+.im-split-2col__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.im-split-2col__aside {
+  width: 400px;
+  flex-shrink: 0;
+}
+
+/* フォーム内ブロックの縦積み + 高めテキストエリア */
+.im-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--im-size-8);
+}
+
+.im-form-stack .im-textarea-tall {
+  width: 100%;
+  min-height: 160px;
+  padding: var(--im-size-8);
+  font-size: var(--im-font-13);
+  border-radius: var(--im-radius-8);
+  border: 1px solid var(--im-color-gray-300);
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+/* 送信ボタン行（通常 / 右寄せバリアント） */
+.im-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+  align-items: center;
+}
+
+.im-form-actions--end {
+  justify-content: flex-end;
+  gap: var(--im-size-12);
+}
+
+/* フォーム直下の淡い補足・インライン警告文 */
+.im-text-muted-note {
+  font-size: var(--im-font-13);
+  opacity: 0.7;
+  margin-top: var(--im-size-4);
+}
+
+/* インラインの警告文（バナーではなく行内） */
+.im-inline-msg-warn {
+  color: var(--im-color-red-800);
+  font-weight: 400;
+  font-size: var(--im-font-13);
+  line-height: var(--im-line-14);
+}
+
+/* 汎用マージン・ツールバー行・フレックス行（検索バー周り等） */
+.im-spacing-top {
+  margin-top: var(--im-size-16);
+}
+
+.im-toolbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--im-size-6);
+}
+
+.im-flex-inline-gap-lg {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.im-flex-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--im-size-8);
+  flex-wrap: wrap;
+}
+
+.im-inline-button-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--im-size-8);
+}
+
+/* =============================================================================
+   帯メッセージ（ガード遷移・ログイン失敗・トップ/プロジェクト選択の案内）
+   ============================================================================= */
+
+.im-alert-banner {
+  text-align: center;
+  color: var(--im-color-red-800);
+  font-weight: 600;
+  font-size: var(--im-font-09r);
+  margin: var(--im-size-8) 0 var(--im-size-16);
+  padding: var(--im-size-8) var(--im-size-8);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-red-50);
+  border: 1px solid var(--im-color-red-100);
+}
+
+/* =============================================================================
+   フィールド直下の検証メッセージ（フォーム・モーダル共通）
+   ※ .info-grid 内で grid-column 等を当てる場合は app-page-shells.css の修飾子側
+   ============================================================================= */
+
+.im-field-block .error,
+.modal .error,
+.error {
+  display: block;
+  min-height: 1.2em;
+  margin-top: 1px;
+  font-size: var(--im-font-13);
+  line-height: 1.2;
+  color: var(--im-color-red-600);
+}
+
+.error p {
+  margin: 0;
+}
+
+/* =============================================================================
+   カプセル型セグメント（メンバ/グループ切替・検索モード等）
+   ============================================================================= */
+
+.im-segmented {
+  display: flex;
+  background: var(--im-color-gray-100);
+  border-radius: var(--im-radius-full);
+  padding: var(--im-size-4);
+  gap: var(--im-size-4);
+}
+
+.im-segmented button {
+  border: none;
+  background: transparent;
+  padding: var(--im-size-6) var(--im-size-12);
+  border-radius: var(--im-radius-full);
+  cursor: pointer;
+  font-size: var(--im-font-13);
+  color: var(--im-color-slate-600);
+  transition: var(--im-time-200);
+}
+
+.im-segmented button.active {
+  background: var(--im-color-white);
+  color: var(--im-color-slate-900);
+  box-shadow: var(--im-shadow-1);
+}
+
+.im-segmented button:hover:not(.active) {
+  color: var(--im-color-slate-900);
+}
+
+/* =============================================================================
+   中央寄せナローフォーム（ログイン／登録／フォーマット管理等）
+   ============================================================================= */
+
+.im-narrow-page {
+  min-height: calc(100vh - (var(--im-size-24) + var(--im-size-24) + var(--im-size-24) + var(--im-size-8)));
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc(var(--im-size-24) + var(--im-size-16)) var(--im-size-16);
+  background: var(--im-color-gray-50);
+}
+
+.im-narrow-panel {
+  width: min(560px, 100%);
+  background: var(--im-color-white);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-12);
+  padding: calc(var(--im-size-24) + var(--im-size-4)) calc(var(--im-size-16) + var(--im-size-8));
+  box-shadow: var(--im-shadow-1);
+}
+
+.im-narrow-panel.im-narrow-panel--wide {
+  width: min(720px, 100%);
+}
+
+.im-panel-heading h1,
+.im-narrow-panel h1 {
+  margin: 0 0 calc(var(--im-size-16) + var(--im-size-4));
+  font-size: 1.6rem;
+  color: var(--im-color-slate-900);
+}
+
+/* ラベル付きフィールドを縦に並べる（1列フォーム用） */
+.im-fields-grid {
+  display: grid;
+  gap: calc(var(--im-size-8) + var(--im-size-6));
+}
+
+.im-field-block label {
+  display: block;
+  margin-bottom: var(--im-size-6);
+  color: var(--im-color-slate-900);
+  font-weight: 600;
+}
+
+.im-field-row {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--im-size-6) var(--im-size-16);
+}
+
+.im-field-row__label {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--im-size-8);
+  padding-top: var(--im-size-8);
+}
+
+.im-field-row__label > label {
+  margin-bottom: 0;
+}
+
+.im-field-row__control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--im-size-6);
+  min-width: 0;
+}
+
+.im-field-row--manual .im-field-row__control {
+  align-self: center;
+}
+
+.im-field-label-with-popover {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--im-size-6);
+}
+
+.im-field-label-with-popover > label {
+  margin-bottom: 0;
+}
+
+.im-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--im-size-6));
+  left: 0;
+  width: min(360px, 70vw);
+  padding: var(--im-size-12);
+  border: 1px solid var(--im-color-gray-200);
+  border-radius: var(--im-radius-12);
+  background: var(--im-color-white);
+  box-shadow: var(--im-shadow-2);
+  color: var(--im-color-slate-600);
+  font-size: var(--im-font-13);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .im-field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .im-field-row__label {
+    padding-top: 0;
+  }
+}
+
+.im-field-block input:not([type='radio']):not([type='checkbox']),
+.im-field-block select,
+.im-field-block textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--im-size-8) var(--im-size-12);
+  border: 1px solid var(--im-color-gray-300);
+  border-radius: var(--im-radius-12);
+  background: var(--im-color-white);
+}
+
+.im-field-block select {
+  font-family: inherit;
+  font-size: var(--im-font-14);
+  color: var(--im-color-slate-900);
+}
+
+/* radio / checkbox は入力欄風に伸ばさず、ラベルと横並びで扱う */
+.im-field-block input[type='radio'],
+.im-field-block input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  accent-color: var(--im-color-blue-500);
+}
+
+.im-radio-group,
+.im-checkbox-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--im-size-8) var(--im-size-16);
+}
+
+.im-radio-option,
+.im-checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--im-size-6);
+  color: var(--im-color-slate-900);
+  font-weight: 400;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.im-field-block .im-radio-option,
+.im-field-block .im-checkbox-option {
+  margin-bottom: 0;
+}
+
+.im-field-block label.im-radio-option,
+.im-field-block label.im-checkbox-option {
+  display: inline-flex;
+  font-weight: 400;
+}
+
+.im-field-block--muted,
+.im-control-group--muted {
+  color: var(--im-color-slate-500);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.im-field-block--muted label,
+.im-field-block--muted span,
+.im-control-group--muted label,
+.im-control-group--muted span {
+  color: var(--im-color-slate-500);
+}
+
+.im-field-block--muted input,
+.im-control-group--muted input {
+  accent-color: var(--im-color-gray-400);
+}
+
+.im-field-block textarea {
+  font-family: inherit;
+  font-size: var(--im-font-14);
+  line-height: 1.5;
+  resize: vertical;
+  min-height: calc(8 * var(--im-size-24) + var(--im-size-8));
+}
+
+/* パスワード＋表示切替を横並び */
+.im-password-field {
+  display: flex;
+  align-items: center;
+  gap: var(--im-size-4);
+  min-width: 0;
+}
+
+.im-password-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 目アイコン用の正方形ボタン（im-btn-soft とは別） */
+.im-password-reveal {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--im-size-24) + var(--im-size-12));
+  height: calc(var(--im-size-24) + var(--im-size-12));
+  padding: 0;
+  border: 1px solid var(--im-color-gray-300);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+  color: var(--im-color-slate-600);
+  cursor: pointer;
+}
+
+.im-password-reveal:hover {
+  background: var(--im-color-gray-50);
+}
+
+/* フォーム内の補足1行 */
+.im-meta-line {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--im-color-slate-500);
+}
+
+/* 送信結果などの本文メッセージ */
+.im-form-note {
+  margin-top: var(--im-size-8);
+  font-size: 0.95rem;
+  color: var(--im-color-slate-900);
+}
+
+/* =============================================================================
+   アプリシェル（MainShell: ヘッダー + 子ルート outlet）
+   認証系（login / register / forgot-password）はこの枠の外で表示する。
+   ============================================================================= */
+
+.im-app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  box-sizing: border-box;
+}
+
+.im-app-shell__main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}

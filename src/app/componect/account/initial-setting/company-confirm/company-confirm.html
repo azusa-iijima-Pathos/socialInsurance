@@ -1,0 +1,69 @@
+<div class="company-confirm-container">
+    <h1 class="im-title">会社情報登録内容確認</h1>
+    <div class="information-area">
+        <p>会社情報の初期登録が完了しました。</p>
+        <p>会社情報は以下の通りです。</p>
+        <p class="company-confirm-important">会社IDは必ず控えておいてください。アカウント連携の際に必要になります。</p>
+    </div>
+
+    <div class="company-confirm-actions">
+        <button type="button" class="im-btn-primary" (click)="toOfficeForm()">事業所情報初期登録へ進む▶</button>
+    </div>
+
+    <section class="company-confirm-card" *ngIf="company">
+        <div class="company-confirm-section">
+            <h3>会社基本情報</h3>
+            <div class="company-confirm-main-row">
+                <div class="company-confirm-id-row">
+                    <span>会社ID</span>
+                    <strong>{{ company.companyId }}</strong>
+                </div>
+                <div class="company-confirm-field">
+                    <span>事業形態</span>
+                    <strong>{{ company.isCorporation ? '法人' : '個人事業' }}</strong>
+                </div>
+                <div class="company-confirm-field">
+                    <span>会社名</span>
+                    <strong>{{ company.name }}</strong>
+                </div>
+            </div>
+
+            <div class="company-confirm-triple">
+                <div class="company-confirm-field">
+                    <span>事業種</span>
+                    <strong>{{ company.businessType }}</strong>
+                </div>
+                <div class="company-confirm-field">
+                    <span>常時従業員数</span>
+                    <strong>{{ company.employeeCount | number }}人</strong>
+                </div>
+                <div class="company-confirm-field">
+                    <span>本社所在地</span>
+                    <strong>{{ company.headOfficePrefecture }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="company-confirm-section">
+            <h3>《社会保険情報》</h3>
+            <div class="company-confirm-insurance-row">
+                <div class="company-confirm-field">
+                    <span>社会保険加入義務</span>
+                    <strong>{{ company.socialInsuranceRequired ? 'あり' : 'なし' }}</strong>
+                </div>
+                <div class="company-confirm-field">
+                    <span>任意適用事業所</span>
+                    <strong>{{ company.optionalApplicableOffice ? 'あり' : 'なし' }}</strong>
+                </div>
+                <div class="company-confirm-field">
+                    <span>特定適用事業所</span>
+                    <strong>{{ company.specificApplicableOffice ? 'あり' : 'なし' }}</strong>
+                </div>
+                <div class="company-confirm-field">
+                    <span>任意特定適用事業所</span>
+                    <strong>{{ company.optionalSpecificApplicableOffice ? 'あり' : 'なし' }}</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>

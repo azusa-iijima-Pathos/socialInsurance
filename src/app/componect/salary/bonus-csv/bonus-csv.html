@@ -1,0 +1,69 @@
+<section class="bonus-csv-container">
+    <h2 class="section-title">CSV一括登録</h2>
+    <p class="im-action-message" *ngIf="csvImportMessage">{{ csvImportMessage }}</p>
+
+    <p>ひな形をダウンロードして、賞与を入力してください。</p><br>
+    <p>・日付は yyyy-mm-dd 形式です。</p>
+    <p>・すべて半角で入力してください。</p>
+    <p>・総支給額は1円以上で入力してください。</p>
+    <div class="bonus-csv-actions">
+        <button type="button" class="im-btn-soft" (click)="downloadCsvTemplate()" [disabled]="disabled">CSVひな形ダウンロード</button>
+        <label class="im-btn-primary bonus-csv-file-label" [class.disabled]="disabled">
+            CSVファイルを選択
+            <input type="file" accept=".csv,text/csv" (change)="onCsvFileSelected($event)" [disabled]="disabled">
+        </label>
+        <button type="button" class="im-btn-primary" (click)="importCsv()" [disabled]="disabled">CSV内容を確認する</button>
+    </div>
+    <p class="bonus-csv-file-name" *ngIf="selectedCsvFileName">選択中：{{ selectedCsvFileName }}</p>
+ 
+</section>
+
+<div class="bonus-csv-modal" *ngIf="csvPreviewModalOpen">
+    <div class="bonus-csv-modal__panel">
+        <div class="bonus-csv-modal__header">
+            <h2>賞与CSV確認</h2>
+            <button type="button" class="im-btn-soft" (click)="closeCsvPreviewModal()">閉じる</button>
+        </div>
+
+        <div class="bonus-csv-modal__actions">
+            <button type="button" class="im-btn-soft" (click)="selectAllCsvPreviewRows()">登録可能行を全選択</button>
+            <button type="button" class="im-btn-soft" (click)="clearAllCsvPreviewRows()">選択解除</button>
+            <button type="button" class="im-btn-primary" (click)="registerSelectedCsvRows()" [disabled]="selectedCsvPreviewCount() === 0 || disabled">
+                選択した {{ selectedCsvPreviewCount() }} 件を登録
+            </button>
+        </div>
+
+        <div class="bonus-csv-preview-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>選択</th>
+                        <th>行</th>
+                        <th>社員ID</th>
+                        <th>対象期間開始日</th>
+                        <th>対象期間終了日</th>
+                        <th>支給日</th>
+                        <th>賞与支給額</th>
+                        <th>確認結果</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let row of csvPreviewRows" [class.bonus-csv-preview-table__row--error]="!row.canRegister">
+                        <td>
+                            <input type="checkbox" [checked]="row.selected" [disabled]="!row.canRegister" (change)="setCsvPreviewRowSelected(row, $any($event.target).checked)">
+                        </td>
+                        <td>{{ row.rowNumber }}</td>
+                        <td>{{ row.employeeId }}</td>
+                        <td>{{ row.targetPeriodStart }}</td>
+                        <td>{{ row.targetPeriodEnd }}</td>
+                        <td>{{ row.paymentDate }}</td>
+                        <td>{{ row.actualPaymentAmount | number }}</td>
+                        <td>
+                            <p *ngFor="let error of row.errors">{{ error }}</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,57 @@
+<div class="im-narrow-page">
+    <div class="im-narrow-panel register">
+        <h1>新規登録</h1>
+        <form class="im-fields-grid" [formGroup]="form" (ngSubmit)="register()">
+
+            <div class="im-field-block">
+                <label for="email">メールアドレス：</label>
+                <input id="email" type="email" formControlName="email" placeholder="メールアドレス">
+                <div class="error">
+                    <p *ngIf="form.get('email')?.errors?.['required'] && form.get('email')?.touched">メールアドレスは必須です</p>
+                    <p *ngIf="form.get('email')?.errors?.['email'] && form.get('email')?.touched">メールアドレスを正しく入力してください</p>
+                </div>
+            </div>
+            <div class="im-field-block">
+                <label for="password">パスワード：</label>
+                <div class="im-password-field">
+                  <input
+                    id="password"
+                    [type]="showPassword ? 'text' : 'password'"
+                    formControlName="password"
+                    placeholder="パスワード"
+                    autocomplete="new-password"
+                  >
+                  <button
+                    type="button"
+                    class="im-password-reveal"
+                    (click)="showPassword = !showPassword"
+                    [attr.aria-label]="showPassword ? 'パスワードを隠す' : 'パスワードを表示'"
+                    [attr.aria-pressed]="showPassword"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                </div>
+                <div class="error">
+                    <p *ngIf="form.get('password')?.errors?.['required'] && form.get('password')?.touched">パスワードは必須です</p>
+                    <p *ngIf="form.get('password')?.errors?.['minlength'] && form.get('password')?.touched">パスワードは6文字以上で入力してください</p>
+                </div>
+            </div>
+            <button type="submit" class="im-btn-primary" [disabled]="form.invalid || registered">登録</button>
+            <div
+                class="register-feedback"
+                *ngIf="message"
+                [class.register-feedback--success]="registered"
+                [class.register-feedback--error]="!registered"
+            >
+                {{ message }}
+            </div>
+
+            <div>
+                <button type="button" class="im-btn-soft" (click)="login()">ログイン画面へ</button>
+            </div>
+        </form>
+    </div>
+</div>

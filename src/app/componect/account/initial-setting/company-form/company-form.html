@@ -1,0 +1,172 @@
+<div class="company-form-container">
+    <h1 class="im-title">会社情報初期登録</h1>
+    <div class="information-area">
+    <p>会社情報の初期登録を行ってください。</p>
+    <p>※作成者に全管理権限が付与されます。</p>
+    </div>
+            
+    <form class="im-fields-grid company-registration-card" [formGroup]="form" (ngSubmit)="register()">
+
+        <div class="company-form-pair">
+            <div class="im-field-block im-field-row company-basic-field">
+                <div class="im-field-row__label">
+                    <label for="isCorporation">事業形態</label>
+                </div>
+                <div class="im-field-row__control">
+                    <div class="im-radio-group company-business-type-radio-group">
+                    <label class="im-radio-option company-business-type-radio-option">
+                        <input type="radio" formControlName="isCorporation" [value]="true">
+                        <span>法人</span>
+                    </label>
+                    <label class="im-radio-option company-business-type-radio-option">
+                        <input type="radio" formControlName="isCorporation" [value]="false">
+                        <span>個人事業</span>
+                    </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="im-field-block im-field-row company-basic-field">
+                <div class="im-field-row__label">
+                    <label for="name">会社名</label>
+                </div>
+                <div class="im-field-row__control">
+                    <input type="text" id="name" formControlName="name">
+                    <div class="error">
+                        <p *ngIf="form.get('name')?.errors?.['required'] && form.get('name')?.touched">会社名は必須です</p>
+                        <p *ngIf="form.get('name')?.errors?.['companyNameAlreadyExists'] && form.get('name')?.touched">既に登録されている会社名です</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="company-form-triple">
+            <div class="im-field-block im-field-row company-basic-field">
+                <div class="im-field-row__label">
+                    <label for="businessType">事業種</label>
+                </div>
+                <div class="im-field-row__control">
+                    <select id="businessType" formControlName="businessType">
+                        <option value="">事業種を選択してください</option>
+                        <option *ngFor="let businessType of BUSINESS_TYPES" [value]="businessType">{{ businessType }}</option>
+                    </select>
+                    <div class="error">
+                        <p *ngIf="form.get('businessType')?.errors?.['required'] && form.get('businessType')?.touched">事業種は必須です</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="im-field-block im-field-row company-basic-field">
+                <div class="im-field-row__label">
+                    <label for="employeeCount">常時従業員数</label>
+                </div>
+                <div class="im-field-row__control">
+                    <input type="number" id="employeeCount" formControlName="employeeCount">
+                    <div class="error">
+                        <p *ngIf="form.get('employeeCount')?.errors?.['required'] && form.get('employeeCount')?.touched">常時従業員数は必須です</p>
+                        <p *ngIf="form.get('employeeCount')?.errors?.['pattern'] && form.get('employeeCount')?.touched">常時従業員数は半角数字で入力してください</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="im-field-block im-field-row company-basic-field">
+                <div class="im-field-row__label">
+                    <label for="headOfficePrefecture">本社所在地(都道府県)</label>
+                </div>
+                <div class="im-field-row__control">
+                    <select id="headOfficePrefecture" formControlName="headOfficePrefecture">
+                        <option value="">本社所在地を選択してください</option>
+                        <option *ngFor="let prefecture of PREFECTURES" [value]="prefecture">{{ prefecture }}</option>
+                    </select>
+                    <div class="error">
+                        <p *ngIf="form.get('headOfficePrefecture')?.errors?.['required'] && form.get('headOfficePrefecture')?.touched">本社住所は必須です</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="company-judgement-pair">
+            <div class="im-field-block im-field-row im-field-row--manual">
+                <div class="im-field-row__label">
+                    <label for="socialInsuranceRequired">社会保険加入</label>
+                    <label class="im-checkbox-option company-manual-checkbox">
+                        <input type="checkbox" (change)="socialInsuranceByManual = $any($event.target).checked" [checked]="socialInsuranceByManual">
+                        <span>手動調整</span>
+                    </label>
+                </div>
+                <div class="im-field-row__control">
+                    <span class="company-auto-judgement-result" [class.company-auto-judgement-result--muted]="socialInsuranceByManual">{{socialInsuranceRequiredByAuto() ? '加入' : '非加入'}}（自動判定）</span>
+                    <div class="im-radio-group" [class.im-control-group--muted]="!socialInsuranceByManual">
+                    <label class="im-radio-option">
+                        <input type="radio" formControlName="socialInsuranceRequired" [value]="true">
+                        <span>加入</span>
+                    </label>
+                    <label class="im-radio-option">
+                        <input type="radio" formControlName="socialInsuranceRequired" [value]="false">
+                        <span>非加入</span>
+                    </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="im-field-block im-field-row" [class.im-field-block--muted]="isOptionalApplicableOfficeDisabled()">
+                <div class="im-field-row__label">
+                    <label for="optionalApplicableOffice">任意適用事業所</label>
+                </div>
+                <div class="im-field-row__control">
+                    <label class="im-checkbox-option">
+                        <input type="checkbox" id="optionalApplicableOffice" formControlName="optionalApplicableOffice">
+                        <span>任意適用事業所に該当する</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="company-judgement-pair">
+            <div class="im-field-block im-field-row im-field-row--manual" [class.im-field-block--muted]="isSpecificApplicableOfficeDisabled()">
+                <div class="im-field-row__label">
+                    <div class="im-field-label-with-popover">
+                        <label for="specificApplicableOffice">特定適用事業所</label>
+                        <button type="button" class="im-btn-soft" (click)="isOpenDescription.set(!isOpenDescription())">+</button>
+                        <span class="im-popover" *ngIf="isOpenDescription()">
+                            {{specificApplicableOfficeDescription}}<br>
+                            {{specificApplicableOfficeSpecialcase}}
+                        </span>
+                    </div>
+                    <label class="im-checkbox-option company-manual-checkbox">
+                        <input type="checkbox" (change)="specificApplicableOfficeByManual = $any($event.target).checked" [checked]="specificApplicableOfficeByManual">
+                        <span>手動調整</span>
+                    </label>
+                </div>
+                <div class="im-field-row__control">
+                    <span class="company-auto-judgement-result" [class.company-auto-judgement-result--muted]="specificApplicableOfficeByManual">{{specificApplicableOfficeByAuto() ? '適用' : '非適用'}}（自動判定）</span>
+                    <div class="im-radio-group" [class.im-control-group--muted]="!specificApplicableOfficeByManual">
+                    <label class="im-radio-option">
+                        <input type="radio" formControlName="specificApplicableOffice" [value]="true">
+                        <span>適用</span>
+                    </label>
+                    <label class="im-radio-option">
+                        <input type="radio" formControlName="specificApplicableOffice" [value]="false">
+                        <span>非適用</span>
+                    </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="im-field-block im-field-row" [class.im-field-block--muted]="isOptionalSpecificApplicableOfficeDisabled()">
+                <div class="im-field-row__label">
+                    <label for="optionalSpecificApplicableOffice">任意特定適用事業所</label>
+                </div>
+                <div class="im-field-row__control">
+                    <label class="im-checkbox-option">
+                        <input type="checkbox" id="optionalSpecificApplicableOffice" formControlName="optionalSpecificApplicableOffice">
+                        <span>任意特定適用事業所に該当する</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="im-btn-primary" [disabled]="form.invalid">登録</button>
+
+    </form>
+</div>

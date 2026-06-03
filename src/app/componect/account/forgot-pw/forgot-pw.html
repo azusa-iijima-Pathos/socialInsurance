@@ -1,0 +1,23 @@
+<div class="im-narrow-page">
+    <div class="im-narrow-panel forgot-pw">
+        <h1>パスワードリセット</h1>
+        <form class="im-fields-grid" [formGroup]="form" (ngSubmit)="resetPassword()">
+            <div class="im-field-block">
+                <label for="email">メールアドレス：</label>
+                <input id="email" type="email" formControlName="email" placeholder="メールアドレス">
+                <div class="error">
+                    <p *ngIf="form.get('email')?.errors?.['required'] && form.get('email')?.touched">メールアドレスは必須です</p>
+                    <p *ngIf="form.get('email')?.errors?.['email'] && form.get('email')?.touched">メールアドレスを正しく入力してください</p>
+                </div>
+            </div>
+            <button type="submit" class="im-btn-primary" [disabled]="form.invalid || resetCompleted">パスワードリセット</button>
+        </form>
+        <div *ngIf="message">
+            {{ message }}
+        </div>
+
+        <div class="forgot-pw-login-link">
+            <button type="button" class="im-btn-soft" (click)="login()">ログイン画面へ</button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,74 @@
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    border: 1px solid var(--im-border-color, #d8dee9);
+    padding: 0.5rem;
+    text-align: center;
+}
+
+.insurance-confirm-list-table {
+    margin-bottom: 1.5rem;
+}
+
+.insurance-confirm-list-table thead th {
+    background: var(--im-table-header-bg, #f5f7fb);
+    vertical-align: middle;
+}
+
+.insurance-confirm-list-table tbody td {
+    white-space: nowrap;
+}
+
+.insurance-confirm-list-table .insurance-confirm-merged-top {
+    border-bottom: none;
+    padding-bottom: 0.15rem;
+}
+
+.insurance-confirm-list-table .insurance-confirm-merged-bottom {
+    border-top: none;
+    padding-top: 0.15rem;
+}
+
+.insurance-confirm-edit-input {
+    width: 7rem;
+    max-width: 100%;
+    padding: 0.25rem;
+    text-align: right;
+}
+
+.insurance-confirm-edit-input--small {
+    width: 5rem;
+}
+
+.insurance-confirm-edited-amount,
+.insurance-confirm-edited-input {
+    color: #b00020;
+}
+
+.insurance-confirm-edited-input {
+    border-color: #b00020;
+}
+
+.insurance-confirm-calculated-amount {
+    display: block;
+    margin-top: 0.2rem;
+    color: #8a8a8a;
+    font-size: 0.75rem;
+}
+
+.insurance-confirm-edit-errors {
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d9534f;
+    border-radius: 0.5rem;
+    color: #b00020;
+    background: #fff5f5;
+}
+
+.insurance-confirm-edit-errors p {
+    margin: 0.25rem 0;
+}

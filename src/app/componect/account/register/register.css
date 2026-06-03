@@ -1,0 +1,17 @@
+/* 認証フォーム共通は src/app-global.css */
+
+.register-feedback {
+  margin-top: var(--im-size-8);
+  font-size: var(--im-font-095r);
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.register-feedback--error {
+  color: var(--im-color-red-800);
+}
+
+.register-feedback--success {
+  color: var(--im-color-green-700);
+}

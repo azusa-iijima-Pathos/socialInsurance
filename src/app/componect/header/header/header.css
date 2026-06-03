@@ -1,0 +1,57 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--im-size-16);
+  min-height: 56px;
+  padding: var(--im-size-8) var(--im-size-20);
+  border-bottom: 1px solid var(--im-color-gray-150);
+  background: var(--im-color-white);
+  box-sizing: border-box;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.app-title {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0;
+}
+
+.app-title-button {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: var(--im-size-36);
+  padding: 0 var(--im-size-8);
+  border: none;
+  background: transparent;
+  color: var(--im-color-slate-900);
+  font: inherit;
+  font-size: var(--im-font-20);
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--im-time-200) ease;
+}
+
+.app-title-button:hover {
+  background: transparent;
+  color: var(--im-color-blue-600);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--im-size-8);
+  margin-left: auto;
+}
