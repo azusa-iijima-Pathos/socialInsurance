@@ -1,8 +1,8 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
-import { CommonService } from '../../../service/common/common-service';
-import { FormsModule } from '@angular/forms';
+import { CommonService, MessageTimer } from '../../../service/common/common-service';
+import { FormsModule, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Employee, InsuranceDetail } from '../../../model/employee';
 import { OfficeService } from '../../../service/Firestore/office-service';
 import { EmployeeLogicService } from '../../../service/logic/employee-logic-service';
@@ -10,10 +10,12 @@ import { CompanyService } from '../../../service/Firestore/company-service';
 import { ActivatedRoute } from '@angular/router';
 import { DependentService } from '../../../service/Firestore/dependent-service';
 import { Dependent } from '../../../model/dependent';
+import { EmploymentCategory, LeaveType, WorkStyle, WorkStatus, WORK_STATUSES, LEAVE_TYPES, EMPLOYMENT_CATEGORIES, WORK_STYLES } from '../../../constants/model-constants';
+import { UPDATE_MESSAGES } from '../../../constants/constants';
 
 @Component({
   selector: 'app-employee-detail',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: './employee-detail.html',
   styleUrl: './employee-detail.css',
 })
@@ -26,15 +28,25 @@ export class EmployeeDetail {
   private companyService = inject(CompanyService);
   private route = inject(ActivatedRoute);
   private dependentService = inject(DependentService);
+  private fb = inject(FormBuilder);
 
   employeeMap = this.employeeService.allEmployeeNameMap;
+  officeMap = this.officeService.allOfficeNameMap;
+
+  WORK_STATUSES = WORK_STATUSES;
+  LEAVE_TYPES = LEAVE_TYPES;
+  EMPLOYMENT_CATEGORIES = EMPLOYMENT_CATEGORIES;
+  WORK_STYLES = WORK_STYLES;
 
   selectedEmployeeId: string = '';
   selectedEmployee: Employee | null = null;
 
   dependents: Dependent[] = [];
-  
+
   message: string = '';
+
+  updateMessage: string = '';
+  messageTimer: MessageTimer = null;
 
   async ngOnInit() {
     await this.employeeService.getAllEmployees();
@@ -122,16 +134,83 @@ export class EmployeeDetail {
     return insuranceDetail.joined ? '加入' : '未加入';
   }
 
+  isOpenContractInfoModal: boolean = false;
+  contractForm = this.fb.group({
+    workStatus: ['通常勤務', [Validators.required]],
+    leaveTypes: [''],
+    employmentContract: this.fb.group({
+      employmentCategory: ['正社員', [Validators.required]],
+      workStyle: ['フルタイム', [Validators.required]],
+      officeId: ['', [Validators.required]],
+      contractedWorkingHoursPerWeek: ['40', [Validators.required, Validators.min(0)]],
+      contractedWorkingDaysPerMonth: ['20', [Validators.required, Validators.min(0)]],
+    }),
+  });
   editContractInfo() {
-    console.log('editContractInfo');
+    this.isOpenContractInfoModal = true;
+    this.contractForm.patchValue({
+      workStatus: this.selectedEmployee?.workStatus!,
+      leaveTypes: this.selectedEmployee?.leaveTypes!,
+      employmentContract: {
+        employmentCategory: this.selectedEmployee?.employmentContract?.employmentCategory!,
+        workStyle: this.selectedEmployee?.employmentContract?.workStyle!,
+        officeId: this.selectedEmployee?.employmentContract?.officeId!,
+        contractedWorkingHoursPerWeek: this.selectedEmployee?.employmentContract?.contractedWorkingHoursPerWeek?.toString() ?? '',
+        contractedWorkingDaysPerMonth: this.selectedEmployee?.employmentContract?.contractedWorkingDaysPerMonth?.toString() ?? '',
+      },
+    });
   }
+
+  async contractInfoModalSubmit() {
+    if (this.contractForm.invalid) {
+      this.contractForm.markAllAsTouched();
+      return;
+    }
+    const contractInfo: Partial<Employee> = {
+      ...this.selectedEmployee,
+      workStatus: this.contractForm.value.workStatus! as WorkStatus,
+      leaveTypes: this.contractForm.value.leaveTypes! as LeaveType,
+      employmentContract: {
+        employmentCategory: this.contractForm.value.employmentContract?.employmentCategory! as EmploymentCategory,
+        workStyle: this.contractForm.value.employmentContract?.workStyle! as WorkStyle,
+        officeId: this.contractForm.value.employmentContract?.officeId!,
+        contractedWorkingHoursPerWeek: Number(this.contractForm.value.employmentContract?.contractedWorkingHoursPerWeek),
+        contractedWorkingDaysPerMonth: Number(this.contractForm.value.employmentContract?.contractedWorkingDaysPerMonth),
+      },
+    };
+    const result = await this.employeeService.updateEmployee(contractInfo);
+    if (!result) {
+      this.commonService.showTimedMessage(UPDATE_MESSAGES.FAILED, value => this.updateMessage = value, this.messageTimer);
+      return;
+    }
+
+    this.commonService.showTimedMessage(`社員ID：${this.selectedEmployeeId}　${this.commonService.getEmployeeName(this.selectedEmployeeId!)}さんの勤務状況・雇用契約情報を${UPDATE_MESSAGES.SUCCESS}`, value => this.updateMessage = value, this.messageTimer);
+    await this.selectEmployee();
+    this.closeContractInfoModal();
+    return;
+  }
+
+  closeContractInfoModal() {
+    this.isOpenContractInfoModal = false;
+    this.contractForm.reset();
+  }
+
+
+
+
+
+
+    isOpenInsuranceInfoModal: boolean = false;
+    isOpenDependentInfoModal: boolean = false;
+
+
 
   editInsuranceInfo() {
-    console.log('editInsuranceInfo');
-  }
+      this.isOpenInsuranceInfoModal = true;
+    }
 
   editDependentInfo() {
-    console.log('editDependentInfo');
-  }
+      this.isOpenDependentInfoModal = true;
+    }
 
-}
+  }

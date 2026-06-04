@@ -18,6 +18,9 @@
     <!-- 検索結果 -->
     <p *ngIf="message">{{ message }}</p>
 
+    <!-- 更新メッセージ -->
+    <p *ngIf="updateMessage">{{ updateMessage }}</p>
+
     <div *ngIf="selectedEmployee">
         <h3>基本情報</h3>
         <p>社員ID：{{ selectedEmployee.employeeId! }}</p>
@@ -27,6 +30,7 @@
         <p>生年月日：{{ commonService.formatDate(selectedEmployee.birthDate!) }}</p>
         <p>入社日：{{ commonService.formatDate(selectedEmployee.hireDate!) }}</p>
         <p>勤務状況：{{ selectedEmployee.workStatus! }}</p>
+        <p *ngIf="selectedEmployee.workStatus === '休職中'">休職種別：{{ selectedEmployee.leaveTypes! }}</p>
         <p><strong>雇用契約情報</strong></p>
         <p>雇用形態：{{ selectedEmployee.employmentContract?.employmentCategory! }}</p>
         <p>勤務形態：{{ selectedEmployee.employmentContract?.workStyle! }}</p>
@@ -89,3 +93,53 @@
         <button type="button" class="im-btn-soft" (click)="editDependentInfo()">扶養情報を編集</button>
 
         <p>表示情報と計算結果が違う場合、アラート表示。適用するか確認するダイアログを表示。</p>
+
+        <div class="modal-backdrop" *ngIf="isOpenContractInfoModal">
+            <div class="modal">
+              <h2>雇用契約編集</h2>
+              <div *ngIf="contractForm" [formGroup]="contractForm">
+                <label>勤務状況</label>
+                <select formControlName="workStatus">
+                  <option *ngFor="let workStatus of WORK_STATUSES" [value]="workStatus">{{ workStatus }}</option>
+                </select>
+                <div *ngIf="contractForm.value.workStatus === '休職中'">
+                  <label>休職種別</label>
+                  <select formControlName="leaveTypes">
+                    <option *ngFor="let leaveType of LEAVE_TYPES" [value]="leaveType">{{ leaveType }}</option>
+                  </select>
+                </div>
+                <hr>
+                <label>雇用区分</label>
+                <select formControlName="employmentCategory">
+                  <option *ngFor="let employmentCategory of EMPLOYMENT_CATEGORIES" [value]="employmentCategory">{{ employmentCategory }}</option>
+                </select>
+          
+                <label>勤務形態</label>
+                <select formControlName="workStyle">
+                  <option *ngFor="let workStyle of WORK_STYLES" [value]="workStyle">{{ workStyle }}</option>
+                </select>
+          
+                <label>事業所</label>
+                <select formControlName="officeId">
+                  <option *ngFor="let office of officeMap() | keyvalue" [value]="office.key">{{ office.value }}</option>
+                </select>
+          
+                <label>週労働時間</label>
+                <input type="number" formControlName="contractedWorkingHoursPerWeek">
+          
+                <label>月労働日数</label>
+                <input type="number" formControlName="contractedWorkingDaysPerMonth">
+          
+                <label>基本給</label>
+                <input type="number" formControlName="fixedSalary">
+              </div>
+              <div class="modal-actions">
+                <button (click)="contractInfoModalSubmit()">保存</button>
+                <button (click)="closeContractInfoModal()">キャンセル</button>
+              </div>
+          
+            </div>
+          </div>
+
+
+
