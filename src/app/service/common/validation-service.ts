@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { AbstractControl, ValidationErrors } from '@angular/forms';
+import { AbstractControl, FormGroup, ValidationErrors } from '@angular/forms';
 import { CompanyService } from '../Firestore/company-service';
 import { EmployeeService } from '../Firestore/employee-service';
 import { Employee } from '../../model/employee';
@@ -134,6 +134,26 @@ export class ValidationService {
 
     return inputDate >= today ? { invalidBirthDate: true } : null;
   };
+
+  /** 扶養行の一部だけ入力された場合、残りの項目も必須にする */
+  requiredIfAnyDependentFieldEntered = (control: AbstractControl): ValidationErrors | null => {
+    const parent = control.parent;
+    if (!parent) return null;
+
+    const name = parent.get('name')?.value;
+    const birthDate = parent.get('birthDate')?.value;
+    const relationship = parent.get('relationship')?.value;
+    const hasAnyValue = Boolean(name || birthDate || relationship);
+
+    return hasAnyValue && !control.value ? { required: true } : null;
+  };
+
+  /** 扶養行の入力変更時に、同じ行の他項目も再検証する */
+  refreshDependentRowValidation(group: FormGroup): void {
+    (['name', 'birthDate', 'relationship'] as const).forEach(fieldName => {
+      group.get(fieldName)?.updateValueAndValidity({ emitEvent: false });
+    });
+  }
 
   /** 勤務実績があるのに給与・支給額がない場合のバリデーション */
   validateSalaryNumber = (control: AbstractControl): ValidationErrors | null => {

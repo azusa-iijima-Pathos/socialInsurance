@@ -11,36 +11,50 @@
 <span *ngIf="message" class="im-action-message">{{ message }}</span>
 
 <h3>作成されたイベント一覧</h3>
-<table>
-    <thead>
-        <tr>
-            <th></th>
-            <th>社員ID</th>
-            <th>氏名</th>
-            <th>生年月日</th>
-            <th>到達年齢</th>
-            <th>承認状況</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr *ngFor="let event of createdEvents">
-            <td>
-                <input type="checkbox" [checked]="selectedEvents.has(event.payload?.['employee']?.employeeId ?? '')" (change)="onToggle(event.payload?.['employee']?.employeeId ?? '', $event.target.checked)" />
-            </td>
-            <td>{{ event.payload?.['employee']?.employeeId ?? '' }}</td>
-            <td>{{ commonService.getEmployeeName(event.payload?.['employee']?.employeeId ?? '') }}</td>
-            <td>{{ commonService.formatDate(event.payload?.['employee']?.birthDate ?? null) }}</td>
-            <td>{{ event.reachAgeType }}</td>
-            <td>{{ event.approval?.approvalStatus ?? '' }}</td>
-        </tr>
-    </tbody>
-</table>
-
-<button type="button" class="im-btn-soft" (click)="toggleAllClear()">全選択解除</button>
-<button type="button" class="im-btn-soft" (click)="toggleAll()">全選択</button>
-<button type="button" class="im-btn-soft" (click)="approveSelected()">
-    選択したイベントを承認
-</button>
+<section class="employee-detail-section employee-detail-events" *ngIf="createdEvents.length > 0">
+    <div class="employee-detail-events-table-wrap">
+        <table class="employee-detail-events-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>社員ID</th>
+                    <th>氏名</th>
+                    <th>生年月日</th>
+                    <th>到達年齢</th>
+                    <th>承認状況</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let event of createdEvents">
+                    <td>
+                        <input type="checkbox"
+                            [disabled]="!isPendingEvent(event)"
+                            [checked]="selectedEvents.has(getEventKey(event))"
+                            (change)="onToggle(event, $any($event.target).checked)" />
+                    </td>
+                    <td>{{ event.payload?.['employee']?.employeeId ?? '' }}</td>
+                    <td>{{ commonService.getEmployeeName(event.payload?.['employee']?.employeeId ?? '') }}</td>
+                    <td>{{ commonService.formatDate(event.payload?.['employee']?.birthDate ?? null) }}</td>
+                    <td>{{ event.reachAgeType }}</td>
+                    <td>{{ event.approval?.approvalStatus ?? '' }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="reach-age-events-actions">
+        <div class="reach-age-events-actions__left">
+            <button type="button" class="im-btn-soft" (click)="toggleAllClear()">全選択解除</button>
+            <button type="button" class="im-btn-soft" (click)="toggleAll()">全選択</button>
+        </div>
+        <div class="reach-age-events-actions__right">
+            <button type="button" class="im-btn-primary" (click)="approveSelected()">選択済みのものを承認</button>
+            <button type="button" class="im-btn-soft" (click)="rejectSelected()">選択済みのものを却下</button>
+        </div>
+    </div>
+</section>
+<section class="employee-detail-section employee-detail-events" *ngIf="createdEvents.length === 0">
+    <p class="employee-detail-empty">イベントはありません</p>
+</section>
 
 <div class="information-area">
     <h4>年齢到達時の保険適用方法</h4>

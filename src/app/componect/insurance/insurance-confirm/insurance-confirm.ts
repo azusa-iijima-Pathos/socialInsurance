@@ -163,7 +163,8 @@ export class InsuranceConfirm {
     console.log(this.employeeService.allEmployees());
 
     //従業員情報取得
-    this.employeeData = this.employeeService.allEmployees();
+    this.employeeData = this.employeeService.allEmployees()
+      .filter(employee => employee.workStatus !== '退社済み');
     const drafts = await this.insuranceDraftService.getDrafts(this.payrollId);
     this.insuranceDraftMap = drafts.reduce<Record<string, InsuranceDraft>>((map, draft) => {
       map[draft.employeeId] = draft;

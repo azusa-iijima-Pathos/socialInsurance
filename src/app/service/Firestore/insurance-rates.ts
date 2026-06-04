@@ -1,11 +1,11 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { CrudService } from '../common/crud-service';
 import { StandardMonthlyRemuneration, InsuranceRate } from '../../model/insuranceRate';
 
 /**
  * 標準報酬月額マスタ
  * PATH: standardMonthlyRemunerations/{year} と standardMonthlyRemunerations/{year}/grades/{docId}
- * 
+ *
  * 保険料率
  * PATH: insuranceRates/{year} と insuranceRates/{year}/prefectures/{docId}
  */
@@ -34,13 +34,12 @@ export class InsuranceRates {
   remunerationPeriod: Record<string, { effectiveFrom?: string; effectiveTo?: string }> = {};
   isRemunerationDataLoaded: Record<string, boolean> = {};
   async getRemunerationData(year: string) {
-    if (this.isRemunerationDataLoaded[year]) return;
-    const period = await this.crudService.getById<Record<string, unknown>>(this.remunerationParentPath(year));
-    const remunerationData = await this.crudService.getAll<Record<string, unknown>>(this.remunerationPath(year), 'id');
-    this.remunerationPeriod[year] = this.normalizePeriod(period ?? {});
-    this.remunerationData[year] = remunerationData.map(item => this.normalizeRemunerationData(item));
-    this.isRemunerationDataLoaded[year] = true;
-    return;
+    const resolvedYear = await this.resolveRemunerationYear(year);
+    if (year !== resolvedYear) {
+      this.remunerationData[year] = this.remunerationData[resolvedYear] ?? [];
+      this.remunerationPeriod[year] = this.remunerationPeriod[resolvedYear] ?? {};
+      this.isRemunerationDataLoaded[year] = true;
+    }
   }
 
   /** 今年の保険料率 */
@@ -48,13 +47,12 @@ export class InsuranceRates {
   ratePeriod: Record<string, { effectiveFrom?: string; effectiveTo?: string }> = {};
   isRateDataLoaded: Record<string, boolean> = {};
   async getRateData(year: string) {
-    if (this.isRateDataLoaded[year]) return;
-    const period = await this.crudService.getById<Record<string, unknown>>(this.rateParentPath(year));
-    const rateData = await this.crudService.getAll<Record<string, unknown>>(this.ratePath(year), 'id');
-    this.ratePeriod[year] = this.normalizePeriod(period ?? {});
-    this.rateData[year] = rateData.map(item => this.normalizeRateData(item));
-    this.isRateDataLoaded[year] = true;
-    return;
+    const resolvedYear = await this.resolveRateYear(year);
+    if (year !== resolvedYear) {
+      this.rateData[year] = this.rateData[resolvedYear] ?? [];
+      this.ratePeriod[year] = this.ratePeriod[resolvedYear] ?? {};
+      this.isRateDataLoaded[year] = true;
+    }
   }
 
   /** 等級から標準報酬月額を取得 */
@@ -74,6 +72,46 @@ export class InsuranceRates {
     return this.isApplicable(this.ratePeriod[year], targetYearMonth)
       ? (this.rateData[year] ?? [])
       : [];
+  }
+
+  private async resolveRemunerationYear(requestedYear: string): Promise<string> {
+    for (let year = Number(requestedYear); year >= 2000; year--) {
+      const yearStr = String(year);
+      await this.loadRemunerationData(yearStr);
+      if ((this.remunerationData[yearStr]?.length ?? 0) > 0) {
+        return yearStr;
+      }
+    }
+    return requestedYear;
+  }
+
+  private async resolveRateYear(requestedYear: string): Promise<string> {
+    for (let year = Number(requestedYear); year >= 2000; year--) {
+      const yearStr = String(year);
+      await this.loadRateData(yearStr);
+      if ((this.rateData[yearStr]?.length ?? 0) > 0) {
+        return yearStr;
+      }
+    }
+    return requestedYear;
+  }
+
+  private async loadRemunerationData(year: string) {
+    if (this.isRemunerationDataLoaded[year]) return;
+    const period = await this.crudService.getById<Record<string, unknown>>(this.remunerationParentPath(year));
+    const remunerationData = await this.crudService.getAll<Record<string, unknown>>(this.remunerationPath(year), 'id');
+    this.remunerationPeriod[year] = this.normalizePeriod(period ?? {});
+    this.remunerationData[year] = remunerationData.map(item => this.normalizeRemunerationData(item));
+    this.isRemunerationDataLoaded[year] = true;
+  }
+
+  private async loadRateData(year: string) {
+    if (this.isRateDataLoaded[year]) return;
+    const period = await this.crudService.getById<Record<string, unknown>>(this.rateParentPath(year));
+    const rateData = await this.crudService.getAll<Record<string, unknown>>(this.ratePath(year), 'id');
+    this.ratePeriod[year] = this.normalizePeriod(period ?? {});
+    this.rateData[year] = rateData.map(item => this.normalizeRateData(item));
+    this.isRateDataLoaded[year] = true;
   }
 
   private normalizeRemunerationData(item: Record<string, unknown>): StandardMonthlyRemuneration {

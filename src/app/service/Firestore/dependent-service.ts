@@ -33,4 +33,20 @@ export class DependentService {
     return await this.crudService.getAll<Dependent>(path, 'dependentId');
   }
 
+  /** 扶養情報を更新 */
+  async updateDependent(employeeId: string, dependent: Partial<Dependent>): Promise<boolean> {
+    return await this.crudService.update<Dependent>(
+      `${this.path}/${employeeId}/dependents/${dependent.dependentId}`,
+      dependent,
+    );
+  }
+
+  /** 扶養情報を一括更新 */
+  async updateDependents(employeeId: string, dependents: Partial<Dependent>[]): Promise<boolean> {
+    const results = await Promise.all(
+      dependents.map(dependent => this.updateDependent(employeeId, dependent)),
+    );
+    return results.every(result => result);
+  }
+
 }

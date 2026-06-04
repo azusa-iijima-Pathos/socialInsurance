@@ -1,0 +1,52 @@
+.employee-detail-section {
+  margin-bottom: var(--im-size-16);
+}
+
+.employee-detail-empty {
+  margin: 0;
+  color: var(--im-color-slate-600);
+}
+
+.employee-detail-events-table-wrap {
+  overflow-x: auto;
+}
+
+.employee-detail-events-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.employee-detail-events-table th,
+.employee-detail-events-table td {
+  padding: var(--im-size-8);
+  border: 1px solid var(--im-color-gray-150);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.employee-detail-events-table th {
+  background: var(--im-color-gray-50);
+  font-weight: 600;
+}
+
+.employee-detail-events-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+  margin-top: var(--im-size-12);
+}
+
+.reach-age-events-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--im-size-8);
+  margin-top: var(--im-size-12);
+}
+
+.reach-age-events-actions__left,
+.reach-age-events-actions__right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+}

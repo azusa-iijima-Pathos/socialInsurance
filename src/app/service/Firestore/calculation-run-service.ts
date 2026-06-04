@@ -129,7 +129,7 @@ export class CalculationRunService {
   async applyApprovedCalculationBaseResults(year: number): Promise<boolean> {
     const calculationBase = await this.getCalculationBaseRun(year);
     if (calculationBase?.approval?.approvalStatus !== '承認済み') {
-      return true;
+      return false;
     }
 
     const runs = await this.crudService.getAll<CalculationRun>(this.calculationBaseEmployeePath(year), 'runId');

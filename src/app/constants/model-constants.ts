@@ -33,7 +33,7 @@ export type InsuranceType = typeof INSURANCE_TYPES[number];
 /**
 * イベントタイプ
 */
-export const EMPLOYEE_EVENT_TYPES = ['入社', '退社', '契約情報変更', '勤務状況変更', 'ライフイベント', '一定年齢到達'] as const;
+export const EMPLOYEE_EVENT_TYPES = ['入社', '退社', '固定給変更', '雇用形態変更', '勤務状況変更', "扶養情報変更", '一定年齢到達'] as const;
 export type EmployeeEventType = typeof EMPLOYEE_EVENT_TYPES[number];
 
 /**

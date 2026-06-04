@@ -41,7 +41,15 @@ export class EmployeeService {
   /** 未退社の全社員 */
   allActiveEmployees = computed(() => this.allEmployees().filter(employee => employee.workStatus !== '退社済み'));
 
-  
+  /** 退社済み社員 */
+  retiredEmployees = computed(() => this.allEmployees().filter(employee => employee.workStatus === '退社済み'));
+
+  retiredEmployeeIdSet = computed(() => new Set(this.retiredEmployees().map(employee => employee.employeeId)));
+
+  isRetired(employee?: Employee | null): boolean {
+    return employee?.workStatus === '退社済み';
+  }
+
   /** 該当社員情報を社員IDをもとに取得 */
   async getEmployeeByEmployeeId(employeeId: string): Promise<Employee | null> {
     return await this.crudService.getById<Employee>(`${this.path}/${employeeId}`, 'employeeId');

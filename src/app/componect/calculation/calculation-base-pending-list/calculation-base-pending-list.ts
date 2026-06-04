@@ -36,7 +36,7 @@ export class CalculationBasePendingList {
 
   get canApplyApprovedResults(): boolean {
     const workingMonth = Number(sessionStorage.getItem('workingMonth'));
-    return workingMonth >= 8 && this.calculationBaseRun?.approval?.approvalStatus === '承認済み' && !this.isApplied;
+    return workingMonth >= 9 && this.calculationBaseRun?.approval?.approvalStatus === '承認済み' && !this.isApplied;
   }
 
   get isInternallyApproved(): boolean {
@@ -204,7 +204,7 @@ export class CalculationBasePendingList {
   async applyApprovedResults() {
     const confirmed = window.confirm(
       '算定基礎結果を反映すると、従業員の現在等級が即時更新されます。\n' +
-      '8月分までの保険料計算が完了している場合等級を再度確認の上、反映してください。\n' +
+      '9月分までの保険料計算が完了している場合等級を再度確認の上、反映してください。\n' +
       '反映しますか？'
     );
     if (!confirmed) return;
@@ -212,6 +212,50 @@ export class CalculationBasePendingList {
     const result = await this.calculationRunService.applyApprovedCalculationBaseResults(this.displayYear);
     this.showMessage(result ? '社内承認済みの算定基礎結果を反映しました' : '算定基礎結果の反映に失敗しました');
     await this.loadRuns();
+  }
+
+  async exportCalculationBaseCsv() {
+    const year = Number(this.targetYear);
+    const runs = await this.calculationRunService.getPendingCalculationBaseRuns(year);
+    if (runs.length === 0) {
+      this.showMessage(`${year}年の算定基礎データがありません`);
+      return;
+    }
+
+    const headers = ['社員ID', '氏名', '4月報酬', '5月報酬', '6月報酬', '4月日数', '5月日数', '6月日数', '平均報酬', '決定等級'];
+    const rows = runs.map(run => {
+      const payload = run.payload ?? {};
+      const targetPayrolls = (payload['targetPayrolls'] as { paymentYearMonth?: string; actualWorkingDays?: number; actualPaymentAmount?: number }[]) ?? [];
+      const findMonth = (month: string) => targetPayrolls.find(payroll => payroll.paymentYearMonth?.endsWith(`-${month}`));
+      const april = findMonth('04');
+      const may = findMonth('05');
+      const june = findMonth('06');
+      const employeeId = String(payload['employeeId'] ?? run.targetEmployeeIds ?? '');
+      const grade = payload['approvedGrade'] ?? payload['calculatedGrade'] ?? '';
+
+      return [
+        employeeId,
+        payload['employeeName'] ?? '',
+        april?.actualPaymentAmount ?? '',
+        may?.actualPaymentAmount ?? '',
+        june?.actualPaymentAmount ?? '',
+        april?.actualWorkingDays ?? '',
+        may?.actualWorkingDays ?? '',
+        june?.actualWorkingDays ?? '',
+        payload['averageSalary'] ?? '',
+        grade,
+      ];
+    });
+
+    const formatCell = (value: unknown) => String(value ?? '');
+    const csv = [headers.join(','), ...rows.map(row => row.map(formatCell).join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `算定基礎_${year}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   private showMessage(message: string) {
