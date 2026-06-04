@@ -1,0 +1,135 @@
+<h1>ライフイベント申請</h1>
+
+<div>
+    <h5>項目</h5>
+    <p>結婚/離婚（名前と扶養確認）</p>
+    <p>出産/育児（休職と扶養確認）</p>
+    <p>氏名変更</p>
+    <p>扶養変更</p>
+</div>
+
+<div *ngIf="message">
+    <p>{{ message }}</p>
+</div>
+
+<div>
+    <h3>結婚/離婚申請</h3>
+    <form [formGroup]="marriageForm">
+        <div>
+            <label for="type">種別</label>
+            <label for="marriage">
+                <input type="radio" id="marriage" formControlName="type" value="結婚">
+                結婚</label>
+            <label for="divorce">
+                <input type="radio" id="divorce" formControlName="type" value="離婚">
+                離婚</label>
+        </div>
+        <div>
+            <label for="name">姓</label>
+            <input id="name" formControlName="name">
+        </div>
+        <div formArrayName="dependents">
+            <label for="dependents">扶養情報</label>
+            <div *ngFor="let dependent of marriageDependents.controls; let i = index" [formGroupName]="i">
+                <label for="name">氏名</label>
+                <input id="name" formControlName="name">
+                <label for="relationship">続柄</label>
+                <select id="relationship" formControlName="relationship">
+                    <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}
+                    </option>
+                </select>
+                <label for="birthDate">生年月日</label>
+                <input id="birthDate" type="date" formControlName="birthDate">
+            </div>
+            <button type="button" (click)="addDependent(1)">
+                扶養追加
+            </button>
+        </div>
+    </form>
+    <button type="submit" (click)="submitMarriageForm()">申請</button>
+</div>
+
+<div>
+    <h3>産前産後/育児</h3>
+    <form [formGroup]="birthForm">
+        <div>
+            <label for="type">種別</label>
+            <label for="birth">
+                <input type="radio" id="birth" formControlName="type" value="出産">
+                産前産後</label>
+            <label for="childbirth">
+                <input type="radio" id="childbirth" formControlName="type" value="育児">
+                育児</label>
+        </div>
+        <div>
+            <label for="childBirthDate" *ngIf="birthForm.get('type')?.value === '出産'">出産予定日</label>
+            <label for="childBirthDate" *ngIf="birthForm.get('type')?.value === '育児'">子どもの生年月日</label>
+            <input id="childBirthDate" type="date" formControlName="childBirthDate">
+        </div>
+        <div>
+            <label for="leaveTypes">休職種別</label>
+            <select id="leaveTypes" formControlName="leaveTypes">
+                <option value="産前産後">産前産後</option>
+                <option value="育児">育児</option>
+                <option value="なし">休職なし</option>
+            </select>
+        </div>
+        <div *ngIf="birthForm.get('leaveTypes')?.value === '産前産後' || birthForm.get('leaveTypes')?.value === '育児'">
+            <label for="resignationDate" >休職開始日</label>
+            <input id="resignationDate" type="date" formControlName="resignationDate">
+        </div>
+
+        <div formArrayName="dependents">
+            <label for="dependents">扶養情報</label>
+            <div *ngFor="let dependent of birthDependents.controls; let i = index" [formGroupName]="i">
+                <label for="name">氏名</label>
+                <input id="name" formControlName="name">
+                <label for="relationship">続柄</label>
+                <select id="relationship" formControlName="relationship">
+                    <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}
+                    </option>
+                </select>
+                <label for="birthDate">生年月日</label>
+                <input id="birthDate" type="date" formControlName="birthDate">
+            </div>
+            <button type="button" (click)="addDependent(2)">
+                扶養追加
+            </button>
+        </div>
+    </form>
+    <button type="submit" (click)="submitBirthForm()">申請</button>
+</div>
+
+<div>
+    <h3>氏名変更</h3>
+    <form [formGroup]="nameChangeForm">
+        <div>
+            <label for="name">姓</label>
+            <input id="name" formControlName="name">
+        </div>
+    </form>
+    <button type="submit" (click)="submitNameChangeForm()">申請</button>
+</div>
+
+<div>
+    <h3>扶養変更</h3>
+    <form [formGroup]="dependentChangeForm">
+        <div formArrayName="dependents">
+            <div *ngFor="let dependent of dependentChangeDependents.controls; let i = index" [formGroupName]="i">
+                <label for="name">氏名</label>
+                <input id="name" formControlName="name">
+                <label for="relationship">続柄</label>
+                <select id="relationship" formControlName="relationship">
+                    <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}
+                    </option>
+                </select>
+                <label for="birthDate">生年月日</label>
+                <input id="birthDate" type="date" formControlName="birthDate">
+            </div>
+            <button type="button" (click)="addDependent(3)">
+                扶養追加
+            </button>
+        </div>
+    </form>
+    <button type="submit" (click)="submitDependentChangeForm()">申請</button>
+</div>
