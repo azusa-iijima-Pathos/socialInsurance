@@ -151,6 +151,43 @@
     </ng-container>
 </section>
 
+<!-- 従業員からの申請 -->
+<section class="employee-detail-section employee-detail-events">
+    <h2>従業員からの申請</h2>
+    <div *ngIf="employeeApplicationEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
+    <div *ngIf="employeeApplicationEvents.length > 0" class="employee-detail-events-table-wrap">
+        <table class="employee-detail-events-table">
+            <thead>
+                <tr>
+                    <th>操作</th>
+                    <th>社員ID</th>
+                    <th>氏名</th>
+                    <th>イベントID</th>
+                    <th>種別</th>
+                    <th>申請日</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let event of employeeApplicationEvents">
+                    <td class="employee-detail-events-table__actions">
+                        <button type="button" class="im-btn-primary im-btn-sm" (click)="openEmployeeReview(event)">確認</button>
+                        <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectEvent(event)">却下</button>
+                    </td>
+                    <td>{{ event.employeeId }}</td>
+                    <td>
+                        <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                            {{ getEmployeeName(event.employeeId) }}
+                        </a>
+                    </td>
+                    <td>{{ event.eventId }}</td>
+                    <td>{{ event.eventType }}{{ event.lifeEventType ? '（' + event.lifeEventType + '）' : '' }}</td>
+                    <td>{{ commonService.formatDate(event.appliedDate) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
 <!-- その他 -->
 <section class="employee-detail-section employee-detail-events">
     <h2>その他</h2>
@@ -187,6 +224,26 @@
         </table>
     </div>
 </section>
+
+<!-- 従業員申請 確認モーダル -->
+<div class="employee-edit-modal" *ngIf="employeeReviewModalOpen && reviewingEmployeeEvent">
+    <div class="employee-edit-modal__panel employee-approval-modal">
+        <div class="employee-edit-modal__header">
+            <h2>従業員申請の確認</h2>
+        </div>
+        <div class="employee-approval-modal__body">
+            <p>{{ getEmployeeName(reviewingEmployeeEvent.employeeId) }}（{{ reviewingEmployeeEvent.eventType }}）</p>
+            <ul>
+                <li *ngFor="let line of getEmployeeEventChangeLines(reviewingEmployeeEvent)">{{ line }}</li>
+            </ul>
+        </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-primary" (click)="approveEmployeeApplication()">承認して反映</button>
+            <button type="button" class="im-btn-soft" (click)="rejectEmployeeApplication()">却下</button>
+            <button type="button" class="im-btn-soft" (click)="closeEmployeeReview()">閉じる</button>
+        </div>
+    </div>
+</div>
 
 <!-- 承認モーダル（従業員詳細と同じ） -->
 <div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'fixedSalary' && fixedSalaryDraft">

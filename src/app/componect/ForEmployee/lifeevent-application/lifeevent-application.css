@@ -1,0 +1,36 @@
+.lifeevent-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+  margin-bottom: var(--im-size-16);
+}
+
+.lifeevent-tabs__btn {
+  padding: var(--im-size-8) var(--im-size-12);
+  border: 1px solid var(--im-color-slate-300);
+  border-radius: var(--im-radius-4);
+  background: #fff;
+  cursor: pointer;
+}
+
+.lifeevent-tabs__btn--active {
+  background: var(--im-color-primary-50, #e8f0fe);
+  border-color: var(--im-color-primary, #2563eb);
+  font-weight: 600;
+}
+
+.lifeevent-panel form > div {
+  margin-bottom: var(--im-size-12);
+}
+
+.lifeevent-dependent-row {
+  padding: var(--im-size-12);
+  margin-bottom: var(--im-size-12);
+  border: 1px solid var(--im-color-slate-200);
+  border-radius: var(--im-radius-4);
+}
+
+.lifeevent-dependent-row label {
+  display: block;
+  margin-bottom: var(--im-size-8);
+}

@@ -6,6 +6,9 @@ import { EmployeeService } from '../Firestore/employee-service';
 import { EventService } from '../Firestore/event-service';
 import { CompanyService } from '../Firestore/company-service';
 import { EmployeeLogicService } from './employee-logic-service';
+import { DependentService } from '../Firestore/dependent-service';
+import { Dependent } from '../../model/dependent';
+import { Relationship } from '../../constants/model-constants';
 import { addMonths } from './event-id-service';
 
 type InsuranceStatusKind = 'joined' | 'notJoined' | 'lost';
@@ -44,6 +47,7 @@ export class EmployeeEventApprovalService {
   private eventService = inject(EventService);
   private companyService = inject(CompanyService);
   private employeeLogicService = inject(EmployeeLogicService);
+  private dependentService = inject(DependentService);
 
   async buildFixedSalaryApprovalDraft(event: Event): Promise<FixedSalaryApprovalDraft | null> {
     const after = event.payload?.['after'] as Employee | undefined;
@@ -262,6 +266,62 @@ export class EmployeeEventApprovalService {
   }
 
   async approveSimpleEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    return this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  /** 従業員ライフイベント申請の承認（内容を従業員情報へ反映） */
+  async approveEmployeeApplicationEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    switch (event.eventType) {
+      case '氏名変更':
+        return this.approveEmployeeNameChange(employeeId, event, loginEmployeeId);
+      case '扶養情報変更':
+        return this.approveEmployeeDependentChange(employeeId, event, loginEmployeeId);
+      case '雇用形態変更':
+      case '勤務状況変更':
+        return this.approveEmployeeWorkChange(employeeId, event, loginEmployeeId);
+      default:
+        return false;
+    }
+  }
+
+  private async approveEmployeeNameChange(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    const afterName = String(event.payload?.['after'] ?? '');
+    const updated = await this.employeeService.updateEmployee({ employeeId, firstName: afterName });
+    if (!updated) return false;
+    return this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  private async approveEmployeeWorkChange(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    const after = event.payload?.['after'] as Employee | undefined;
+    if (!after) return false;
+
+    const updated = await this.employeeService.updateEmployee({
+      employeeId,
+      workStatus: after.workStatus,
+      leaveTypes: after.leaveTypes,
+    });
+    if (!updated) return false;
+    return this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  private async approveEmployeeDependentChange(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    const after = event.payload?.['after'] as Dependent | undefined;
+    if (!after?.dependentId) return false;
+
+    const dependent: Partial<Dependent> = {
+      dependentId: after.dependentId,
+      name: after.name,
+      relationship: after.relationship as Relationship,
+      birthDate: after.birthDate,
+      isDependent: after.isDependent !== false,
+    };
+
+    const before = event.payload?.['before'] as Dependent | null | undefined;
+    const saved = before
+      ? await this.dependentService.updateDependent(employeeId, dependent)
+      : await this.dependentService.registerDependents(employeeId, [dependent]);
+
+    if (!saved) return false;
     return this.markEventApproved(employeeId, event, loginEmployeeId);
   }
 

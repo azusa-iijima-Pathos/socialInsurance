@@ -33,8 +33,15 @@ export type InsuranceType = typeof INSURANCE_TYPES[number];
 /**
 * イベントタイプ
 */
-export const EMPLOYEE_EVENT_TYPES = ['入社', '退社', '固定給変更', '雇用形態変更', '勤務状況変更', "扶養情報変更", '一定年齢到達'] as const;
+export const EMPLOYEE_EVENT_TYPES = ['入社', '退社', '固定給変更', '雇用形態変更', '勤務状況変更', "扶養情報変更", '一定年齢到達', '氏名変更'] as const;
 export type EmployeeEventType = typeof EMPLOYEE_EVENT_TYPES[number];
+
+/**
+* ライフイベントタイプ
+*/
+export const LIFE_EVENT_TYPES = ['結婚', '離婚', '出産', '育児', 'その他'] as const;
+export type LifeEventType = typeof LIFE_EVENT_TYPES[number];
+
 
 /**
 * 一定年齢到達タイプ
@@ -45,7 +52,7 @@ export type ReachAgeType = typeof REACH_AGE_TYPES[number];
 /**
 * 申請者区分
 */
-export const APPLICANT_TYPES = ['従業員', '管理者', 'システム'] as const;
+export const APPLICANT_TYPES = ['社員', '管理者', 'システム'] as const;
 export type ApplicantType = typeof APPLICANT_TYPES[number];
 
 /**
