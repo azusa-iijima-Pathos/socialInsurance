@@ -1,0 +1,48 @@
+<h1>申請一覧</h1>
+<div *ngIf="events.length === 0">
+    <p>申請はありません</p>
+</div>
+<div *ngIf="events.length > 0">
+    <table>
+        <thead>
+            <tr>
+                <th>申請日</th>
+                <th>変更項目</th>
+                <th>申請理由</th>
+                <th>申請内容</th>
+                <th>承認状況</th>
+                <th>承認日</th>
+                <th>承認者</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr *ngFor="let event of events">
+                <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+                <td>{{ event.eventType }}</td>
+                <td>{{ event.lifeEventType }}</td>
+                <td><button type="button" class="im-btn-soft" (click)="openReview(event)">詳細</button></td>
+                <td>{{ event.approval?.approvalStatus }}</td>
+                <td>{{ commonService.formatDate(event.approval?.approvedDate) }}</td>
+                <td>{{ commonService.getEmployeeName(event.approval?.approvedBy ?? '') }}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- 従業員申請 確認モーダル -->
+<div class="employee-edit-modal" *ngIf="reviewModalOpen && reviewingEvent">
+    <div class="employee-edit-modal__panel employee-approval-modal">
+        <div class="employee-edit-modal__header">
+            <h2>申請の確認</h2>
+        </div>
+        <div class="employee-approval-modal__body">
+            <p>{{ reviewingEvent.eventType }}</p>
+            <ul>
+                <li *ngFor="let line of getEmployeeEventChangeLines(reviewingEvent)">{{ line }}</li>
+            </ul>
+        </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-soft" (click)="closeReview()">閉じる</button>
+        </div>
+    </div>
+</div>

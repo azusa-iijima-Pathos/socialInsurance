@@ -173,6 +173,9 @@ export class MonthlySalary {
           const fixedSalary = this.calculateFixedSalary();
           const actualPaymentAmount = this.calculateActualPaymentAmount();
 
+          console.log('patch', fixedSalary, actualPaymentAmount);
+          console.log('inputFormat', this.inputFormat);
+
           this.form.patchValue(
             {
               fixedSalary,
@@ -184,16 +187,31 @@ export class MonthlySalary {
     }
   }
 
+  /** 固定給を計算 */
   private calculateFixedSalary() {
-    const fixedSalary = this.form.value.basicSalary! + this.form.value.fixedAllowance! + this.form.value.transportAllowance!;
+
+    console.log(
+      'basic',
+      this.form.value.basicSalary,
+      'fixed',
+      this.form.value.fixedAllowance,
+      'transport',
+      this.form.value.transportAllowance,
+    );
+    const fixedSalary = Number(this.form.value.basicSalary ?? 0) + Number(this.form.value.fixedAllowance ?? 0) + Number(this.form.value.transportAllowance ?? 0);
+    
+    console.log('fixedSalary=', fixedSalary);
+    
     return fixedSalary;
   }
 
+  /** 総支給額を計算 */
   private calculateActualPaymentAmount() {
-    const actualPaymentAmount = (this.form.value.fixedSalary ?? 0) + this.form.value.variableAllowance!;
+    const actualPaymentAmount = Number(this.form.value.fixedSalary ?? 0) + Number(this.form.value.variableAllowance ?? 0);
     return actualPaymentAmount;
   }
 
+  /** 対象期間開始月が作業月と一致しているかバリデーション */
   private validateTargetPeriodStartMonth(control: AbstractControl): ValidationErrors | null {
     const targetPeriodStart = control.get('targetPeriodStart')?.value;
     if (!targetPeriodStart) return null;
@@ -205,7 +223,7 @@ export class MonthlySalary {
     return isExpectedMonth ? null : { targetPeriodStartMonthMismatch: true };
   }
 
-  //個別入力内容登録
+  /** 個別入力内容登録 */
   async registerIndividualSalary() {
     if (this.form.invalid) {
       this.form.markAllAsTouched();

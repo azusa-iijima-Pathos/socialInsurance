@@ -1,0 +1,30 @@
+<h1>給与修正</h1>
+<select [(ngModel)]="payrollId">
+    <option *ngFor="let id of payrollIdList" [value]="id" [selected]="id === payrollId">{{ id }}</option>
+</select>
+
+<h3>{{ payrollId }}月分　給与・勤務実績</h3>
+<div class="im-action-message" *ngIf="message">{{ message }}</div>
+<div *ngIf="payrollList.length === 0">
+    <p>給与・勤務実績が登録されていません</p>
+</div>
+<table *ngIf="payrollList.length > 0" class="im-table">
+    <thead>
+        <tr>
+            <th>社員ID</th>
+            <th>社員名</th>
+            <th>固定給</th>
+            <th>総支給額</th>
+            <th>修正</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr *ngFor="let payroll of payrollList">
+            <td>{{ payroll.employeeId }}</td>
+            <td>{{ commonService.getEmployeeName(payroll.employeeId!) }}</td>
+            <td>{{ payroll.fixedSalary | number }}円</td>
+            <td>{{ payroll.actualPaymentAmount | number }}円</td>
+            <td><button class="im-btn-soft" (click)="editPayroll(payroll)">修正</button></td>
+        </tr>
+    </tbody>
+</table>

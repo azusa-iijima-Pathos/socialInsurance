@@ -120,8 +120,7 @@
                     </div>
                 </section>
 
-                @if(inputFormat === 1) {
-                <section class="monthly-salary-container__content__form__section monthly-salary-form-subsection">
+                <section class="monthly-salary-container__content__form__section monthly-salary-form-subsection" *ngIf="inputFormat === 1">
                     <span class="monthly-salary-section-label">給与内訳</span>
                     <div class="monthly-salary-form-grid">
                     <div class="monthly-salary-container__content__form__item">
@@ -167,7 +166,6 @@
                     </div>
                     </div>
                 </section>
-                }
 
                 <section class="monthly-salary-container__content__form__section monthly-salary-form-subsection">
                     <span class="monthly-salary-section-label">支給額</span>

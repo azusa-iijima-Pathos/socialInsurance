@@ -2,10 +2,6 @@ import { Component, inject, computed } from '@angular/core';
 import {  RouterLink } from '@angular/router';
 import { CompanyService } from '../../service/Firestore/company-service';
 import { CommonModule } from '@angular/common';
-
-import { INSURANCE_RATE_PERIOD_2025, INSURANCE_RATE_PERIOD_2026, PREFECTURE_INSURANCE_RATES_2025, PREFECTURE_INSURANCE_RATES_2026 } from '../../insuranceData/forEmployee';
-import { STANDARD_MONTHLY_REMUNERATION_2025, STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025, STANDARD_MONTHLY_REMUNERATION_PERIOD_2026 } from '../../insuranceData/forEmployee';
-import { writeBatch, doc, Firestore } from '@angular/fire/firestore';
 import { FormsModule } from '@angular/forms';
 import { PayrollLockService } from '../../service/Firestore/payroll-lock-service';
 
@@ -32,7 +28,10 @@ export class TopForManage {
   workingMonth = sessionStorage.getItem('workingMonth');
   workingYearInput: string | null = null;
   workingMonthInput: string | null = null;
+
+  //最新の賞与支給月のペイロールID
   latestLockedBonusPayrollId = '';
+  lockedBonusPayrollIds: string[] = [];
 
   bonusMonths = computed<number[]>(() => this.companyService.company()?.settings?.bonusMonths ?? []);
 
@@ -43,72 +42,8 @@ export class TopForManage {
       sessionStorage.setItem('workingYear', this.workingYear);
     }
     const lockedBonusPayrolls = await this.payrollLockService.getLockedPayrolls('賞与');
+    this.lockedBonusPayrollIds = lockedBonusPayrolls.map(lock => lock.payrollId);
     this.latestLockedBonusPayrollId = lockedBonusPayrolls[0]?.payrollId ?? '';
-  }
-
-
-  firestore = inject(Firestore);
-
-  async seedInsuranceRates() {
-    await this.seedInsuranceRatesForYear('2026', PREFECTURE_INSURANCE_RATES_2026, INSURANCE_RATE_PERIOD_2026);
-  }
-
-  async seedInsuranceRates2025() {
-    await this.seedInsuranceRatesForYear('2025', PREFECTURE_INSURANCE_RATES_2025, INSURANCE_RATE_PERIOD_2025);
-  }
-
-  private async seedInsuranceRatesForYear(
-    year: string,
-    rates: { id: string; [key: string]: string | number }[],
-    period: { effectiveFrom: string; effectiveTo: string },
-  ) {
-    const batch = writeBatch(this.firestore);
-    batch.set(doc(this.firestore, 'insuranceRates', year), period, { merge: true });
-
-    for (const item of rates) {
-      const ref = doc(
-        this.firestore,
-        'insuranceRates',
-        year,
-        'prefectures',
-        `${item.id}`
-      );
-
-      batch.set(ref, item);
-    }
-
-    await batch.commit();
-  }
-
-  async seedGrades() {
-    await this.seedGradesForYear('2026', STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2026);
-  }
-
-  async seedGrades2025() {
-    await this.seedGradesForYear('2025', STANDARD_MONTHLY_REMUNERATION_2025, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025);
-  }
-
-  private async seedGradesForYear(
-    year: string,
-    grades: { grade: number; [key: string]: string | number }[],
-    period: { effectiveFrom: string; effectiveTo: string },
-  ) {
-    const batch = writeBatch(this.firestore);
-    batch.set(doc(this.firestore, 'standardMonthlyRemunerations', year), period, { merge: true });
-
-    for (const item of grades) {
-      const ref = doc(
-        this.firestore,
-        'standardMonthlyRemunerations',
-        year,
-        'grades',
-        `${item.grade}`
-      );
-
-      batch.set(ref, item);
-    }
-
-    await batch.commit();
   }
 
   setWorkingMonth() {
@@ -128,20 +63,24 @@ export class TopForManage {
     this.workingMonth = workingMonth.toString();
   }
 
+  //賞与支給月の年を取得
   getBonusPaymentYear(month: number): number {
     const workingYear = Number(this.workingYear);
     const workingMonth = Number(this.workingMonth);
     return month >= workingMonth ? workingYear : workingYear + 1;
   }
 
+  //前月の年を取得
   getPreviousInsuranceOutputYear(): number {
     return Number(this.getPreviousWorkingYearMonth().split('-')[0]);
   }
 
+  //前月の月を取得
   getPreviousInsuranceOutputMonth(): number {
     return Number(this.getPreviousWorkingYearMonth().split('-')[1]);
   }
 
+  //前月の年月を取得
   getPreviousWorkingYearMonth(): string {
     if (!this.workingYear || !this.workingMonth) return '';
 

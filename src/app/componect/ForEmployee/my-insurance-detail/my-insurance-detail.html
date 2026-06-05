@@ -1,0 +1,67 @@
+<h2>登録情報</h2>
+
+<div>
+    <h3>基本情報</h3>
+    <p>社員ID：{{ employee!.employeeId }}</p>
+    <p>氏名：{{ employee!.firstName }} {{ employee!.lastName }}</p>
+    <p>生年月日：{{ commonService.formatDate(employee!.birthDate) }}</p>
+    <p>入社日：{{ commonService.formatDate(employee!.hireDate) }}</p>
+    <p>勤務状況：{{ employee!.workStatus }}</p>
+    <p *ngIf="employee?.leaveTypes">休暇種別：{{ employee!.leaveTypes }}</p>
+    <p *ngIf="employee?.resignationDate">退社日：{{ commonService.formatDate(employee!.resignationDate) }}</p>
+</div>
+
+<div>
+    <h3>保険情報</h3>
+    <div *ngIf="employee!.insurance">
+        <p>標準報酬等級：{{ employee!.insurance!.currentGrade }}</p>
+        <div>
+            <h4>健康保険</h4>
+            <p>健康保険：{{ showStatus('healthInsurance') }}</p>
+            <div *ngIf="employee!.insurance!.healthInsurance!.joined || employee!.insurance!.healthInsurance!.lostDate">
+                <p>健康保険番号：{{ employee!.insurance!.healthInsurance!.number }}</p>
+                <p>健康保険取得日：{{ commonService.formatDate(employee!.insurance!.healthInsurance!.acquiredDate) }}</p>
+            </div>
+            <p *ngIf="employee!.insurance!.healthInsurance!.lostDate">健康保険喪失日：{{
+                commonService.formatDate(employee!.insurance!.healthInsurance!.lostDate) }}</p>
+        </div>
+        <div>
+            <h4>介護保険</h4>
+            <p>介護保険：{{ showStatus('nursingCareInsurance') }}</p>
+            <div *ngIf="employee!.insurance!.nursingCareInsurance!.joined || employee!.insurance!.nursingCareInsurance!.lostDate">
+                <p>介護保険番号：{{ employee!.insurance!.nursingCareInsurance!.number }}</p>
+                <p>介護保険取得日：{{ commonService.formatDate(employee!.insurance!.nursingCareInsurance!.acquiredDate) }}</p>
+            </div>
+            <p *ngIf="employee!.insurance!.nursingCareInsurance!.lostDate">介護保険喪失日：{{
+                commonService.formatDate(employee!.insurance!.nursingCareInsurance!.lostDate) }}</p>
+        </div>
+        <div>
+            <h4>厚生年金</h4>
+            <p>厚生年金：{{ showStatus('employeePensionInsurance') }}</p>
+            <div *ngIf="employee!.insurance!.employeePensionInsurance!.joined || employee!.insurance!.employeePensionInsurance!.lostDate">
+                <p>厚生年金番号：{{ employee!.insurance!.employeePensionInsurance!.number }}</p>
+                <p>厚生年金取得日：{{ commonService.formatDate(employee!.insurance!.employeePensionInsurance!.acquiredDate) }}</p>
+            </div>
+            <p *ngIf="employee!.insurance!.employeePensionInsurance!.lostDate">厚生年金喪失日：{{
+                commonService.formatDate(employee!.insurance!.employeePensionInsurance!.lostDate) }}</p>
+        </div>
+    </div>
+    <div *ngIf="!employee!.insurance">
+        <p>保険情報はまだ登録されていません</p>
+    </div>
+</div>
+
+<div>
+    <h3>扶養情報</h3>
+    <div *ngIf="dependents.length === 0">
+        <p>扶養情報はありません</p>
+    </div>
+    <div *ngIf="dependents.length > 0">
+        <div *ngFor="let dependent of dependents">
+            <p>扶養者名：{{ dependent!.name }}</p>
+            <p>扶養者続柄：{{ dependent!.relationship }}</p>
+            <p>扶養者生年月日：{{ commonService.formatDate(dependent!.birthDate) }}</p>
+            <p>現在の扶養状況：{{ dependent!.isDependent ? '扶養' : '扶養ではない' }}</p>
+        </div>
+    </div>
+</div>

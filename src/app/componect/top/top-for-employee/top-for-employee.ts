@@ -10,7 +10,7 @@ import { RouterLink } from '@angular/router';
 })
 export class TopForEmployee {
 
-  
+  workingMonth = sessionStorage.getItem('workingMonth') ?? '';
 
 
 

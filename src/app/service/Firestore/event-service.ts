@@ -138,4 +138,11 @@ export class EventService {
     const path = `${this.path}/${employeeId}/events/${eventId}`;
     return await this.crudService.update(path, event);
   }
+
+  /** 1社員の全てのイベントを取得 */
+  async getEmployeeAllEvents(employeeId: string): Promise<Event[]> {
+    const events = await this.crudService.getAll<Event>(`${this.path}/${employeeId}/events`, 'eventId');
+    const eventFromMyself = events.filter(event => event.applicantType === '社員');
+    return eventFromMyself.sort((left, right) => right.eventId.localeCompare(left.eventId));
+  }
 }

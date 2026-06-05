@@ -64,6 +64,7 @@ export class EmployeeDetail {
   private destroyRef = inject(DestroyRef);
 
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? '';
+  workingMonth = sessionStorage.getItem('workingMonth') ?? '';
   employeeEvents: EmployeeEvent[] = [];
   showEventNotice = false;
 

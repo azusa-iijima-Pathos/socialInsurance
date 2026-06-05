@@ -38,12 +38,12 @@
         </div>
 
         <div *ngIf="bonusMonths().length > 0">
-            <h3>賞与</h3>
+            <h3>賞与入力(今年の未入力の賞与がある場合のみ)</h3>
             <ng-container *ngIf="bonusMonths().length > 0">
                 <ng-container *ngFor="let month of bonusMonths()">
                     <a
                         [routerLink]="['/bonus',`${getBonusPaymentYear(month)}-${month.toString().padStart(2, '0')}_bonus`]">
-                        賞与入力・保険料確認（{{ month }}月）</a><br>
+                        {{ month }}月支給の賞与入力</a><br>
                 </ng-container>
             </ng-container>
         </div>
@@ -58,22 +58,17 @@
                 [queryParams]="{ mode: 'output' }">賞与社保険料閲覧</a><br>
         </div>
         <a [routerLink]="['/calculation-base-pending-list']">算定基礎</a><br>
+        <a>イベント一覧（月別で全イベントを確認）</a><br>
     </div>
 
     <div *ngIf="workingMonth">
-        <h3>修正作業</h3>
-        <p>{{workingMonth}}月分給与以前に影響がある保険情報の修正（等級・保険加入）</p>
-        <p>{{workingMonth}}月分給与以前の給与の修正（作業月以前の給与変更）</p>
-        <p>{{workingMonth}}月に対応した差額調整一覧（作業月に対応した差額調整を一覧で確認）</p> 
-
+        <h3>遡及修正({{workingMonth}}月分給与以前に影響がある場合)</h3>
+        <p>保険情報修正（等級・保険加入）</p>
+        <a [routerLink]="['/salary-correction']">月額給与修正（作業月以前の給与変更）</a>
+        <p>固定給修正（作業月以前の給与変更）</p>
+        <p>産休・育休修正</p>
+        <p>差額調整一覧（作業月に対応した差額調整を一覧で確認）</p>
         <p>賞与確定後修正・差額調整一覧（変更後の賞与と元の賞与で差額を算出し、必要であれば差額調整）</p>
-    </div>
-
-    <div *ngIf="workingMonth">
-        <h3>承認依頼</h3>
-
-        <p>従業員申請一覧</p>
-
     </div>
 
     <div *ngIf="workingMonth">

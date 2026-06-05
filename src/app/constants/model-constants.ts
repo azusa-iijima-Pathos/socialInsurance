@@ -37,16 +37,17 @@ export const EMPLOYEE_EVENT_TYPES = ['入社', '退社', '固定給変更', '雇
 export type EmployeeEventType = typeof EMPLOYEE_EVENT_TYPES[number];
 
 /**
-* 一定年齢到達タイプ
-*/
-export const REACH_AGE_TYPES = ['40歳', '65歳', '70歳', '75歳'] as const;
-export type ReachAgeType = typeof REACH_AGE_TYPES[number];
-
-/**
 * ライフイベントタイプ
 */
 export const LIFE_EVENT_TYPES = ['結婚', '離婚', '出産', '育児', 'その他'] as const;
 export type LifeEventType = typeof LIFE_EVENT_TYPES[number];
+
+
+/**
+* 一定年齢到達タイプ
+*/
+export const REACH_AGE_TYPES = ['40歳', '65歳', '70歳', '75歳'] as const;
+export type ReachAgeType = typeof REACH_AGE_TYPES[number];
 
 /**
 * 申請者区分
