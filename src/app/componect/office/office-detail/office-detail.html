@@ -1,0 +1,32 @@
+<h2>事業所情報</h2>
+
+<div>
+    <h3>事業所一覧</h3>
+    <app-office-list></app-office-list>
+</div>
+
+<div *ngIf="permission === '管理'">
+    <h3>事業所新規登録</h3>
+    <form [formGroup]="form" (ngSubmit)="registerOffice()">
+        <div>
+            <label for="name">事業所名</label>
+            <input type="text" id="name" formControlName="name">
+            <div class="error">
+                <p *ngIf="form.get('name')?.errors?.['required'] && form.get('name')?.touched">事業所名は必須です</p>
+            </div>
+        </div>
+        <div>
+            <label for="prefecture">所在地</label>
+            <select id="prefecture" formControlName="prefecture">
+                <option [value]=""></option>
+                <option *ngFor="let prefecture of PREFECTURES" [value]="prefecture">{{ prefecture }}</option>
+            </select>
+            <div class="error">
+                <p *ngIf="form.get('prefecture')?.errors?.['required'] && form.get('prefecture')?.touched">所在地は必須です</p>
+            </div>
+        </div>
+        <div>
+            <button type="submit" class="im-btn-primary" (ngSubmit)="registerOffice()">保存</button>
+        </div>
+    </form>
+</div>

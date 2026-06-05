@@ -85,16 +85,28 @@ export class OfficeService {
     return { success: true, message: DELETE_MESSAGES.SUCCESS };
   }
 
-
-/** 事業所の所在地を取得 */
-async getOfficeLocation(officeId: string): Promise<string | null> {
-  await this.getAllOffice();
-  const office = this.allOffices().find(office => office.officeId === officeId);
-  if (!office) {
-    return null;
+  /** 事業所を更新 */
+  async updateOffice(office: Partial<Office>): Promise<boolean> {
+    const result = await this.crudService.update(`${this.path}/${office.officeId}`, office);
+    return result;
   }
-  return office.prefecture ?? null;
-}
 
-  
+
+  /** 事業所の所在地を取得 */
+  async getOfficeLocation(officeId: string): Promise<string | null> {
+    await this.getAllOffice();
+    const office = this.allOffices().find(office => office.officeId === officeId);
+    if (!office) {
+      return null;
+    }
+    return office.prefecture ?? null;
+  }
+
+  /** 事業所を1つ取得 */
+  async getOneOffice(officeId: string): Promise<Office | null> {
+    const office = await this.crudService.getById<Office>(`${this.path}/${officeId}`, 'officeId');
+    return office;
+  }
+
+
 }

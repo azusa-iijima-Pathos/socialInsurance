@@ -102,4 +102,18 @@ export class CompanyService {
     return false;
   }
 
+
+
+
+  /** 会社情報を更新 */
+  async updateCompany(company: Partial<Company>): Promise<boolean> {
+    const result = await this.crudService.update(`companies/${this.companyId}`, company);
+    return result;
+  }
+
+
+
+
+
+  
 }

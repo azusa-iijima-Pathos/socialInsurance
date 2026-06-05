@@ -2,6 +2,8 @@
 
 <div class="information-area">
     <p>{{ workingYear }}年{{ workingMonth }}月作業分以前の、申請中イベントを一覧表示します。</p>
+    <p>変更を承諾した場合、即時保険登録内容が変わるため、内容を確認の上承認を行ってください。</p>
+    <p>※保険追加加入の場合、保険番号が確定次第、従業員詳細より登録してください。</p>
 </div>
 
 <p *ngIf="message" class="im-action-message">{{ message }}</p>
@@ -10,8 +12,11 @@
 <section class="employee-detail-section employee-detail-events">
     <div class="system-application-section-header">
         <h2>一定年齢到達</h2>
-        <button type="button" class="im-btn-soft" (click)="searchReachAge()">年齢到達一括検出</button>
+        <button type="button" class="im-btn-primary" (click)="searchReachAge()" style="margin-left: auto;">年齢到達一括検出</button>
+        <button type="button" class="im-btn-soft" (click)="openReachAgeInfoModal()">年齢到達時の保険適用方法</button>
     </div>
+    <p>年齢到達一括検出ボタンを押下することで、現在の作業対象期間で一定年齢に到達する社員を検出します。</p>
+    <p>承諾した場合、年齢到達時の保険適用方法に沿って即時登録内容が変わるため、内容を確認の上承認を行ってください。</p>
     <p *ngIf="reachAgeMessage" class="im-action-message">{{ reachAgeMessage }}</p>
     <div *ngIf="reachAgeEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
     <ng-container *ngIf="reachAgeEvents.length > 0">
@@ -20,12 +25,12 @@
                 <thead>
                     <tr>
                         <th></th>
-                        <th>操作</th>
                         <th>社員ID</th>
                         <th>氏名</th>
-                        <th>イベントID</th>
+                        <th>生年月日</th>
                         <th>到達年齢</th>
                         <th>申請日</th>
+                        <th>承認状況</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -34,19 +39,16 @@
                             <input type="checkbox" [checked]="selectedReachAge.has(getEventKey(event))"
                                 (change)="toggleReachAge(event, $any($event.target).checked)">
                         </td>
-                        <td class="employee-detail-events-table__actions">
-                            <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveEvent(event)">承認</button>
-                            <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectEvent(event)">却下</button>
-                        </td>
                         <td>{{ event.employeeId }}</td>
                         <td>
                             <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
                                 {{ getEmployeeName(event.employeeId) }}
                             </a>
                         </td>
-                        <td>{{ event.eventId }}</td>
+                        <td>{{ commonService.formatDate(event.payload?.['employee']?.birthDate ?? null) }}</td>
                         <td>{{ event.reachAgeType }}</td>
                         <td>{{ commonService.formatDate(event.appliedDate) }}</td>
+                        <td>{{ event.approval?.approvalStatus ?? '' }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -58,6 +60,7 @@
             </div>
             <div class="system-application-bulk-actions__right">
                 <button type="button" class="im-btn-primary" (click)="bulkApproveReachAge()">選択済みを一括承認</button>
+                <button type="button" class="im-btn-soft" (click)="bulkRejectReachAge()">選択済みを一括却下</button>
             </div>
         </div>
     </ng-container>
@@ -65,13 +68,15 @@
 
 <!-- 随時改定（固定給変更） -->
 <section class="employee-detail-section employee-detail-events">
-    <h2>随時改定（固定給変更）</h2>
+    <h2>随時改定</h2>
+    <span>3か月前に固定給を変更した従業員が対象です。</span>
+    <span>変更を承諾した場合、即時等級が変更されます。内容を確認の上承認を行ってください。</span>
     <div *ngIf="fixedSalaryEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
     <div *ngIf="fixedSalaryEvents.length > 0" class="employee-detail-events-table-wrap">
         <table class="employee-detail-events-table">
             <thead>
                 <tr>
-                    <th>操作</th>
+                    <th></th>
                     <th>社員ID</th>
                     <th>氏名</th>
                     <th>イベントID</th>
@@ -81,7 +86,7 @@
             <tbody>
                 <tr *ngFor="let event of fixedSalaryEvents">
                     <td class="employee-detail-events-table__actions">
-                        <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveEvent(event)">承認</button>
+                        <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveEvent(event)">変更内容確認</button>
                         <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectEvent(event)">却下</button>
                     </td>
                     <td>{{ event.employeeId }}</td>
@@ -101,6 +106,7 @@
 <!-- 退社処理 -->
 <section class="employee-detail-section employee-detail-events">
     <h2>退社処理</h2>
+    <span>承諾した場合、保険はすべて即時喪失となります。内容を確認の上承認を行ってください。</span>
     <div *ngIf="retireEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
     <ng-container *ngIf="retireEvents.length > 0">
         <div class="employee-detail-events-table-wrap">
@@ -108,12 +114,11 @@
                 <thead>
                     <tr>
                         <th></th>
-                        <th>操作</th>
                         <th>社員ID</th>
                         <th>氏名</th>
-                        <th>イベントID</th>
-                        <th>退社予定日</th>
+                        <th>退社日</th>
                         <th>申請日</th>
+                        <th>承認状況</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -122,19 +127,15 @@
                             <input type="checkbox" [checked]="selectedRetire.has(getEventKey(event))"
                                 (change)="toggleRetire(event, $any($event.target).checked)">
                         </td>
-                        <td class="employee-detail-events-table__actions">
-                            <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveEvent(event)">承認</button>
-                            <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectEvent(event)">却下</button>
-                        </td>
                         <td>{{ event.employeeId }}</td>
                         <td>
                             <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
                                 {{ getEmployeeName(event.employeeId) }}
                             </a>
                         </td>
-                        <td>{{ event.eventId }}</td>
                         <td>{{ commonService.formatDate(event.occurredDate) }}</td>
                         <td>{{ commonService.formatDate(event.appliedDate) }}</td>
+                        <td>{{ event.approval?.approvalStatus ?? '' }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -146,6 +147,7 @@
             </div>
             <div class="system-application-bulk-actions__right">
                 <button type="button" class="im-btn-primary" (click)="bulkApproveRetire()">選択済みを一括承認</button>
+                <button type="button" class="im-btn-soft" (click)="bulkRejectRetire()">選択済みを一括却下</button>
             </div>
         </div>
     </ng-container>
@@ -154,23 +156,25 @@
 <!-- その他 -->
 <section class="employee-detail-section employee-detail-events">
     <h2>その他</h2>
+    <span>変更を承諾した場合、即時内容が変更されます。内容を確認の上承認を行ってください。</span>
     <div *ngIf="otherEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
     <div *ngIf="otherEvents.length > 0" class="employee-detail-events-table-wrap">
         <table class="employee-detail-events-table">
             <thead>
                 <tr>
-                    <th>操作</th>
+                    <th></th>
                     <th>社員ID</th>
                     <th>氏名</th>
-                    <th>イベントID</th>
+                    <th>イベント発生日</th>
                     <th>種別</th>
                     <th>申請日</th>
+                    <th>承認状況</th>
                 </tr>
             </thead>
             <tbody>
                 <tr *ngFor="let event of otherEvents">
                     <td class="employee-detail-events-table__actions">
-                        <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveEvent(event)">承認</button>
+                        <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveEvent(event)">変更内容確認</button>
                         <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectEvent(event)">却下</button>
                     </td>
                     <td>{{ event.employeeId }}</td>
@@ -179,9 +183,10 @@
                             {{ getEmployeeName(event.employeeId) }}
                         </a>
                     </td>
-                    <td>{{ event.eventId }}</td>
+                    <td>{{ commonService.formatDate(event.occurredDate) }}</td>
                     <td>{{ event.eventType }}</td>
                     <td>{{ commonService.formatDate(event.appliedDate) }}</td>
+                    <td>{{ event.approval?.approvalStatus ?? '' }}</td>
                 </tr>
             </tbody>
         </table>
@@ -214,7 +219,7 @@
 
 <div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'insurance' && insuranceDraft">
     <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
-        <div class="employee-edit-modal__header"><h2>雇用形態変更の承認（保険）</h2></div>
+        <div class="employee-edit-modal__header"><h2>雇用形態変更の承認</h2></div>
         <div class="employee-approval-modal__body">
             <dl class="employee-detail-info-grid">
                 <div class="employee-detail-info-grid__item"><dt>現在の等級</dt><dd>{{ insuranceDraft.currentGrade }}</dd></div>
@@ -291,6 +296,54 @@
             <button type="button" class="im-btn-primary" (click)="confirmApprovalModal()">承認</button>
             <button type="button" class="im-btn-soft" (click)="rejectApprovalModal()">却下</button>
             <button type="button" class="im-btn-soft" (click)="cancelApprovalModal()">キャンセル</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- 年齢到達時の保険適用方法説明モーダル -->
+<div class="information-area employee-edit-modal" *ngIf="reachAgeInfoModalOpen">
+    <div class="employee-edit-modal__panel employee-approval-modal">
+        <div class="employee-edit-modal__header"><h2>年齢到達時の保険適用方法</h2></div>
+        <div class="employee-approval-modal__body">
+            <p>40歳：介護保険が適用になります</p>
+            <p>65歳：介護保険が会社経由ではなくなるので、このシステム上では喪失とします。</p>
+            <p>70歳：厚生年金が適用外になるため、このシステム上では喪失とします。</p>
+            <p>75歳：健康保険が適用外となるため、このシステム上では喪失とします。</p>
+
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid var(--im-color-gray-150);">
+                <tr>
+                    <th>到達年齢</th>
+                    <th>健康保険</th>
+                    <th>介護保険</th>
+                    <th>厚生年金</th>
+                </tr>
+                <tr style="text-align: center;">
+                    <td style="font-weight: bold;">40歳</td>
+                    <td>〇</td>
+                    <td>〇</td> 
+                    <td>〇</td>
+                </tr>
+                <tr style="text-align: center;">
+                    <td style="font-weight: bold;">65歳</td>
+                    <td>〇</td>
+                    <td>×</td>
+                    <td>〇</td>
+                </tr>
+                <tr style="text-align: center;">
+                    <td style="font-weight: bold;">70歳</td>
+                    <td>〇</td>
+                    <td>×</td>
+                    <td>×</td>
+                </tr>
+                <tr style="text-align: center;">
+                    <td style="font-weight: bold;">75歳</td>
+                    <td>×</td>
+                    <td>×</td>
+                    <td>×</td>
+                </tr>
+            </table>
+            <button type="button" class="im-btn-soft" (click)="reachAgeInfoModalOpen = false">閉じる</button>
         </div>
     </div>
 </div>

@@ -1,5 +1,5 @@
 import { Component, inject, computed } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import {  RouterLink } from '@angular/router';
 import { CompanyService } from '../../service/Firestore/company-service';
 import { CommonModule } from '@angular/common';
 
@@ -18,11 +18,12 @@ import { PayrollLockService } from '../../service/Firestore/payroll-lock-service
 })
 export class TopForManage {
 
-  private router = inject(Router);
   private companyService = inject(CompanyService);
   private payrollLockService = inject(PayrollLockService);
 
   loginUser = sessionStorage.getItem('loginEmployeeId');
+  permission = sessionStorage.getItem('permission');
+
   companyId = sessionStorage.getItem('companyId');
 
   workingYear = sessionStorage.getItem('workingYear');

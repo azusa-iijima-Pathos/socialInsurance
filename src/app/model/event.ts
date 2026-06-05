@@ -1,5 +1,5 @@
 import { Timestamp } from "@angular/fire/firestore";
-import { ApplicantType, Approval, EmployeeEventType, ReachAgeType } from "../constants/model-constants";
+import { ApplicantType, Approval, EmployeeEventType, LifeEventType, ReachAgeType } from "../constants/model-constants";
 
 /**
 * イベント
@@ -20,6 +20,9 @@ export type Event = {
 
     /** 一定年齢到達タイプ */
     reachAgeType?: ReachAgeType;
+
+    /** ライフイベントタイプ */
+    lifeEventType?: LifeEventType;
 
     /** 申請日 */
     appliedDate?: Timestamp;

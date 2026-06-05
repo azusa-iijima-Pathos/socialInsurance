@@ -119,6 +119,7 @@ export class SystemApplicationList {
     this.selectedRetire.clear();
   }
 
+  // イベント承認
   async onApproveEvent(event: EmployeeEventItem) {
     if (this.employeeDetailEventService.needsApprovalDialog(event)) {
       if (event.eventType === '固定給変更') {
@@ -145,6 +146,7 @@ export class SystemApplicationList {
     await this.afterApproval(approved);
   }
 
+  // イベント却下
   async onRejectEvent(event: EmployeeEventItem) {
     const rejected = await this.employeeEventApprovalService.rejectEvent(event.employeeId, event, this.loginEmployeeId);
     if (rejected) {
@@ -155,6 +157,7 @@ export class SystemApplicationList {
     }
   }
 
+  // 一定年齢到達イベント一括承認
   async bulkApproveReachAge() {
     let count = 0;
     for (const key of this.selectedReachAge) {
@@ -170,6 +173,23 @@ export class SystemApplicationList {
     }
   }
 
+  // 一定年齢到達イベント一括却下
+  async bulkRejectReachAge() {
+    let count = 0;
+    for (const key of this.selectedReachAge) {
+      const event = this.reachAgeEvents.find(item => this.getEventKey(item) === key);
+      if (!event) continue;
+      const rejected = await this.employeeEventApprovalService.rejectEvent(event.employeeId, event, this.loginEmployeeId);
+      if (rejected) count++;
+    }
+    if (count > 0) {
+      this.showMessage(`${count}件の一定年齢到達イベントを却下しました`);
+      await this.employeeService.getAllEmployees(true);
+      await this.loadEvents();
+    }
+  }
+
+  // 退社イベント一括承認
   async bulkApproveRetire() {
     let count = 0;
     for (const key of this.selectedRetire) {
@@ -180,6 +200,22 @@ export class SystemApplicationList {
     }
     if (count > 0) {
       this.showMessage(`${count}件の退社イベントを承認しました`);
+      await this.employeeService.getAllEmployees(true);
+      await this.loadEvents();
+    }
+  }
+
+  // 退社イベント一括却下
+  async bulkRejectRetire() {
+    let count = 0;
+    for (const key of this.selectedRetire) {
+      const event = this.retireEvents.find(item => this.getEventKey(item) === key);
+      if (!event) continue;
+      const rejected = await this.employeeEventApprovalService.rejectEvent(event.employeeId, event, this.loginEmployeeId);
+      if (rejected) count++;
+    }
+    if (count > 0) {
+      this.showMessage(`${count}件の退社イベントを却下しました`);
       await this.employeeService.getAllEmployees(true);
       await this.loadEvents();
     }
@@ -249,5 +285,11 @@ export class SystemApplicationList {
       value => this.message = value,
       this.messageTimer,
     );
+  }
+
+
+  reachAgeInfoModalOpen = false;
+  openReachAgeInfoModal() {
+    this.reachAgeInfoModalOpen = true;
   }
 }

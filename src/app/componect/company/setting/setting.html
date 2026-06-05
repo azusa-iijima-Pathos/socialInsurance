@@ -2,6 +2,8 @@
     <h1 class="im-title">設定</h1>
     <div class="information-area">
         <p>給与設定を行ってください。</p>
+        <p>システム使用開始後に設定を変更すると、正確に保険料が計算できない場合があります。</p>
+        <p>必ず正確に設定を行ってください。</p>
     </div>
 
 <button type="button" class="im-btn-primary" (click)="toEmployeePermissionSetting()">従業員権限設定へ</button>
@@ -27,23 +29,6 @@
             </div>
         </div>
 
-        <div class="im-field-block im-field-row setting-field">
-            <div class="im-field-row__label">
-                <label>給与出力フォーマット</label>
-            </div>
-            <div class="im-field-row__control">
-                <div class="im-radio-group">
-                    <label class="im-radio-option" for="salaryOutputFormat1">
-                        <input type="radio" id="salaryOutputFormat1" formControlName="salaryOutputFormat" [value]="1">
-                        <span>給与と社会保険料出力</span>
-                    </label>
-                    <label class="im-radio-option" for="salaryOutputFormat2">
-                        <input type="radio" id="salaryOutputFormat2" formControlName="salaryOutputFormat" [value]="2">
-                        <span>社会保険料のみ出力</span>
-                    </label>
-                </div>
-            </div>
-        </div>
         <div class="im-field-block im-field-row setting-field">
             <div class="im-field-row__label">
                 <label>給与支払日</label>

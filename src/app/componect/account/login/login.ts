@@ -95,6 +95,7 @@ export class Login {
           this.router.navigate(['/login'], { state: { message } });
           return;
         }
+      //アカウントはあり、会社と連携している場合
       } else if (result.user.companyId && result.user.permission === '管理') {
         //会社IDをセッションストレージに保存
         sessionStorage.setItem('companyId', result.user.companyId!);

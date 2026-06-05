@@ -57,9 +57,6 @@ export type CompanySettings = {
     /** 給与入力フォーマット（1：項目別入力、2：固定給と総支給額のみ入力） */
     salaryInputFormat: 1 | 2;
 
-    /** 給与出力フォーマット（1：項目別出力、2：固定給と総支給額のみ出力） */
-    salaryOutputFormat: 1 | 2;
-
     /** 支払月（当月、翌月） */
     paymentMonth: '当月' | '翌月';
 
@@ -69,29 +66,11 @@ export type CompanySettings = {
     /** 該当期間（〇日〜〇日） */
     targetPeriod: number[]
 
-
-
-
-    // /** 保険料確定月（支払い当月、翌月） */
-    // insuranceCloseingMonth: '当月' | '翌月';
-
-    // /** 保険料確定日（〇日） */
-    // insuranceCloseingDate: number;
-
-    /** 要確認！！！！！！！！！！！！！！！ */
-
     /** 作業月 */
     workingMonth?: number;
 
     /** 作業年 */
     workingYear?: number;
-
-
-
-
-
-
-
 
     /** ボーナス有無 */
     bonus: boolean;

@@ -34,7 +34,6 @@ export class Setting {
 
   form = this.fb.nonNullable.group({
     salaryInputFormat: [1],
-    salaryOutputFormat: [1],
     paymentMonth: ['翌月' as '当月' | '翌月'],
     paymentDate: [25, [Validators.required, Validators.min(1), Validators.max(31)]],
     targetPeriodStart: [1, [Validators.required, Validators.min(1), Validators.max(31)]],
@@ -101,7 +100,6 @@ export class Setting {
     }
     const setting: Partial<CompanySettings> = {
       salaryInputFormat: this.form.value.salaryInputFormat! as 1 | 2,
-      salaryOutputFormat: this.form.value.salaryOutputFormat! as 1 | 2,
       paymentMonth: this.form.value.paymentMonth! as '当月' | '翌月',
       paymentDate: this.form.value.paymentDate!,
       targetPeriod: [

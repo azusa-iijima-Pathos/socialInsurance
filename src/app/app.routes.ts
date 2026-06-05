@@ -21,6 +21,10 @@ import { HireEntry } from './componect/employee/hire-entry/hire-entry';
 import { RetireEntry } from './componect/employee/retire-entry/retire-entry';
 import { ReachAge } from './componect/employee/reach-age/reach-age';
 import { SystemApplicationList } from './componect/employee/system-application-list/system-application-list';
+import { TopForEmployee } from './componect/top/top-for-employee/top-for-employee';
+import { CompanyDetail } from './componect/company/company-detail/company-detail';
+import { OfficeDetail } from './componect/office/office-detail/office-detail';
+import { LifeeventApplication } from './componect/ForEmployee/lifeevent-application/lifeevent-application';
 
 export const routes: Routes = [
     { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -31,7 +35,11 @@ export const routes: Routes = [
     //ログイン後のみ
     { path: 'initial-setting/user-form', component: UserForm , title: 'ユーザ情報初期登録 ｜ 社会保険管理システム'},
     { path: 'initial-setting/company-form', component: CompanyForm , title: '会社情報初期登録 ｜ 社会保険管理システム'},
-    
+
+    { path: 'top-for-employee', component: TopForEmployee , title: 'トップ ｜ 社会保険管理システム'},
+    { path: 'company-detail', component: CompanyDetail , title: '会社情報 ｜ 社会保険管理システム'},
+    { path: 'lifeevent-application', component: LifeeventApplication , title: 'ライフイベント申請 ｜ 社会保険管理システム'},
+
     //会社情報初期登録後 セッションにUIDがあるかとトップ権限か確認して遷移
     { path: 'initial-setting/:companyId/company-confirm', component: CompanyConfirm , title: '会社情報登録内容確認 ｜ 社会保険管理システム'},
     { path: 'initial-setting/:companyId/office-form', component: OfficeForm , title: '事業所情報初期登録 ｜ 社会保険管理システム'},
@@ -41,6 +49,8 @@ export const routes: Routes = [
     { path: 'top-for-manage', component: TopForManage , title: 'トップ ｜ 社会保険管理システム'},
     { path: 'monthly-salary/:workingYear/:workingMonth', component: MonthlySalary , title: '給与・勤務実績登録 ｜ 社会保険管理システム'},
     { path: 'bonus/:payrollId', component: Bonus , title: '賞与登録 ｜ 社会保険管理システム'},
+
+    { path: 'office-detail', component: OfficeDetail , title: '事業所情報 ｜ 社会保険管理システム'},
 
     //権限：管理のみ
     { path: 'company-setting', component: Setting , title: '会社設定 ｜ 社会保険管理システム'},
