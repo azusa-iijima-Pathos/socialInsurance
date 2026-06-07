@@ -9,6 +9,8 @@ import { EmployeeLogicService } from './employee-logic-service';
 import { DependentService } from '../Firestore/dependent-service';
 import { Dependent } from '../../model/dependent';
 import { Relationship } from '../../constants/model-constants';
+import { CalculationRunService } from '../Firestore/calculation-run-service';
+import { SystemCalculationRunItem } from '../Firestore/calculation-run-service';
 import { addMonths } from './event-id-service';
 
 type InsuranceStatusKind = 'joined' | 'notJoined' | 'lost';
@@ -48,6 +50,7 @@ export class EmployeeEventApprovalService {
   private companyService = inject(CompanyService);
   private employeeLogicService = inject(EmployeeLogicService);
   private dependentService = inject(DependentService);
+  private calculationRunService = inject(CalculationRunService);
 
   async buildFixedSalaryApprovalDraft(event: Event): Promise<FixedSalaryApprovalDraft | null> {
     const after = event.payload?.['after'] as Employee | undefined;
@@ -60,7 +63,7 @@ export class EmployeeEventApprovalService {
     if (revision.status === '判定不可') {
       return {
         currentGrade,
-        revisionLabel: '判定不可',
+        revisionLabel: '判定不可のため等級変更なし',
         approvedGrade: currentGrade,
         canRevise: false,
       };
@@ -117,6 +120,7 @@ export class EmployeeEventApprovalService {
     event: Event,
     draft: FixedSalaryApprovalDraft,
     loginEmployeeId: string,
+    runId?: string,
   ): Promise<boolean> {
     const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
     if (!employee) return false;
@@ -132,7 +136,9 @@ export class EmployeeEventApprovalService {
     const employeeUpdated = await this.employeeService.updateEmployee(updated);
     if (!employeeUpdated) return false;
 
-    return this.markEventApproved(employeeId, event, loginEmployeeId);
+    return runId
+      ? this.calculationRunService.markRunApproved(runId, loginEmployeeId)
+      : this.markEventApproved(employeeId, event, loginEmployeeId);
   }
 
   async approveInsuranceEvent(
@@ -140,6 +146,7 @@ export class EmployeeEventApprovalService {
     event: Event,
     draft: InsuranceApprovalDraft,
     loginEmployeeId: string,
+    runId?: string,
   ): Promise<boolean> {
     const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
     if (!employee) return false;
@@ -169,10 +176,12 @@ export class EmployeeEventApprovalService {
     const employeeUpdated = await this.employeeService.updateEmployeeInsurance(employeeId, insurance);
     if (!employeeUpdated) return false;
 
-    return this.markEventApproved(employeeId, event, loginEmployeeId);
+    return runId
+      ? this.calculationRunService.markRunApproved(runId, loginEmployeeId)
+      : this.markEventApproved(employeeId, event, loginEmployeeId);
   }
 
-  async approveRetireEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+  async approveRetireEvent(employeeId: string, event: Event, loginEmployeeId: string, runId?: string): Promise<boolean> {
     const after = event.payload?.['after'] as Employee | undefined;
     const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
     if (!employee) return false;
@@ -185,7 +194,7 @@ export class EmployeeEventApprovalService {
       workStatus: '退社済み',
       resignationDate,
       insurance: {
-        currentGrade: employee.insurance?.currentGrade ?? 0,
+        currentGrade: 0,
         healthInsurance: this.buildLostInsuranceDetail(employee.insurance?.healthInsurance, resignationDate),
         nursingCareInsurance: this.buildLostInsuranceDetail(employee.insurance?.nursingCareInsurance, resignationDate),
         employeePensionInsurance: this.buildLostInsuranceDetail(employee.insurance?.employeePensionInsurance, resignationDate),
@@ -195,7 +204,17 @@ export class EmployeeEventApprovalService {
     const employeeUpdated = await this.employeeService.updateEmployee(updated);
     if (!employeeUpdated) return false;
 
-    return this.markEventApproved(employeeId, event, loginEmployeeId);
+    return runId
+      ? this.calculationRunService.markRunApproved(runId, loginEmployeeId)
+      : this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  async rejectSystemRun(runId: string, loginEmployeeId: string): Promise<boolean> {
+    return this.calculationRunService.markRunRejected(runId, loginEmployeeId);
+  }
+
+  buildEventViewFromRun(run: SystemCalculationRunItem): Event {
+    return this.calculationRunService.toEventView(run);
   }
 
   async approveReachAgeEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {

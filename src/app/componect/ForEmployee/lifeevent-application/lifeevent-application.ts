@@ -13,6 +13,8 @@ import { Event } from '../../../model/event';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { CREATE_MESSAGES } from '../../../constants/constants';
 import { ValidationService } from '../../../service/common/validation-service';
+import { CompanyService } from '../../../service/Firestore/company-service';
+import { getWorkMonthForDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
 
 type LifeEventTab = 'marriage' | 'birth' | 'name' | 'dependent';
 type DependentCoverageStatus = 'dependent' | 'notDependent';
@@ -40,6 +42,7 @@ export class LifeeventApplication {
   private eventService = inject(EventService);
   private commonService = inject(CommonService);
   private validationService = inject(ValidationService);
+  private companyService = inject(CompanyService);
 
   RELATIONSHIPS = RELATIONSHIPS;
   activeTab: LifeEventTab = 'marriage';
@@ -116,9 +119,18 @@ export class LifeeventApplication {
 
     const occurredDate = this.marriageForm.get('occurredDate')!.value;
     const lifeEventType = this.marriageForm.get('type')!.value as LifeEventType;
-    let created = 0;
+    const nameChanged = this.marriageForm.get('name')!.value !== (this.employee?.firstName ?? '');
+    const changedDependents = this.collectChangedDependents(this.marriageDependents);
 
-    if (this.marriageForm.get('name')!.value !== (this.employee?.firstName ?? '')) {
+    if (!nameChanged && changedDependents.length === 0) {
+      this.showMessage('変更内容がありません');
+      return;
+    }
+
+    let created = 0;
+    let failed = false;
+
+    if (nameChanged) {
       const nameEvent: Partial<Event> = {
         occurredDate: Timestamp.fromDate(new Date(occurredDate)),
         eventType: '氏名変更',
@@ -134,13 +146,19 @@ export class LifeeventApplication {
       if (await this.eventService.createEvent(this.loginEmployeeId, nameEvent)) {
         created++;
       } else {
-        this.showMessage(CREATE_MESSAGES.FAILED);
+        this.showMessage(`申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
         return;
       }
     }
 
-    const changedDependents = this.collectChangedDependents(this.marriageDependents);
-    created += await this.createDependentEvents(changedDependents, occurredDate, lifeEventType);
+    const dependentResult = await this.createDependentEvents(changedDependents, occurredDate, lifeEventType);
+    created += dependentResult.success;
+    failed = dependentResult.failed;
+
+    if (failed) {
+      this.showMessage('一部の扶養申請に失敗しました。申請一覧から内容を確認してください。');
+      return;
+    }
 
     if (created === 0) {
       this.showMessage('変更内容がありません');
@@ -174,6 +192,14 @@ export class LifeeventApplication {
       this.employee?.leaveTypes !== afterEmployee.leaveTypes
       || this.employee?.workStatus !== afterEmployee.workStatus
     ) {
+      if (leaveTypes && leaveStart) {
+        const allowed = await this.isLeaveStartAllowed(leaveStart);
+        if (!allowed) {
+          this.showMessage('休職開始日は現在の作業月以降の日付を指定してください');
+          return;
+        }
+      }
+
       const occurredDate = leaveStart || this.birthForm.get('childBirthDate')!.value;
       const leaveEvent: Partial<Event> = {
         occurredDate: Timestamp.fromDate(new Date(occurredDate)),
@@ -187,14 +213,19 @@ export class LifeeventApplication {
       if (await this.eventService.createEvent(this.loginEmployeeId, leaveEvent)) {
         created++;
       } else {
-        this.showMessage(CREATE_MESSAGES.FAILED);
+        this.showMessage(`申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
         return;
       }
     }
 
     const changedDependents = this.collectChangedDependents(this.birthDependents);
     const occurredDate = this.birthForm.get('childBirthDate')!.value;
-    created += await this.createDependentEvents(changedDependents, occurredDate, lifeEventType);
+    const dependentResult = await this.createDependentEvents(changedDependents, occurredDate, lifeEventType);
+    created += dependentResult.success;
+    if (dependentResult.failed) {
+      this.showMessage('一部の扶養申請に失敗しました。申請一覧から内容を確認してください。');
+      return;
+    }
 
     if (created === 0) {
       this.showMessage('変更内容がありません');
@@ -231,7 +262,7 @@ export class LifeeventApplication {
     };
 
     const result = await this.eventService.createEvent(this.loginEmployeeId, nameEvent);
-    this.showMessage(result ? '申請しました' : CREATE_MESSAGES.FAILED);
+    this.showMessage(result ? '申請しました' : `申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
     if (result) {
       this.nameChangeForm.patchValue({ name: this.employee?.firstName ?? '' });
     }
@@ -251,10 +282,16 @@ export class LifeeventApplication {
     }
 
     const count = await this.createDependentEvents(changedDependents, new Date().toISOString().slice(0, 10), 'その他');
-    this.showMessage(count > 0 ? `${count}件申請しました` : CREATE_MESSAGES.FAILED);
-    if (count > 0) {
-      this.resetDependentChangeForm();
+    if (count.failed) {
+      this.showMessage(`申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
+      return;
     }
+    if (count.success === 0) {
+      this.showMessage('変更内容がありません');
+      return;
+    }
+    this.showMessage(`${count.success}件申請しました`);
+    this.resetDependentChangeForm();
   }
 
   addDependent(type: 1 | 2 | 3) {
@@ -281,6 +318,14 @@ export class LifeeventApplication {
   getCurrentDependentStatusLabel(dependent?: Dependent): string {
     if (!dependent) return '—';
     return dependent.isDependent !== false ? '扶養' : '扶養ではない';
+  }
+
+  private async isLeaveStartAllowed(leaveStart: string): Promise<boolean> {
+    await this.companyService.getCompany();
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const workMonth = getWorkMonthForDate(new Date(leaveStart), targetPeriodStart);
+    const working = getWorkingYearMonth();
+    return workMonth.year * 12 + workMonth.month >= working.year * 12 + working.month;
   }
 
   private initMarriageDependents() {
@@ -361,12 +406,14 @@ export class LifeeventApplication {
     items: { before: Dependent | null; after: DependentFormPayload }[],
     occurredDate: string,
     lifeEventType: LifeEventType,
-  ): Promise<number> {
-    let count = 0;
+  ): Promise<{ success: number; failed: boolean }> {
+    let success = 0;
+    let failed = false;
+    let nextDependentId = Number(this.getNextDependentId());
 
     for (const item of items) {
       const afterDependent: Dependent = {
-        dependentId: item.after.dependentId || this.getNextDependentId(),
+        dependentId: item.after.dependentId || String(nextDependentId++),
         name: item.after.name,
         relationship: item.after.relationship as Relationship,
         birthDate: Timestamp.fromDate(new Date(item.after.birthDate)),
@@ -387,11 +434,13 @@ export class LifeeventApplication {
       };
 
       if (await this.eventService.createEvent(this.loginEmployeeId, dependentEvent)) {
-        count++;
+        success++;
+      } else {
+        failed = true;
       }
     }
 
-    return count;
+    return { success, failed };
   }
 
   private hasDependentInput(raw: Record<string, unknown>): boolean {
@@ -406,7 +455,13 @@ export class LifeeventApplication {
       birthDate: before.birthDate ? this.formatDateInput(before.birthDate.toDate()) : '',
       isDependent: before.isDependent !== false,
     };
-    return JSON.stringify(beforePayload) !== JSON.stringify(after);
+    const afterPayload = {
+      name: after.name,
+      relationship: after.relationship,
+      birthDate: after.birthDate,
+      isDependent: after.isDependent,
+    };
+    return JSON.stringify(beforePayload) !== JSON.stringify(afterPayload);
   }
 
   private toDependentPayload(raw: Record<string, unknown>): DependentFormPayload {

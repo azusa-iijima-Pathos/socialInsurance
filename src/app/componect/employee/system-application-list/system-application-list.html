@@ -73,8 +73,8 @@
     <h2>随時改定（固定給変更）</h2>
     <p>3か月前に固定給を変更した従業員が対象です。</p>
     <p>変更を承諾した場合、即時保険登録内容が変わるため、内容を確認の上承認を行ってください。</p>
-    <div *ngIf="fixedSalaryEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
-    <div *ngIf="fixedSalaryEvents.length > 0" class="employee-detail-events-table-wrap">
+    <div *ngIf="fixedSalaryRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
+    <div *ngIf="fixedSalaryRuns.length > 0" class="employee-detail-events-table-wrap">
         <table class="employee-detail-events-table">
             <thead>
                 <tr>
@@ -86,20 +86,20 @@
                 </tr>
             </thead>
             <tbody>
-                <tr *ngFor="let event of fixedSalaryEvents">
+                <tr *ngFor="let run of fixedSalaryRuns">
                     <td class="employee-detail-events-table__actions">
                         <button type="button" class="im-btn-primary im-btn-sm"
-                            (click)="onApproveEvent(event)">確認</button>
-                        <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectEvent(event)">却下</button>
+                            (click)="onApproveSystemRun(run)">確認</button>
+                        <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectSystemRun(run)">却下</button>
                     </td>
-                    <td>{{ event.employeeId }}</td>
+                    <td>{{ run.employeeId }}</td>
                     <td>
-                        <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
-                            {{ getEmployeeName(event.employeeId) }}
+                        <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                            {{ getEmployeeName(run.employeeId) }}
                         </a>
                     </td>
-                    <td>{{ commonService.formatDate(event.occurredDate) }}</td>
-                    <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+                    <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
+                    <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
                 </tr>
             </tbody>
         </table>
@@ -110,8 +110,8 @@
 <section class="employee-detail-section employee-detail-events">
     <h2>退社処理</h2>
     <p>承諾した場合、保険はすべて即時喪失となります。内容を確認の上承認を行ってください。</p>
-    <div *ngIf="retireEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
-    <ng-container *ngIf="retireEvents.length > 0">
+    <div *ngIf="retireRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
+    <ng-container *ngIf="retireRuns.length > 0">
         <div class="employee-detail-events-table-wrap">
             <table class="employee-detail-events-table">
                 <thead>
@@ -124,19 +124,19 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr *ngFor="let event of retireEvents">
+                    <tr *ngFor="let run of retireRuns">
                         <td>
-                            <input type="checkbox" [checked]="selectedRetire.has(getEventKey(event))"
-                                (change)="toggleRetire(event, $any($event.target).checked)">
+                            <input type="checkbox" [checked]="selectedRetire.has(getSystemRunKey(run))"
+                                (change)="toggleRetire(run, $any($event.target).checked)">
                         </td>
-                        <td>{{ event.employeeId }}</td>
+                        <td>{{ run.employeeId }}</td>
                         <td>
-                            <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
-                                {{ getEmployeeName(event.employeeId) }}
+                            <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                                {{ getEmployeeName(run.employeeId) }}
                             </a>
                         </td>
-                        <td>{{ commonService.formatDate(event.occurredDate) }}</td>
-                        <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+                        <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
+                        <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -198,8 +198,8 @@
 <section class="employee-detail-section employee-detail-events">
     <h2>その他</h2>
     <p>変更を承諾した場合、即時保険登録内容が変わるため、内容を確認の上承認を行ってください。</p>
-    <div *ngIf="otherEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
-    <div *ngIf="otherEvents.length > 0" class="employee-detail-events-table-wrap">
+    <div *ngIf="otherEvents.length === 0 && otherSystemRuns.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
+    <div *ngIf="otherEvents.length > 0 || otherSystemRuns.length > 0" class="employee-detail-events-table-wrap">
         <table class="employee-detail-events-table">
             <thead>
                 <tr>
@@ -227,6 +227,22 @@
                     <td>{{ event.eventType }}</td>
                     <td>{{ commonService.formatDate(event.occurredDate) }}</td>
                     <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+                </tr>
+                <tr *ngFor="let run of otherSystemRuns">
+                    <td class="employee-detail-events-table__actions">
+                        <button type="button" class="im-btn-primary im-btn-sm"
+                            (click)="onApproveSystemRun(run)">確認</button>
+                        <button type="button" class="im-btn-soft im-btn-sm" (click)="onRejectSystemRun(run)">却下</button>
+                    </td>
+                    <td>{{ run.employeeId }}</td>
+                    <td>
+                        <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                            {{ getEmployeeName(run.employeeId) }}
+                        </a>
+                    </td>
+                    <td>{{ run.eventType }}</td>
+                    <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
+                    <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
                 </tr>
             </tbody>
         </table>
@@ -257,7 +273,7 @@
 <div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'fixedSalary' && fixedSalaryDraft">
     <div class="employee-edit-modal__panel employee-approval-modal">
         <div class="employee-edit-modal__header">
-            <h2>固定給変更の承認</h2>
+            <h2>随時改定</h2>
         </div>
         <div class="employee-approval-modal__body">
             <dl class="employee-detail-info-grid">

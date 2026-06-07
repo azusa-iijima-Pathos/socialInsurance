@@ -63,12 +63,11 @@
 
     <div *ngIf="workingMonth">
         <h3>遡及修正({{workingMonth}}月分給与以前に影響がある場合)</h3>
-        <p>保険情報修正（等級・保険加入）</p>
-        <a [routerLink]="['/salary-correction']">月額給与修正（作業月以前の給与変更）</a>
-        <p>固定給修正（作業月以前の給与変更）</p>
-        <p>産休・育休修正</p>
-        <p>差額調整一覧（作業月に対応した差額調整を一覧で確認）</p>
-        <p>賞与確定後修正・差額調整一覧（変更後の賞与と元の賞与で差額を算出し、必要であれば差額調整）</p>
+        <a [routerLink]="['/retroactive-correction']">遡及修正（保険・固定給・休職）</a><br>
+        <a [routerLink]="['/salary-correction']">月額給与修正（作業月以前の給与変更）</a><br>
+        <a [routerLink]="['/correction-list']">差額調整一覧（作業月に対応した差額調整を一覧で確認）</a><br>
+        <a [routerLink]="['/bonus-correction']">賞与確定後修正</a><br>
+        <a [routerLink]="['/correction-list']" [queryParams]="{ type: 'bonus' }">賞与保険料差額一覧</a><br>
     </div>
 
     <div *ngIf="workingMonth">

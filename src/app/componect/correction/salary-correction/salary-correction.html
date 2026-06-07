@@ -1,30 +1,19 @@
-<h1>給与修正</h1>
-<select [(ngModel)]="payrollId">
-    <option *ngFor="let id of payrollIdList" [value]="id" [selected]="id === payrollId">{{ id }}</option>
-</select>
+<h1>月額給与修正</h1>
+<p>作業月以前の確定済み給与・勤務実績を修正します。</p>
 
-<h3>{{ payrollId }}月分　給与・勤務実績</h3>
-<div class="im-action-message" *ngIf="message">{{ message }}</div>
-<div *ngIf="payrollList.length === 0">
-    <p>給与・勤務実績が登録されていません</p>
+<div class="salary-correction-toolbar">
+  <label>対象月
+    <select [(ngModel)]="selectedPayrollId" (change)="onMonthChange()">
+      <option *ngFor="let option of monthOptions" [value]="option.payrollId">{{ option.label }}</option>
+    </select>
+  </label>
 </div>
-<table *ngIf="payrollList.length > 0" class="im-table">
-    <thead>
-        <tr>
-            <th>社員ID</th>
-            <th>社員名</th>
-            <th>固定給</th>
-            <th>総支給額</th>
-            <th>修正</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr *ngFor="let payroll of payrollList">
-            <td>{{ payroll.employeeId }}</td>
-            <td>{{ commonService.getEmployeeName(payroll.employeeId!) }}</td>
-            <td>{{ payroll.fixedSalary | number }}円</td>
-            <td>{{ payroll.actualPaymentAmount | number }}円</td>
-            <td><button class="im-btn-soft" (click)="editPayroll(payroll)">修正</button></td>
-        </tr>
-    </tbody>
-</table>
+
+<section class="salary-correction-list">
+  <h3>{{ selectedPayrollId }} 給与・勤務実績一覧</h3>
+  <app-salary-list
+    *ngIf="selectedPayrollId"
+    [payrollId]="selectedPayrollId"
+    [correctionMode]="true">
+  </app-salary-list>
+</section>

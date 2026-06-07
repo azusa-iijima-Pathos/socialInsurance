@@ -14,6 +14,7 @@ import { Dependent } from '../../../model/dependent';
 import { EmployeeDetailEventService } from '../../../service/logic/employee-detail-event-service';
 import { EmployeeEventApprovalService, FixedSalaryApprovalDraft, InsuranceApprovalDraft } from '../../../service/logic/employee-event-approval.service';
 import { EventService } from '../../../service/Firestore/event-service';
+import { CalculationRunService, SystemCalculationRunItem } from '../../../service/Firestore/calculation-run-service';
 import { Event as EmployeeEvent } from '../../../model/event';
 import { ValidationService } from '../../../service/common/validation-service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -61,16 +62,19 @@ export class EmployeeDetail {
   private employeeDetailEventService = inject(EmployeeDetailEventService);
   private employeeEventApprovalService = inject(EmployeeEventApprovalService);
   private eventService = inject(EventService);
+  private calculationRunService = inject(CalculationRunService);
   private destroyRef = inject(DestroyRef);
 
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? '';
   workingMonth = sessionStorage.getItem('workingMonth') ?? '';
   employeeEvents: EmployeeEvent[] = [];
+  pendingSystemRuns: SystemCalculationRunItem[] = [];
   showEventNotice = false;
 
   approvalModalOpen = false;
   approvalModalType: 'fixedSalary' | 'insurance' | null = null;
   approvingEvent: EmployeeEvent | null = null;
+  approvingSystemRun: SystemCalculationRunItem | null = null;
   fixedSalaryDraft: FixedSalaryApprovalDraft | null = null;
   insuranceDraft: InsuranceApprovalDraft | null = null;
 
@@ -96,6 +100,8 @@ export class EmployeeDetail {
   contractModalOpen = false;
   insuranceModalOpen = false;
   dependentModalOpen = false;
+  employeeReviewModalOpen = false;
+  reviewingEmployeeEvent: EmployeeEvent | null = null;
 
   isSpecificApplicableOffice = false;
   modalAutoInsuranceJudgement: InsuranceJudgement | null = null;
@@ -386,6 +392,7 @@ export class EmployeeDetail {
     this.updateInsuranceDetailControls(this.insuranceForm.controls.healthInsurance.controls.joined.value, 'healthInsurance');
     this.updateInsuranceDetailControls(this.insuranceForm.controls.nursingCareInsurance.controls.joined.value, 'nursingCareInsurance');
     this.updateInsuranceDetailControls(this.insuranceForm.controls.employeePensionInsurance.controls.joined.value, 'employeePensionInsurance');
+    this.syncSubInsuranceStatusesWithHealth(this.insuranceForm.controls.healthInsurance.controls.joined.value);
 
     void this.updateModalAutoCalculation();
     this.insuranceModalOpen = true;
@@ -526,9 +533,57 @@ export class EmployeeDetail {
   async loadEmployeeEvents() {
     if (!this.selectedEmployeeId) {
       this.employeeEvents = [];
+      this.pendingSystemRuns = [];
       return;
     }
-    this.employeeEvents = await this.eventService.getEmployeeEventsUpToWorkingMonth(this.selectedEmployeeId);
+    const events = await this.eventService.getEmployeeEventsUpToWorkingMonth(this.selectedEmployeeId);
+    this.employeeEvents = events.filter(event => event.applicantType !== 'システム');
+    this.pendingSystemRuns = await this.calculationRunService.getPendingSystemRunsForEmployee(this.selectedEmployeeId);
+  }
+
+  hasPendingSystemRuns(): boolean {
+    return this.pendingSystemRuns.length > 0;
+  }
+
+  async onApproveSystemRun(run: SystemCalculationRunItem) {
+    if (this.isRetiredEmployee()) return;
+    const eventView = this.employeeEventApprovalService.buildEventViewFromRun(run);
+    if (this.employeeDetailEventService.needsApprovalDialogForRun(run)) {
+      if (run.eventType === '固定給変更') {
+        this.fixedSalaryDraft = await this.employeeEventApprovalService.buildFixedSalaryApprovalDraft(eventView);
+        this.approvalModalType = 'fixedSalary';
+      } else {
+        this.insuranceDraft = await this.employeeEventApprovalService.buildInsuranceApprovalDraft(eventView);
+        this.approvalModalType = 'insurance';
+      }
+      this.approvingSystemRun = run;
+      this.approvalModalOpen = true;
+      return;
+    }
+
+    if (run.eventType === '退社') {
+      const approved = await this.employeeEventApprovalService.approveRetireEvent(
+        this.selectedEmployeeId, eventView, this.loginEmployeeId, run.runId,
+      );
+      if (approved) {
+        this.showMessage('システム計算結果を承認しました');
+        await this.employeeService.getAllEmployees(true);
+        await this.selectEmployee();
+      } else {
+        this.showMessage('承認に失敗しました');
+      }
+    }
+  }
+
+  showInsuranceDetail(detail?: InsuranceDetail): boolean {
+    if (!detail) return false;
+    return detail.joined === true || !!detail.lostDate || !!detail.number || !!detail.acquiredDate;
+  }
+
+  isInsuranceNumberMissing(detail?: InsuranceDetail): boolean {
+    if (!detail) return false;
+    const status = this.getInsuranceStatus(detail);
+    return (status === '加入' || status === '喪失') && !detail.number;
   }
 
   isPendingEvent(event: EmployeeEvent): boolean {
@@ -537,6 +592,10 @@ export class EmployeeDetail {
 
   async onApproveEvent(event: EmployeeEvent) {
     if (this.isRetiredEmployee()) return;
+    if (event.applicantType === '社員') {
+      this.openEmployeeReview(event);
+      return;
+    }
     if (this.employeeDetailEventService.needsApprovalDialog(event)) {
       if (event.eventType === '固定給変更') {
         this.fixedSalaryDraft = await this.employeeEventApprovalService.buildFixedSalaryApprovalDraft(event);
@@ -552,11 +611,7 @@ export class EmployeeDetail {
 
     let approved = false;
     if (event.eventType === '退社' && event.applicantType === 'システム') {
-      approved = await this.employeeEventApprovalService.approveRetireEvent(
-        this.selectedEmployeeId,
-        event,
-        this.loginEmployeeId,
-      );
+      return;
     } else {
       approved = await this.employeeEventApprovalService.approveSimpleEvent(
         this.selectedEmployeeId,
@@ -572,6 +627,78 @@ export class EmployeeDetail {
     } else {
       this.showMessage('イベントの承認に失敗しました');
     }
+  }
+
+  openEmployeeReview(event: EmployeeEvent) {
+    this.reviewingEmployeeEvent = event;
+    this.employeeReviewModalOpen = true;
+  }
+
+  closeEmployeeReview() {
+    this.employeeReviewModalOpen = false;
+    this.reviewingEmployeeEvent = null;
+  }
+
+  async approveEmployeeApplication() {
+    if (!this.reviewingEmployeeEvent) return;
+    const approved = await this.employeeEventApprovalService.approveEmployeeApplicationEvent(
+      this.selectedEmployeeId,
+      this.reviewingEmployeeEvent,
+      this.loginEmployeeId,
+    );
+    if (approved) {
+      this.showMessage('申請内容を承認し、反映しました');
+      this.closeEmployeeReview();
+      await this.employeeService.getAllEmployees(true);
+      await this.selectEmployee();
+    } else {
+      this.showMessage('承認・反映に失敗しました');
+    }
+  }
+
+  async rejectEmployeeApplication() {
+    if (!this.reviewingEmployeeEvent) return;
+    await this.onRejectEvent(this.reviewingEmployeeEvent);
+    this.closeEmployeeReview();
+  }
+
+  getEmployeeEventChangeLines(event: EmployeeEvent): string[] {
+    const payload = event.payload ?? {};
+    const before = payload['before'];
+    const after = payload['after'];
+
+    if (event.eventType === '氏名変更') {
+      return [`姓：${before ?? '—'} → ${after ?? '—'}`];
+    }
+
+    if (event.eventType === '扶養情報変更') {
+      const beforeDep = before as Record<string, unknown> | null;
+      const afterDep = after as Record<string, unknown>;
+      const lines = [
+        `氏名：${beforeDep?.['name'] ?? '—'} → ${afterDep?.['name'] ?? '—'}`,
+        `続柄：${beforeDep?.['relationship'] ?? '—'} → ${afterDep?.['relationship'] ?? '—'}`,
+      ];
+      return lines;
+    }
+
+    const beforeEmployee = before as Employee | undefined;
+    const afterEmployee = after as Employee | undefined;
+    return [
+      `勤務状況：${beforeEmployee?.workStatus ?? '—'} → ${afterEmployee?.workStatus ?? '—'}`,
+      `休職種別：${beforeEmployee?.leaveTypes ?? '—'} → ${afterEmployee?.leaveTypes ?? '—'}`,
+    ];
+  }
+
+  getApplicantLabel(event: EmployeeEvent): string {
+    return event.applicantType ?? '';
+  }
+
+  getApproverLabel(event: EmployeeEvent): string {
+    return event.approval?.approvedBy ?? '';
+  }
+
+  getApprovalDateLabel(event: EmployeeEvent): string {
+    return event.approval?.approvedDate ? this.commonService.formatDateTime(event.approval.approvedDate) : '';
   }
 
   async onRejectEvent(event: EmployeeEvent) {
@@ -593,33 +720,37 @@ export class EmployeeDetail {
     this.approvalModalOpen = false;
     this.approvalModalType = null;
     this.approvingEvent = null;
+    this.approvingSystemRun = null;
     this.fixedSalaryDraft = null;
     this.insuranceDraft = null;
   }
 
   async rejectApprovalModal() {
-    if (!this.approvingEvent) return;
-    await this.onRejectEvent(this.approvingEvent);
+    if (this.approvingSystemRun) {
+      await this.employeeEventApprovalService.rejectSystemRun(this.approvingSystemRun.runId, this.loginEmployeeId);
+      await this.loadEmployeeEvents();
+    } else if (this.approvingEvent) {
+      await this.onRejectEvent(this.approvingEvent);
+    }
     this.cancelApprovalModal();
   }
 
   async confirmApprovalModal() {
-    if (!this.approvingEvent) return;
+    if (!this.approvingSystemRun && !this.approvingEvent) return;
+
+    const eventView = this.approvingSystemRun
+      ? this.employeeEventApprovalService.buildEventViewFromRun(this.approvingSystemRun)
+      : this.approvingEvent!;
+    const runId = this.approvingSystemRun?.runId;
 
     let approved = false;
     if (this.approvalModalType === 'fixedSalary' && this.fixedSalaryDraft) {
       approved = await this.employeeEventApprovalService.approveFixedSalaryEvent(
-        this.selectedEmployeeId,
-        this.approvingEvent,
-        this.fixedSalaryDraft,
-        this.loginEmployeeId,
+        this.selectedEmployeeId, eventView, this.fixedSalaryDraft, this.loginEmployeeId, runId,
       );
     } else if (this.approvalModalType === 'insurance' && this.insuranceDraft) {
       approved = await this.employeeEventApprovalService.approveInsuranceEvent(
-        this.selectedEmployeeId,
-        this.approvingEvent,
-        this.insuranceDraft,
-        this.loginEmployeeId,
+        this.selectedEmployeeId, eventView, this.insuranceDraft, this.loginEmployeeId, runId,
       );
     }
 
@@ -705,6 +836,11 @@ export class EmployeeDetail {
     this.setupInsuranceDetailControls('healthInsurance');
     this.setupInsuranceDetailControls('nursingCareInsurance');
     this.setupInsuranceDetailControls('employeePensionInsurance');
+    this.insuranceForm.setValidators(this.healthInsuranceDependencyValidator);
+
+    this.insuranceForm.controls.healthInsurance.controls.joined.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(status => this.syncSubInsuranceStatusesWithHealth(status));
 
     this.insuranceForm.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -765,6 +901,46 @@ export class EmployeeDetail {
     const acquiredDate = control.parent?.get('acquiredDate')?.value;
     if (!lostDate || !acquiredDate) return null;
     return lostDate > acquiredDate ? null : { lostDateBeforeAcquiredDate: true };
+  };
+
+  private healthInsuranceDependencyValidator = (control: AbstractControl): ValidationErrors | null => {
+    const healthStatus = control.get('healthInsurance.joined')?.value as InsuranceStatus | undefined;
+    const nursingStatus = control.get('nursingCareInsurance.joined')?.value as InsuranceStatus | undefined;
+    const pensionStatus = control.get('employeePensionInsurance.joined')?.value as InsuranceStatus | undefined;
+    if (healthStatus === 'joined') return null;
+    if (nursingStatus === 'joined' || pensionStatus === 'joined') {
+      return { healthInsuranceDependency: true };
+    }
+    return null;
+  };
+
+  private syncSubInsuranceStatusesWithHealth(healthStatus: InsuranceStatus) {
+    if (healthStatus === 'joined') {
+      this.insuranceForm.updateValueAndValidity({ emitEvent: false });
+      return;
+    }
+
+    for (const name of ['nursingCareInsurance', 'employeePensionInsurance'] as const) {
+      const control = this.insuranceForm.controls[name].controls.joined;
+      if (control.value === 'joined') {
+        control.setValue(healthStatus, { emitEvent: true });
+      }
+    }
+    this.insuranceForm.updateValueAndValidity({ emitEvent: false });
+  }
+
+  isSubInsuranceJoinedDisabled(): boolean {
+    return this.insuranceForm.controls.healthInsurance.controls.joined.value !== 'joined';
+  }
+
+  private dependentBirthDateNotFutureValidator = (control: AbstractControl): ValidationErrors | null => {
+    const value = control.value;
+    if (!value) return null;
+    const selected = new Date(value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selected.setHours(0, 0, 0, 0);
+    return selected <= today ? null : { futureBirthDate: true };
   };
 
   private updateLeaveTypesValidation() {
@@ -889,7 +1065,7 @@ export class EmployeeDetail {
       dependentId: [dependent.dependentId],
       isExisting: [true],
       name: [dependent.name ?? '', [Validators.required]],
-      birthDate: [this.formatDateForInput(dependent.birthDate), [Validators.required]],
+      birthDate: [this.formatDateForInput(dependent.birthDate), [Validators.required, this.dependentBirthDateNotFutureValidator]],
       relationship: [dependent.relationship ?? ('' as Relationship | ''), [Validators.required]],
       isDependentStatus: [(dependent.isDependent !== false ? 'dependent' : 'notDependent') as DependentCoverageStatus],
     });
@@ -900,7 +1076,7 @@ export class EmployeeDetail {
       dependentId: [''],
       isExisting: [false],
       name: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
-      birthDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      birthDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered, this.dependentBirthDateNotFutureValidator]],
       relationship: ['' as Relationship | '', [this.validationService.requiredIfAnyDependentFieldEntered]],
       isDependentStatus: ['dependent' as DependentCoverageStatus],
     });

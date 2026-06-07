@@ -4,6 +4,7 @@ import { Employee } from '../../model/employee';
 import { Dependent } from '../../model/dependent';
 import { EmployeeEventType } from '../../constants/model-constants';
 import { EventService } from '../Firestore/event-service';
+import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { CompanyService } from '../Firestore/company-service';
 import { EmployeeLogicService } from './employee-logic-service';
 import {
@@ -24,6 +25,7 @@ type InsuranceStatusKind = 'joined' | 'notJoined' | 'lost';
 export class EmployeeDetailEventService {
 
   private eventService = inject(EventService);
+  private calculationRunService = inject(CalculationRunService);
   private companyService = inject(CompanyService);
   private employeeLogicService = inject(EmployeeLogicService);
 
@@ -94,14 +96,13 @@ export class EmployeeDetailEventService {
     await this.companyService.getCompany();
     const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
     const systemEventId = buildRetireSystemEventId(after.resignationDate.toDate(), targetPeriodStart);
-    const systemId = await this.eventService.createEventWithBaseId(employeeId, systemEventId, {
-      occurredDate: after.resignationDate,
-      eventType: '退社',
-      appliedDate: Timestamp.now(),
-      applicantType: 'システム',
-      approval: { approvalStatus: '申請中' },
-      payload: { before, after },
-    });
+    const systemId = await this.calculationRunService.createSystemEventRun(
+      employeeId,
+      systemEventId,
+      '退社',
+      { before, after },
+      after.resignationDate,
+    );
     if (systemId) createdIds.push(systemId);
 
     return createdIds;
@@ -143,6 +144,11 @@ export class EmployeeDetailEventService {
     return event.eventType === '固定給変更' || event.eventType === '雇用形態変更';
   }
 
+  needsApprovalDialogForRun(run: { eventType?: string; approval?: { approvalStatus?: string } }): boolean {
+    if (run.approval?.approvalStatus !== '申請中') return false;
+    return run.eventType === '固定給変更' || run.eventType === '雇用形態変更';
+  }
+
   async hasInsuranceStatusChangePossible(before: Employee, after: Employee): Promise<boolean> {
     const isSpecificApplicableOffice = await this.companyService.isSpecificApplicableOffice();
     const beforeRequired = this.employeeLogicService.isInsuranceRequired(before, isSpecificApplicableOffice);
@@ -181,14 +187,13 @@ export class EmployeeDetailEventService {
     const adminId = await this.createAdminApprovedEvent(employeeId, '固定給変更', before, after, loginEmployeeId);
     if (adminId) createdIds.push(adminId);
 
-    const systemId = await this.eventService.createEventWithBaseId(employeeId, buildFixedSalarySystemEventId(), {
-      occurredDate: Timestamp.fromDate(getFixedSalarySystemOccurredDate()),
-      eventType: '固定給変更',
-      appliedDate: Timestamp.now(),
-      applicantType: 'システム',
-      approval: { approvalStatus: '申請中' },
-      payload: { before, after },
-    });
+    const systemId = await this.calculationRunService.createSystemEventRun(
+      employeeId,
+      buildFixedSalarySystemEventId(),
+      '固定給変更',
+      { before, after },
+      Timestamp.fromDate(getFixedSalarySystemOccurredDate()),
+    );
     if (systemId) createdIds.push(systemId);
 
     return createdIds;
@@ -205,17 +210,12 @@ export class EmployeeDetailEventService {
     if (adminId) createdIds.push(adminId);
 
     if (await this.hasInsuranceStatusChangePossible(before, after)) {
-      const systemId = await this.eventService.createEventWithBaseId(
+      const systemId = await this.calculationRunService.createSystemEventRun(
         employeeId,
         buildCurrentWorkMonthEventId('雇用形態変更'),
-        {
-          occurredDate: Timestamp.now(),
-          eventType: '雇用形態変更',
-          appliedDate: Timestamp.now(),
-          applicantType: 'システム',
-          approval: { approvalStatus: '申請中' },
-          payload: { before, after },
-        },
+        '雇用形態変更',
+        { before, after },
+        Timestamp.now(),
       );
       if (systemId) createdIds.push(systemId);
     }

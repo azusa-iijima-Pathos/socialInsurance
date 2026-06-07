@@ -27,10 +27,8 @@ import { OfficeDetail } from './componect/office/office-detail/office-detail';
 import { LifeeventApplication } from './componect/ForEmployee/lifeevent-application/lifeevent-application';
 import { MyInsuranceDetail } from './componect/ForEmployee/my-insurance-detail/my-insurance-detail';
 import { MyApplication } from './componect/ForEmployee/my-application/my-application';
+import { RetroactiveCorrection } from './componect/correction/retroactive-correction/retroactive-correction';
 import { SalaryCorrection } from './componect/correction/salary-correction/salary-correction';
-import { LeaveCorrection } from './componect/correction/leave-correction/leave-correction';
-import { FixSalaryCorrection } from './componect/correction/fix-salary-correction/fix-salary-correction';
-import { InsuranceCorrection } from './componect/correction/insurance-correction/insurance-correction';
 import { BonusCorrection } from './componect/correction/bonus-correction/bonus-correction';
 import { CorrectionList } from './componect/correction/correction-list/correction-list';
 
@@ -76,12 +74,13 @@ export const routes: Routes = [
     { path: 'calculation-base-pending-list', component: CalculationBasePendingList, title: '算定基礎反映待ち一覧 ｜ 社会保険管理システム' },
     { path: 'reach-age', component: ReachAge, title: '年齢到達一括検索 ｜ 社会保険管理システム' },
     { path: 'system-application-list', component: SystemApplicationList, title: '今月の申請一覧（システム） ｜ 社会保険管理システム' },
-    { path: 'salary-correction', component: SalaryCorrection, title: '給与修正 ｜ 社会保険管理システム' },
-    { path: 'leave-correction', component: LeaveCorrection, title: '休暇修正 ｜ 社会保険管理システム' },
-    { path: 'fix-salary-correction', component: FixSalaryCorrection, title: '固定給修正 ｜ 社会保険管理システム' },
-    { path: 'insurance-correction', component: InsuranceCorrection, title: '保険料修正 ｜ 社会保険管理システム' },
+    { path: 'retroactive-correction', component: RetroactiveCorrection, title: '遡及修正 ｜ 社会保険管理システム' },
+    { path: 'salary-correction', component: SalaryCorrection, title: '月額給与修正 ｜ 社会保険管理システム' },
+    { path: 'leave-correction', redirectTo: 'retroactive-correction', pathMatch: 'full' },
+    { path: 'fix-salary-correction', redirectTo: 'retroactive-correction', pathMatch: 'full' },
+    { path: 'insurance-correction', redirectTo: 'retroactive-correction', pathMatch: 'full' },
     { path: 'bonus-correction', component: BonusCorrection, title: '賞与修正 ｜ 社会保険管理システム' },
-    { path: 'correction-list', component: CorrectionList, title: '遡及修正一覧 ｜ 社会保険管理システム' },
+    { path: 'correction-list', component: CorrectionList, title: '差額調整一覧 ｜ 社会保険管理システム' },
 
     { path: '**', redirectTo: '/login' }
 ];

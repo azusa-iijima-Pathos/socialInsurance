@@ -36,4 +36,19 @@ export class InsuranceSnapshotService {
     return snapshots.length > 0;
   }
 
+  /** 社員の確定済み保険料スナップショット一覧 */
+  async getSnapshotsForEmployee(employeeId: string): Promise<InsuranceSnapshot[]> {
+    return await this.crudService.getAll<InsuranceSnapshot>(
+      `${this.path}/${employeeId}/insuranceSnapshots`,
+      'snapshotId',
+    );
+  }
+
+  async getSnapshot(employeeId: string, payrollId: string): Promise<InsuranceSnapshot | null> {
+    return await this.crudService.getById<InsuranceSnapshot>(
+      `${this.path}/${employeeId}/insuranceSnapshots/${payrollId}`,
+      'snapshotId',
+    );
+  }
+
 }

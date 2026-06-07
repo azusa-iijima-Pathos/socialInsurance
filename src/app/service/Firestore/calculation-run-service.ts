@@ -4,6 +4,17 @@ import { CalculationRun } from '../../model/calculation-run';
 import { CrudService } from '../common/crud-service';
 import { EmployeeService } from './employee-service';
 import { EmployeeLogicService } from '../logic/employee-logic-service';
+import { EmployeeEventType } from '../../constants/model-constants';
+import { Event } from '../../model/event';
+import { getWorkingYearMonth, isEventAtOrBeforeWorkingMonth } from '../logic/event-id-service';
+import { MonthlyInsuranceDiff, MonthlyInsuranceComparisonRow } from '../logic/correction-logic.service';
+
+export type SystemCalculationRunItem = CalculationRun & {
+  employeeId: string;
+  eventType: EmployeeEventType;
+  /** テンプレート互換 */
+  eventId: string;
+};
 
 @Injectable({
   providedIn: 'root',
@@ -180,6 +191,259 @@ export class CalculationRunService {
     }
 
     return true;
+  }
+
+  /** システムイベント相当の計算結果を作成（旧システムイベント） */
+  async createSystemEventRun(
+    employeeId: string,
+    baseRunId: string,
+    eventType: EmployeeEventType,
+    payload: Record<string, unknown>,
+    occurredDate?: Timestamp,
+  ): Promise<string | null> {
+    const runId = await this.allocateSequentialRunId(baseRunId);
+    const run: Partial<CalculationRun> = {
+      runId,
+      targetEmployeeIds: employeeId,
+      detectedDate: Timestamp.now(),
+      type: 'イベント',
+      approval: { approvalStatus: '申請中' },
+      payload: {
+        eventType,
+        applicantType: 'システム',
+        employeeId,
+        occurredDate,
+        ...payload,
+      },
+    };
+
+    const created = await this.crudService.create<CalculationRun>(`${this.path}/${runId}`, run);
+    return created ? runId : null;
+  }
+
+  /** 差額調整の計算結果を作成 */
+  async createDifferenceAdjustmentRun(
+    employeeId: string,
+    sourceType: string,
+    applyWorkMonth: { year: number; month: number },
+    monthlyDiffs: MonthlyInsuranceDiff[],
+    payload: Record<string, unknown>,
+  ): Promise<string | null> {
+    const baseId = `差額調整_${applyWorkMonth.year}_${String(applyWorkMonth.month).padStart(2, '0')}_${employeeId}`;
+    const runId = await this.allocateSequentialRunId(baseId);
+    const run: Partial<CalculationRun> = {
+      runId,
+      targetEmployeeIds: employeeId,
+      detectedDate: Timestamp.now(),
+      type: '差額調整',
+      approval: { approvalStatus: '申請中' },
+      payload: {
+        employeeId,
+        sourceType,
+        applyWorkMonth,
+        monthlyDiffs,
+        ...payload,
+      },
+    };
+    const created = await this.crudService.create<CalculationRun>(`${this.path}/${runId}`, run);
+    return created ? runId : null;
+  }
+
+  /** 対象月ごとに差額調整runを作成（申請月=現在作業月） */
+  async createMonthlyDifferenceAdjustmentRuns(
+    employeeId: string,
+    sourceType: string,
+    remark: string,
+    targetMonth: { year: number; month: number },
+    rows: MonthlyInsuranceComparisonRow[],
+    extraPayload: Record<string, unknown> = {},
+  ): Promise<number> {
+    let count = 0;
+    for (const row of rows) {
+      const baseId = `差額調整_${targetMonth.year}_${String(targetMonth.month).padStart(2, '0')}_${employeeId}_${row.year}_${String(row.month).padStart(2, '0')}`;
+      const runId = await this.allocateSequentialRunId(baseId);
+      const run: Partial<CalculationRun> = {
+        runId,
+        targetEmployeeIds: employeeId,
+        detectedDate: Timestamp.now(),
+        type: '差額調整',
+        approval: { approvalStatus: '申請中' },
+        payload: {
+          employeeId,
+          sourceType,
+          remark,
+          targetMonth,
+          adjustMonth: { year: row.year, month: row.month },
+          payrollId: row.payrollId,
+          healthDiff: row.healthDiff,
+          nursingDiff: row.nursingDiff,
+          pensionDiff: row.pensionDiff,
+          totalDiff: row.totalDiff,
+          comparison: row,
+          ...extraPayload,
+        },
+      };
+      const created = await this.crudService.create<CalculationRun>(`${this.path}/${runId}`, run);
+      if (created) count++;
+    }
+    return count;
+  }
+
+  /** 申請月（targetMonth）で差額調整を取得 */
+  async getDifferenceAdjustmentsByTargetMonth(year: number, month: number): Promise<CalculationRun[]> {
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.type === '差額調整')
+      .filter(run => {
+        const target = run.payload?.['targetMonth'] as { year?: number; month?: number } | undefined;
+        return target?.year === year && target?.month === month;
+      })
+      .sort((left, right) => String(left.runId).localeCompare(String(right.runId)));
+  }
+
+  /** 差額調整をCSV行に展開 */
+  flattenDifferenceAdjustmentsForCsv(runs: CalculationRun[]): {
+    employeeId: string;
+    targetMonth: string;
+    adjustMonth: string;
+    healthDiff: number;
+    pensionDiff: number;
+    remark: string;
+  }[] {
+    return runs.map(run => {
+      const target = run.payload?.['targetMonth'] as { year: number; month: number };
+      const adjust = run.payload?.['adjustMonth'] as { year: number; month: number };
+      return {
+        employeeId: String(run.targetEmployeeIds ?? run.payload?.['employeeId'] ?? ''),
+        targetMonth: `${target.year}-${String(target.month).padStart(2, '0')}`,
+        adjustMonth: `${adjust.year}-${String(adjust.month).padStart(2, '0')}`,
+        healthDiff: Number(run.payload?.['healthDiff'] ?? 0),
+        pensionDiff: Number(run.payload?.['pensionDiff'] ?? 0),
+        remark: String(run.payload?.['remark'] ?? run.payload?.['sourceType'] ?? ''),
+      };
+    });
+  }
+
+  async getAllCalculationRuns(): Promise<CalculationRun[]> {
+    return await this.crudService.getAll<CalculationRun>(this.path, 'runId');
+  }
+
+  async getCalculationRunById(runId: string): Promise<CalculationRun | null> {
+    return await this.crudService.getById<CalculationRun>(`${this.path}/${runId}`, 'runId');
+  }
+
+  async updateCalculationRun(runId: string, data: Partial<CalculationRun>): Promise<boolean> {
+    return await this.crudService.update<CalculationRun>(`${this.path}/${runId}`, data);
+  }
+
+  /** 申請中のシステム計算結果（作業月以前・type=イベント） */
+  async getPendingSystemRunsUpToWorkingMonth(): Promise<SystemCalculationRunItem[]> {
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return [];
+
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.type === 'イベント' && run.approval?.approvalStatus === '申請中')
+      .filter(run => run.runId && isEventAtOrBeforeWorkingMonth(run.runId, year, month))
+      .map(run => this.toSystemItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  /** 社員の申請中システム計算結果 */
+  async getPendingSystemRunsForEmployee(employeeId: string): Promise<SystemCalculationRunItem[]> {
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return [];
+
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run =>
+        run.type === 'イベント'
+        && run.approval?.approvalStatus === '申請中'
+        && run.targetEmployeeIds === employeeId,
+      )
+      .filter(run => run.runId && isEventAtOrBeforeWorkingMonth(run.runId, year, month))
+      .map(run => this.toSystemItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  /** 差額調整一覧（作業月以前） */
+  async getPendingDifferenceAdjustmentsUpToWorkingMonth(): Promise<CalculationRun[]> {
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return [];
+
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.type === '差額調整' && run.approval?.approvalStatus === '申請中')
+      .filter(run => run.runId && isEventAtOrBeforeWorkingMonth(run.runId, year, month))
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  async allocateSequentialRunId(baseId: string): Promise<string> {
+    const runs = await this.getAllCalculationRuns();
+    const escapedBase = baseId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`^${escapedBase}(?:_(\\d+))?$`);
+
+    let maxSeq = 0;
+    for (const run of runs) {
+      const match = run.runId.match(pattern);
+      if (match) {
+        maxSeq = Math.max(maxSeq, match[1] ? Number(match[1]) : 0);
+      }
+    }
+
+    return `${baseId}_${maxSeq + 1}`;
+  }
+
+  async markRunApproved(runId: string, loginEmployeeId: string): Promise<boolean> {
+    return this.updateCalculationRun(runId, {
+      approval: {
+        approvalStatus: '承認済み',
+        approvedDate: Timestamp.now(),
+        approvedBy: loginEmployeeId,
+      },
+    });
+  }
+
+  async markRunRejected(runId: string, loginEmployeeId: string): Promise<boolean> {
+    return this.updateCalculationRun(runId, {
+      approval: {
+        approvalStatus: '却下',
+        approvedDate: Timestamp.now(),
+        approvedBy: loginEmployeeId,
+      },
+    });
+  }
+
+  /** CalculationRun を Event 互換ビューに変換（承認サービス用） */
+  toEventView(run: SystemCalculationRunItem): Event {
+    return {
+      eventId: run.runId,
+      companyId: sessionStorage.getItem('companyId') ?? '',
+      occurredDate: run.payload?.['occurredDate'] as Timestamp | undefined,
+      eventType: run.eventType,
+      appliedDate: run.detectedDate,
+      applicantType: 'システム',
+      approval: run.approval,
+      payload: {
+        before: run.payload?.['before'],
+        after: run.payload?.['after'],
+      },
+    };
+  }
+
+  private toSystemItem(run: CalculationRun): SystemCalculationRunItem | null {
+    const employeeId = String(run.targetEmployeeIds ?? run.payload?.['employeeId'] ?? '');
+    const eventType = run.payload?.['eventType'] as EmployeeEventType | undefined;
+    if (!employeeId || !eventType || !run.runId) return null;
+
+    return {
+      ...run,
+      employeeId,
+      eventType,
+      eventId: run.runId,
+    };
   }
 
   private calculationBaseDocumentPath(year: number): string {

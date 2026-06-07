@@ -1,0 +1,119 @@
+.retroactive-page-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-12);
+  margin-bottom: var(--im-size-16);
+}
+
+.retroactive-page-links a {
+  text-decoration: underline;
+}
+
+.retroactive-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+  margin-bottom: var(--im-size-16);
+}
+
+.retroactive-tabs__btn {
+  padding: var(--im-size-8) var(--im-size-12);
+  border: 1px solid var(--im-color-slate-300);
+  border-radius: var(--im-radius-4);
+  background: #fff;
+  cursor: pointer;
+}
+
+.retroactive-tabs__btn--active {
+  background: var(--im-color-primary-50, #e8f0fe);
+  border-color: var(--im-color-primary, #2563eb);
+  font-weight: 600;
+}
+
+.retroactive-form label {
+  display: block;
+  margin-bottom: var(--im-size-12);
+}
+
+.retroactive-current-info {
+  padding: var(--im-size-12);
+  margin-bottom: var(--im-size-16);
+  border: 1px solid var(--im-color-slate-200);
+  border-radius: var(--im-radius-4);
+  background: var(--im-color-gray-50);
+}
+
+.retroactive-layout .employee-detail-content {
+  display: block;
+}
+
+.retroactive-inline-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--im-size-16);
+  margin-bottom: var(--im-size-16);
+}
+
+.retroactive-insurance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+  gap: var(--im-size-16);
+  align-items: start;
+}
+
+.retroactive-insurance-grid .insurance-detail-fields {
+  display: block;
+}
+
+.retroactive-insurance-grid .add-insurance-info-form-group {
+  margin-bottom: var(--im-size-8);
+}
+
+@media (max-width: 900px) {
+  .retroactive-insurance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.retroactive-current-info__warn {
+  color: var(--im-color-warning-700, #b45309);
+}
+
+.retroactive-preview-modal .employee-edit-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.retroactive-preview-modal__close {
+  flex-shrink: 0;
+}
+
+.retroactive-preview-table-wrap {
+  overflow-x: auto;
+}
+
+.retroactive-preview-table .retroactive-preview-row--values td {
+  vertical-align: middle;
+}
+
+.retroactive-preview-table .retroactive-preview-row--diffs td {
+  color: var(--im-color-slate-600);
+  font-size: 0.9em;
+  border-top: none;
+  padding-top: 0;
+}
+
+.retroactive-preview-total {
+  font-weight: 600;
+}
+
+.retroactive-preview-diff {
+  text-align: right;
+}
+
+.retroactive-form .error p {
+  color: var(--im-color-danger, #dc2626);
+  font-size: 0.875rem;
+  margin: 0.25rem 0 0;
+}

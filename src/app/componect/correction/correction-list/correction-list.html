@@ -1,1 +1,74 @@
-<p>correction-list works!</p>
+<h1>{{ listType === 'bonus' ? '賞与保険料差額一覧' : '差額調整一覧' }}</h1>
+
+<p>申請月（作業月）ごとの差額調整を表示します。デフォルトは現在の作業月です。</p>
+
+
+
+<div class="correction-list-toolbar">
+
+  <label *ngIf="listType !== 'bonus'">申請月
+    <select [(ngModel)]="selectedMonthKey" (change)="onFilterChange()">
+      <option *ngFor="let option of monthOptions" [value]="option.year + '-' + option.month">
+        {{ option.label }}
+      </option>
+    </select>
+  </label>
+
+  <label *ngIf="listType === 'bonus'">確定済み賞与
+    <select [(ngModel)]="selectedBonusPayrollId" (change)="onFilterChange()">
+      <option value="">選択</option>
+      <option *ngFor="let id of bonusPayrollIds" [value]="id">{{ displayBonusPayrollId(id) }}</option>
+    </select>
+  </label>
+
+  <button type="button" class="im-btn-soft" (click)="exportCsv()" [disabled]="runs.length === 0">CSV出力</button>
+
+</div>
+
+
+
+<div *ngIf="runs.length === 0" class="correction-list-empty">差額調整データはありません。</div>
+
+<div *ngIf="runs.length > 0" class="correction-list-table-wrap">
+  <table class="correction-list-table">
+    <thead>
+      <tr>
+        <th>社員ID</th>
+        <th>名前</th>
+        <th>対象月</th>
+        <th *ngIf="listType !== 'bonus'">等級</th>
+        <th>健康保険</th>
+        <th>介護保険</th>
+        <th>厚生年金</th>
+        <th>合計</th>
+        <th>種別</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let run of runs">
+        <td>{{ getEmployeeId(run) }}</td>
+        <td>{{ getEmployeeName(run) }}</td>
+        <td>{{ getAdjustMonth(run) }}</td>
+        <td *ngIf="listType !== 'bonus'">{{ getGrade(run) }}</td>
+        <td>
+          <span>{{ getCurrentHealth(run) | number }}→<strong>{{ getNewHealth(run) | number }}</strong>円</span>
+          <small class="correction-list-diff">差額 {{ getHealthDiff(run) | number }}円</small>
+        </td>
+        <td>
+          <span>{{ getCurrentNursing(run) | number }}→<strong>{{ getNewNursing(run) | number }}</strong>円</span>
+          <small class="correction-list-diff">差額 {{ getNursingDiff(run) | number }}円</small>
+        </td>
+        <td>
+          <span>{{ getCurrentPension(run) | number }}→<strong>{{ getNewPension(run) | number }}</strong>円</span>
+          <small class="correction-list-diff">差額 {{ getPensionDiff(run) | number }}円</small>
+        </td>
+        <td class="correction-list-total">
+          <span>{{ getCurrentTotal(run) | number }}→<strong>{{ getNewTotal(run) | number }}</strong>円</span>
+          <small class="correction-list-diff">差額 <strong>{{ getTotalDiff(run) | number }}円</strong></small>
+        </td>
+        <td>{{ getSourceType(run) }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+

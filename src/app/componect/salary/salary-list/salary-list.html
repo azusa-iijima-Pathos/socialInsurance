@@ -36,9 +36,9 @@
                         <td *ngIf="!isBonus">{{ payroll.fixedSalary | number }}円</td>
                         <td>{{ payroll.actualPaymentAmount | number }}円</td>
                         <td>{{ commonService.formatDate(payroll.createdAt) }}</td>
-                        <td *ngIf="!disabled"><button class="im-btn-soft" (click)="editPayroll(payroll)" [disabled]="disabled">編集</button>
-                            <span>&nbsp;</span>
-                        <button class="im-btn-soft im-btn-soft--danger" (click)="deletePayroll(payroll)" [disabled]="disabled">削除</button></td>
+                        <td *ngIf="!disabled"><button class="im-btn-soft" (click)="editPayroll(payroll)" [disabled]="disabled">{{ getEditButtonLabel() }}</button>
+                            <span *ngIf="!correctionMode">&nbsp;</span>
+                        <button *ngIf="!correctionMode" class="im-btn-soft im-btn-soft--danger" (click)="deletePayroll(payroll)" [disabled]="disabled">削除</button></td>
                     </tr>
                 </tbody>
             </table>
@@ -90,6 +90,7 @@
                             <input type="date" id="editTargetPeriodStart" formControlName="targetPeriodStart">
                             <div class="error">
                                 <p *ngIf="form.get('targetPeriodStart')?.errors?.['required'] && form.get('targetPeriodStart')?.touched">対象期間開始日は必須です</p>
+                                <p *ngIf="targetPeriodStartError">{{ targetPeriodStartError }}</p>
                             </div>
                         </div>
                     </div>
@@ -145,8 +146,12 @@
                     </div>
                 </div>
 
+                <div class="salary-edit-form-error" *ngIf="correctionMode && !isBonus">
+                    <p *ngIf="form.hasError('invalidActualPaymentAmount')">総支給額は固定給以上で入力してください</p>
+                </div>
+
                 <div class="salary-edit-actions">
-                    <button type="submit" class="im-btn-primary" [disabled]="disabled">保存</button>
+                    <button type="submit" class="im-btn-primary" [disabled]="disabled">{{ correctionMode && isBonus ? '保険料確認' : '保存' }}</button>
                     <button type="button" class="im-btn-soft" (click)="closeEditPayrollModal()">キャンセル</button>
                 </div>
             </form>

@@ -1,0 +1,17 @@
+.salary-correction-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--im-size-16);
+  margin-bottom: var(--im-size-16);
+}
+
+.salary-correction-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: var(--im-size-8);
+}
+
+.salary-correction-toolbar a {
+  text-decoration: underline;
+}

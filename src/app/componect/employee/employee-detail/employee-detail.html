@@ -40,6 +40,15 @@
 
 
     <div class="employee-detail-content" *ngIf="selectedEmployee">
+        <div *ngIf="hasPendingSystemRuns()" class="employee-detail-system-run-notice">
+            <p><strong>! システム計算結果が出ています。適用しますか？</strong></p>
+            <ul>
+                <li *ngFor="let run of pendingSystemRuns">
+                    {{ run.eventType }}（{{ run.runId }}）
+                    <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveSystemRun(run)">確認して承認</button>
+                </li>
+            </ul>
+        </div>
         <h2>従業員情報</h2>
         <div class="employee-infomation-area">
             <section class="employee-detail-section">
@@ -74,6 +83,10 @@
                     <div class="employee-detail-info-grid__item">
                         <dt>勤務状況</dt>
                         <dd>{{ selectedEmployee.workStatus! }}</dd>
+                    </div>
+                    <div class="employee-detail-info-grid__item" *ngIf="selectedEmployee.workStatus === '休職中'">
+                        <dt>休職種別</dt>
+                        <dd>{{ selectedEmployee.leaveTypes ?? '未設定' }}</dd>
                     </div>
                     <div class="employee-detail-info-grid__item" *ngIf="showResignationDateDisplay()">
                         <dt>退社日</dt>
@@ -146,12 +159,14 @@
                 <div class="employee-detail-insurance-cards">
                     <article class="employee-detail-insurance-card">
                         <h3>健康保険</h3>
+                        <span *ngIf="isInsuranceNumberMissing(selectedEmployee.insurance?.healthInsurance)"
+                            class="employee-detail-insurance-card__missing-number">保険番号未取得</span>
                         <p class="employee-detail-insurance-card__status">{{
                             getInsuranceStatus(selectedEmployee.insurance?.healthInsurance) }}</p>
                         <p class="employee-detail-insurance-card__auto">自動計算：{{ autoHealthInsuranceRequired ? '加入' :
                             '未加入' }}</p>
                         <dl class="employee-detail-info-grid employee-detail-info-grid--compact"
-                            *ngIf="selectedEmployee.insurance?.healthInsurance?.joined">
+                            *ngIf="showInsuranceDetail(selectedEmployee.insurance?.healthInsurance)">
                             <div class="employee-detail-info-grid__item">
                                 <dt>番号</dt>
                                 <dd>{{ selectedEmployee.insurance?.healthInsurance?.number! }}</dd>
@@ -177,12 +192,14 @@
 
                     <article class="employee-detail-insurance-card">
                         <h3>介護保険</h3>
+                        <span *ngIf="isInsuranceNumberMissing(selectedEmployee.insurance?.nursingCareInsurance)"
+                            class="employee-detail-insurance-card__missing-number">保険番号未取得</span>
                         <p class="employee-detail-insurance-card__status">{{
                             getInsuranceStatus(selectedEmployee.insurance?.nursingCareInsurance) }}</p>
                         <p class="employee-detail-insurance-card__auto">自動計算：{{ autoNursingCareInsuranceRequired ? '加入'
                             : '未加入' }}</p>
                         <dl class="employee-detail-info-grid employee-detail-info-grid--compact"
-                            *ngIf="selectedEmployee.insurance?.nursingCareInsurance?.joined">
+                            *ngIf="showInsuranceDetail(selectedEmployee.insurance?.nursingCareInsurance)">
                             <div class="employee-detail-info-grid__item">
                                 <dt>番号</dt>
                                 <dd>{{ selectedEmployee.insurance?.nursingCareInsurance?.number! }}</dd>
@@ -209,12 +226,14 @@
 
                     <article class="employee-detail-insurance-card">
                         <h3>厚生年金</h3>
+                        <span *ngIf="isInsuranceNumberMissing(selectedEmployee.insurance?.employeePensionInsurance)"
+                            class="employee-detail-insurance-card__missing-number">保険番号未取得</span>
                         <p class="employee-detail-insurance-card__status">{{
                             getInsuranceStatus(selectedEmployee.insurance?.employeePensionInsurance) }}</p>
                         <p class="employee-detail-insurance-card__auto">自動計算：{{ autoPensionInsuranceRequired ? '加入' :
                             '未加入' }}</p>
                         <dl class="employee-detail-info-grid employee-detail-info-grid--compact"
-                            *ngIf="selectedEmployee.insurance?.employeePensionInsurance?.joined">
+                            *ngIf="showInsuranceDetail(selectedEmployee.insurance?.employeePensionInsurance)">
                             <div class="employee-detail-info-grid__item">
                                 <dt>番号</dt>
                                 <dd>{{ selectedEmployee.insurance?.employeePensionInsurance?.number! }}</dd>
@@ -279,11 +298,13 @@
                 <table class="employee-detail-events-table">
                     <thead>
                         <tr>
-                            <th>操作</th>
-                            <th>イベントID</th>
-                            <th>種別</th>
+                            <th>操作種別</th>
+                            <th>ライフイベント種別</th>
                             <th>申請日</th>
+                            <th>申請者</th>
                             <th>承認状況</th>
+                            <th>承認者</th>
+                            <th>承認日</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -291,15 +312,18 @@
                             <td class="employee-detail-events-table__actions">
                                 <ng-container *ngIf="isPendingEvent(employeeEvent) && !isRetiredEmployee()">
                                     <button type="button" class="im-btn-primary im-btn-sm"
-                                        (click)="onApproveEvent(employeeEvent)">承認</button>
+                                        (click)="onApproveEvent(employeeEvent)">確認</button>
                                     <button type="button" class="im-btn-soft im-btn-sm"
                                         (click)="onRejectEvent(employeeEvent)">却下</button>
                                 </ng-container>
                             </td>
-                            <td>{{ employeeEvent.eventId }}</td>
                             <td>{{ employeeEvent.eventType }}</td>
-                            <td>{{ commonService.formatDate(employeeEvent.appliedDate) }}</td>
+                            <td>{{ employeeEvent.lifeEventType ?? '—' }}</td>
+                            <td>{{ commonService.formatDateTime(employeeEvent.appliedDate) }}</td>
+                            <td>{{ getApplicantLabel(employeeEvent) }}</td>
                             <td>{{ employeeEvent.approval?.approvalStatus ?? '' }}</td>
+                            <td>{{ getApproverLabel(employeeEvent) }}</td>
+                            <td>{{ getApprovalDateLabel(employeeEvent) }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -309,6 +333,26 @@
             <p class="employee-detail-empty">イベントはありません</p>
         </section>
         </div>
+        </div>
+    </div>
+</div>
+
+<!-- 従業員申請 確認モーダル -->
+<div class="employee-edit-modal" *ngIf="employeeReviewModalOpen && reviewingEmployeeEvent">
+    <div class="employee-edit-modal__panel employee-approval-modal">
+        <div class="employee-edit-modal__header">
+            <h2>従業員申請の確認</h2>
+        </div>
+        <div class="employee-approval-modal__body">
+            <p>{{ selectedEmployee?.firstName }} {{ selectedEmployee?.lastName }}（{{ reviewingEmployeeEvent.eventType }}）</p>
+            <ul>
+                <li *ngFor="let line of getEmployeeEventChangeLines(reviewingEmployeeEvent)">{{ line }}</li>
+            </ul>
+        </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-primary" (click)="approveEmployeeApplication()">承認して反映</button>
+            <button type="button" class="im-btn-soft" (click)="rejectEmployeeApplication()">却下</button>
+            <button type="button" class="im-btn-soft" (click)="closeEmployeeReview()">閉じる</button>
         </div>
     </div>
 </div>
@@ -618,7 +662,7 @@
                 <div class="im-radio-group">
                     <label class="im-radio-option" for="detailNursingJoined1">
                         <input type="radio" id="detailNursingJoined1" formControlName="joined"
-                            value="joined"><span>加入</span>
+                            value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入</span>
                     </label>
                     <label class="im-radio-option" for="detailNursingJoined2">
                         <input type="radio" id="detailNursingJoined2" formControlName="joined"
@@ -700,7 +744,7 @@
                 <div class="im-radio-group">
                     <label class="im-radio-option" for="detailPensionJoined1">
                         <input type="radio" id="detailPensionJoined1" formControlName="joined"
-                            value="joined"><span>加入</span>
+                            value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入</span>
                     </label>
                     <label class="im-radio-option" for="detailPensionJoined2">
                         <input type="radio" id="detailPensionJoined2" formControlName="joined"
@@ -785,6 +829,10 @@
                 <p>厚生年金：{{ modalAutoInsuranceJudgement?.isPensionInsuranceRequired ? '加入' : '未加入' }}</p>
             </div>
 
+            <div class="error" *ngIf="insuranceForm.hasError('healthInsuranceDependency')">
+                <p>健康保険が未加入または喪失の場合、介護保険と厚生年金は加入にできません</p>
+            </div>
+
             <div class="employee-edit-actions">
                 <button type="submit" class="im-btn-primary">保存</button>
                 <button type="button" class="im-btn-soft" (click)="closeInsuranceModal()">キャンセル</button>
@@ -828,6 +876,9 @@
                                     <p
                                         *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">
                                         生年月日は必須です</p>
+                                    <p
+                                        *ngIf="dependent.get('birthDate')?.errors?.['futureBirthDate'] && dependent.get('birthDate')?.touched">
+                                        生年月日は今日以前の日付で入力してください</p>
                                 </div>
                             </div>
                         </div>
@@ -885,7 +936,7 @@
 <div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'fixedSalary' && fixedSalaryDraft">
     <div class="employee-edit-modal__panel employee-approval-modal">
         <div class="employee-edit-modal__header">
-            <h2>固定給変更の承認</h2>
+            <h2>随時改定</h2>
         </div>
         <div class="employee-approval-modal__body">
             <dl class="employee-detail-info-grid">

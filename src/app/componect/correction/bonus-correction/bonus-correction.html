@@ -1,1 +1,103 @@
-<p>bonus-correction works!</p>
+<h1>賞与修正（遡及）</h1>
+<p>確定済み賞与の金額を変更し、保険料差額調整を作成します。</p>
+<p *ngIf="message" class="im-action-message">{{ message }}</p>
+
+<div class="bonus-correction-toolbar">
+  <label>確定済み賞与
+    <select [(ngModel)]="selectedPayrollId" (change)="onBonusPayrollIdChange()">
+      <option value="">選択</option>
+      <option *ngFor="let id of bonusPayrollIds" [value]="id">{{ displayBonusPayrollId(id) }}</option>
+    </select>
+  </label>
+  <a routerLink="/correction-list" [queryParams]="{ type: 'bonus' }">賞与保険料差額一覧</a>
+</div>
+
+<section *ngIf="selectedPayrollId">
+  <h3>{{ displayBonusPayrollId(selectedPayrollId) }} 賞与一覧</h3>
+  <div class="bonus-correction-table-wrap">
+    <table class="bonus-correction-table">
+      <thead>
+        <tr>
+          <th>社員ID</th>
+          <th>名前</th>
+          <th>対象月</th>
+          <th>等級</th>
+          <th>健康保険</th>
+          <th>介護保険</th>
+          <th>厚生年金</th>
+          <th>合計</th>
+          <th>賞与額</th>
+          <th>修正</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of rows">
+          <td>{{ row.payroll.employeeId }}</td>
+          <td>{{ row.employeeName }}</td>
+          <td>{{ displayBonusPayrollId(selectedPayrollId) }}</td>
+          <td>{{ row.grade }}</td>
+          <td>{{ row.health | number }}円</td>
+          <td>{{ row.nursing | number }}円</td>
+          <td>{{ row.pension | number }}円</td>
+          <td class="bonus-correction-total">{{ row.total | number }}円</td>
+          <td>
+            <span *ngIf="!row.editing">{{ row.payroll.actualPaymentAmount | number }}円</span>
+            <input *ngIf="row.editing" type="number" min="0" [(ngModel)]="row.editAmount">
+          </td>
+          <td>
+            <button *ngIf="!row.editing" type="button" class="im-btn-soft im-btn-sm" (click)="startEdit(row)">修正</button>
+            <button *ngIf="row.editing" type="button" class="im-btn-primary im-btn-sm" (click)="confirmInsurance(row)">保険料確認</button>
+            <button *ngIf="row.editing" type="button" class="im-btn-soft im-btn-sm" (click)="cancelEdit(row)">キャンセル</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="employee-edit-modal bonus-correction-preview-modal" *ngIf="previewOpen && previewComparison" (click)="cancelPreview()">
+  <div class="employee-edit-modal__panel employee-approval-modal" (click)="$event.stopPropagation()">
+    <div class="employee-edit-modal__header"><h2>賞与修正プレビュー</h2></div>
+    <div class="employee-approval-modal__body">
+      <p>社員ID：{{ pendingEmployee?.employeeId }}　{{ displayBonusPayrollId(selectedPayrollId) }}</p>
+      <table class="im-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>健康保険</th>
+            <th>介護保険</th>
+            <th>厚生年金</th>
+            <th>合計</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>現在</th>
+            <td>{{ previewComparison.currentHealth | number }}円</td>
+            <td>{{ previewComparison.currentNursing | number }}円</td>
+            <td>{{ previewComparison.currentPension | number }}円</td>
+            <td>{{ previewComparison.currentHealth + previewComparison.currentNursing + previewComparison.currentPension | number }}円</td>
+          </tr>
+          <tr>
+            <th>変更後</th>
+            <td>{{ previewComparison.newHealth | number }}円</td>
+            <td>{{ previewComparison.newNursing | number }}円</td>
+            <td>{{ previewComparison.newPension | number }}円</td>
+            <td>{{ previewComparison.newHealth + previewComparison.newNursing + previewComparison.newPension | number }}円</td>
+          </tr>
+          <tr>
+            <th>差額</th>
+            <td class="bonus-correction-diff">{{ previewComparison.healthDiff | number }}円</td>
+            <td class="bonus-correction-diff">{{ previewComparison.nursingDiff | number }}円</td>
+            <td class="bonus-correction-diff">{{ previewComparison.pensionDiff | number }}円</td>
+            <td class="bonus-correction-diff">{{ previewComparison.totalDiff | number }}円</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="employee-edit-actions">
+      <button type="button" class="im-btn-primary" (click)="approvePreview()">承認して保存</button>
+      <button type="button" class="im-btn-soft" (click)="cancelPreview()">キャンセル</button>
+    </div>
+  </div>
+</div>

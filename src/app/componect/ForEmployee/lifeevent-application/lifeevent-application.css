@@ -1,3 +1,7 @@
+.information-area {
+  margin-bottom: var(--im-size-16);
+}
+
 .lifeevent-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -19,18 +23,72 @@
   font-weight: 600;
 }
 
+.lifeevent-panel {
+  padding: var(--im-size-16);
+  border: 1px solid var(--im-color-slate-200);
+  border-radius: var(--im-radius-4);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.lifeevent-panel h2 {
+  margin-top: 0;
+  padding-bottom: var(--im-size-8);
+  border-bottom: 1px solid var(--im-color-slate-200);
+}
+
 .lifeevent-panel form > div {
   margin-bottom: var(--im-size-12);
 }
 
+.lifeevent-panel input[type="text"],
+.lifeevent-panel input:not([type]),
+.lifeevent-panel input[type="date"],
+.lifeevent-panel select {
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--im-color-slate-300);
+  border-radius: var(--im-radius-4);
+  background: #fff;
+}
+
+.lifeevent-panel button[type="submit"],
+.lifeevent-panel button[type="button"] {
+  margin-top: var(--im-size-8);
+}
+
 .lifeevent-dependent-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--im-size-12);
   padding: var(--im-size-12);
   margin-bottom: var(--im-size-12);
   border: 1px solid var(--im-color-slate-200);
   border-radius: var(--im-radius-4);
+  background: var(--im-color-gray-50);
 }
 
 .lifeevent-dependent-row label {
   display: block;
   margin-bottom: var(--im-size-8);
+}
+
+.lifeevent-dependent-row .error p,
+.lifeevent-panel .error p {
+  margin: 4px 0 0;
+  color: var(--im-color-danger, #dc2626);
+  font-size: 0.875rem;
+}
+
+.lifeevent-panel > form > div:not([formArrayName]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-12);
+  align-items: center;
+}
+
+.lifeevent-panel > form > div:not([formArrayName]) > label {
+  display: flex;
+  align-items: center;
+  gap: var(--im-size-8);
 }

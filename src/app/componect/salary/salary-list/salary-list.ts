@@ -1,4 +1,4 @@
-import { Component, computed, inject, Input } from '@angular/core';
+import { Component, computed, EventEmitter, inject, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { PayrollService } from '../../../service/Firestore/payroll-service';
 import { CommonModule } from '@angular/common';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
@@ -7,6 +7,8 @@ import { DELETE_MESSAGES, UPDATE_MESSAGES } from '../../../constants/constants';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Timestamp } from '@angular/fire/firestore';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
+import { ValidationService } from '../../../service/common/validation-service';
+import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
 
 @Component({
   selector: 'app-salary-list',
@@ -14,16 +16,20 @@ import { EmployeeService } from '../../../service/Firestore/employee-service';
   templateUrl: './salary-list.html',
   styleUrl: './salary-list.css',
 })
-export class SalaryList {
+export class SalaryList implements OnChanges {
 
   private payrollService = inject(PayrollService);
   commonService = inject(CommonService);
   private fb = inject(FormBuilder);
   private employeeService = inject(EmployeeService);
+  private validationService = inject(ValidationService);
+  private correctionLogicService = inject(CorrectionLogicService);
 
   message: string = '';
   private messageTimer: MessageTimer = null;
   editPayrollModalOpen = false;
+  private originalPayroll: Payroll | null = null;
+  targetPeriodStartError = '';
 
   allPayrollListForMonth = computed(() => {
     const retiredIds = this.employeeService.retiredEmployeeIdSet();
@@ -35,6 +41,9 @@ export class SalaryList {
   @Input() payrollId: string = '';
   @Input() isBonus: boolean = false;
   @Input() disabled: boolean = false;
+  @Input() correctionMode = false;
+  @Input() deferSave = false;
+  @Output() payrollChange = new EventEmitter<{ original: Payroll; updated: Partial<Payroll> }>();
 
   form = this.fb.nonNullable.group({
     payrollId: [''],
@@ -49,13 +58,37 @@ export class SalaryList {
   });
 
   async ngOnInit() {
-    await this.payrollService.getAllPayrollListForMonth(this.payrollId);
-
+    await this.loadPayrollList();
     await this.employeeService.getAllEmployees();
+    this.updateFormValidators();
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['payrollId'] && !changes['payrollId'].firstChange && this.payrollId) {
+      void this.loadPayrollList();
+    }
+    if (changes['correctionMode'] || changes['isBonus']) {
+      this.updateFormValidators();
+    }
+  }
+
+  private updateFormValidators() {
+    if (this.correctionMode && !this.isBonus) {
+      this.form.setValidators(this.validationService.validatePaymentAmount);
+    } else {
+      this.form.setValidators(null);
+    }
+    this.form.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private async loadPayrollList() {
+    if (!this.payrollId) return;
+    await this.payrollService.getAllPayrollListForMonth(this.payrollId);
   }
 
   editPayroll(payroll: Payroll) {
     if (this.disabled) return;
+    this.originalPayroll = payroll;
     this.editPayrollModalOpen = true;
     this.form.patchValue({
       payrollId: payroll.payrollId,
@@ -70,8 +103,15 @@ export class SalaryList {
     });
   }
 
+  getEditButtonLabel(): string {
+    if (!this.correctionMode) return '編集';
+    return this.isBonus ? '保険料確認' : '修正';
+  }
+
   closeEditPayrollModal() {
     this.editPayrollModalOpen = false;
+    this.originalPayroll = null;
+    this.targetPeriodStartError = '';
     this.form.reset();
   }
 
@@ -89,6 +129,18 @@ export class SalaryList {
       return;
     }
 
+    this.targetPeriodStartError = '';
+    if (this.correctionMode && !this.isBonus) {
+      const targetError = await this.correctionLogicService.validateSalaryCorrectionTargetPeriod(
+        this.form.value.targetPeriodStart!,
+      );
+      if (targetError) {
+        this.targetPeriodStartError = targetError;
+        this.form.controls.targetPeriodStart.markAsTouched();
+        return;
+      }
+    }
+
     const payroll: Partial<Payroll> = {
       payrollId: this.form.value.payrollId!,
       employeeId: this.form.value.employeeId!,
@@ -104,6 +156,17 @@ export class SalaryList {
       payroll.actualWorkingDays = this.form.value.actualWorkingDays!;
       payroll.actualWorkingHours = this.form.value.actualWorkingHours!;
       payroll.fixedSalary = this.form.value.fixedSalary!;
+    }
+
+    if (this.correctionMode && !this.hasPayrollChanges(this.originalPayroll, payroll)) {
+      this.commonService.showTimedMessage('変更がありません。', value => this.message = value, this.messageTimer);
+      return;
+    }
+
+    if (this.deferSave && this.originalPayroll) {
+      this.payrollChange.emit({ original: this.originalPayroll, updated: payroll });
+      this.closeEditPayrollModal();
+      return;
     }
 
     const result = await this.payrollService.updatePayroll(payroll);
@@ -136,6 +199,23 @@ export class SalaryList {
     const month = String(dateValue.getMonth() + 1).padStart(2, '0');
     const day = String(dateValue.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  private hasPayrollChanges(original: Payroll | null, updated: Partial<Payroll>): boolean {
+    if (!original) return true;
+    if (this.isBonus) {
+      return (original.actualPaymentAmount ?? 0) !== (updated.actualPaymentAmount ?? 0)
+        || this.formatDateForInput(original.paymentDate) !== this.formatDateForInput(updated.paymentDate as Timestamp)
+        || this.formatDateForInput(original.targetPeriod?.[0]) !== this.formatDateForInput(updated.targetPeriod?.[0] as Timestamp)
+        || this.formatDateForInput(original.targetPeriod?.[1]) !== this.formatDateForInput(updated.targetPeriod?.[1] as Timestamp);
+    }
+    return (original.fixedSalary ?? 0) !== (updated.fixedSalary ?? 0)
+      || (original.actualPaymentAmount ?? 0) !== (updated.actualPaymentAmount ?? 0)
+      || (original.actualWorkingDays ?? 0) !== (updated.actualWorkingDays ?? 0)
+      || (original.actualWorkingHours ?? 0) !== (updated.actualWorkingHours ?? 0)
+      || this.formatDateForInput(original.paymentDate) !== this.formatDateForInput(updated.paymentDate as Timestamp)
+      || this.formatDateForInput(original.targetPeriod?.[0]) !== this.formatDateForInput(updated.targetPeriod?.[0] as Timestamp)
+      || this.formatDateForInput(original.targetPeriod?.[1]) !== this.formatDateForInput(updated.targetPeriod?.[1] as Timestamp);
   }
 
 }

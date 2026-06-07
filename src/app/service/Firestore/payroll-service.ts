@@ -137,6 +137,22 @@ export class PayrollService {
     return true;
   }
 
+  // 確定済み給与・賞与の修正用更新（ロック済みでも更新可能）
+  async updatePayrollForCorrection(payroll: Partial<Payroll>) {
+    if (!payroll.employeeId || !payroll.payrollId) {
+      return false;
+    }
+    const result = await this.crudService.update<Payroll>(
+      `${this.path}/${payroll.employeeId}/payroll/${payroll.payrollId}`,
+      payroll
+    );
+    if (!result) {
+      return false;
+    }
+    await this.getAllPayrollListForMonth(payroll.payrollId, true);
+    return true;
+  }
+
   //従業員1人分の給与・賞与データを取得
   async getPayrollListForEmployee(employeeId: string): Promise<Payroll[]> {
     return await this.crudService.getAll<Payroll>(`${this.path}/${employeeId}/payroll`, 'payrollId');

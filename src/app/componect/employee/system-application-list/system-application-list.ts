@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { EmployeeEventItem, EventService } from '../../../service/Firestore/event-service';
+import { CalculationRunService, SystemCalculationRunItem } from '../../../service/Firestore/calculation-run-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { EmployeeDetailEventService } from '../../../service/logic/employee-detail-event-service';
@@ -26,6 +27,7 @@ type InsuranceStatus = 'joined' | 'notJoined' | 'lost';
 export class SystemApplicationList {
 
   private eventService = inject(EventService);
+  private calculationRunService = inject(CalculationRunService);
   private employeeService = inject(EmployeeService);
   private employeeDetailEventService = inject(EmployeeDetailEventService);
   private employeeEventApprovalService = inject(EmployeeEventApprovalService);
@@ -37,8 +39,9 @@ export class SystemApplicationList {
   workingMonth = Number(sessionStorage.getItem('workingMonth'));
 
   reachAgeEvents: EmployeeEventItem[] = [];
-  fixedSalaryEvents: EmployeeEventItem[] = [];
-  retireEvents: EmployeeEventItem[] = [];
+  fixedSalaryRuns: SystemCalculationRunItem[] = [];
+  retireRuns: SystemCalculationRunItem[] = [];
+  otherSystemRuns: SystemCalculationRunItem[] = [];
   employeeApplicationEvents: EmployeeEventItem[] = [];
   otherEvents: EmployeeEventItem[] = [];
 
@@ -48,6 +51,7 @@ export class SystemApplicationList {
   approvalModalOpen = false;
   approvalModalType: 'fixedSalary' | 'insurance' | null = null;
   approvingEvent: EmployeeEventItem | null = null;
+  approvingSystemRun: SystemCalculationRunItem | null = null;
   fixedSalaryDraft: FixedSalaryApprovalDraft | null = null;
   insuranceDraft: InsuranceApprovalDraft | null = null;
 
@@ -66,18 +70,58 @@ export class SystemApplicationList {
 
   async loadEvents() {
     const events = await this.eventService.getAllPendingEventsUpToWorkingMonth();
+    const systemRuns = await this.calculationRunService.getPendingSystemRunsUpToWorkingMonth();
+
     this.reachAgeEvents = events.filter(event => event.eventType === '一定年齢到達');
-    this.fixedSalaryEvents = events.filter(event => event.eventType === '固定給変更' && event.applicantType === 'システム');
-    this.retireEvents = events.filter(event => event.eventType === '退社' && event.applicantType === 'システム');
+    this.fixedSalaryRuns = systemRuns.filter(run => run.eventType === '固定給変更');
+    this.retireRuns = systemRuns.filter(run => run.eventType === '退社');
+    this.otherSystemRuns = systemRuns.filter(run => run.eventType === '雇用形態変更');
     this.employeeApplicationEvents = events.filter(event => event.applicantType === '社員');
     this.otherEvents = events.filter(event =>
       event.applicantType !== '社員'
       && event.eventType !== '一定年齢到達'
-      && !(event.eventType === '固定給変更' && event.applicantType === 'システム')
-      && !(event.eventType === '退社' && event.applicantType === 'システム'),
+      && event.applicantType !== 'システム',
     );
     this.selectedReachAge.clear();
     this.selectedRetire.clear();
+  }
+
+  getSystemRunKey(run: SystemCalculationRunItem): string {
+    return `${run.employeeId}:${run.runId}`;
+  }
+
+  async onApproveSystemRun(run: SystemCalculationRunItem) {
+    const eventView = this.employeeEventApprovalService.buildEventViewFromRun(run);
+    if (this.employeeDetailEventService.needsApprovalDialogForRun(run)) {
+      if (run.eventType === '固定給変更') {
+        this.fixedSalaryDraft = await this.employeeEventApprovalService.buildFixedSalaryApprovalDraft(eventView);
+        this.approvalModalType = 'fixedSalary';
+      } else {
+        this.insuranceDraft = await this.employeeEventApprovalService.buildInsuranceApprovalDraft(eventView);
+        this.approvalModalType = 'insurance';
+      }
+      this.approvingSystemRun = run;
+      this.approvalModalOpen = true;
+      return;
+    }
+
+    let approved = false;
+    if (run.eventType === '退社') {
+      approved = await this.employeeEventApprovalService.approveRetireEvent(
+        run.employeeId, eventView, this.loginEmployeeId, run.runId,
+      );
+    }
+    await this.afterApproval(approved);
+  }
+
+  async onRejectSystemRun(run: SystemCalculationRunItem) {
+    const rejected = await this.employeeEventApprovalService.rejectSystemRun(run.runId, this.loginEmployeeId);
+    if (rejected) {
+      this.showMessage('システム計算結果を却下しました');
+      await this.loadEvents();
+    } else {
+      this.showMessage('却下に失敗しました');
+    }
   }
 
   async searchReachAge() {
@@ -105,8 +149,8 @@ export class SystemApplicationList {
     else this.selectedReachAge.delete(key);
   }
 
-  toggleRetire(event: EmployeeEventItem, checked: boolean) {
-    const key = this.getEventKey(event);
+  toggleRetire(run: SystemCalculationRunItem, checked: boolean) {
+    const key = this.getSystemRunKey(run);
     if (checked) this.selectedRetire.add(key);
     else this.selectedRetire.delete(key);
   }
@@ -120,7 +164,7 @@ export class SystemApplicationList {
   }
 
   toggleAllRetire() {
-    this.retireEvents.forEach(event => this.selectedRetire.add(this.getEventKey(event)));
+    this.retireRuns.forEach(run => this.selectedRetire.add(this.getSystemRunKey(run)));
   }
 
   toggleAllRetireClear() {
@@ -294,30 +338,31 @@ export class SystemApplicationList {
   async bulkApproveRetire() {
     let count = 0;
     for (const key of this.selectedRetire) {
-      const event = this.retireEvents.find(item => this.getEventKey(item) === key);
-      if (!event) continue;
-      const approved = await this.employeeEventApprovalService.approveRetireEvent(event.employeeId, event, this.loginEmployeeId);
+      const run = this.retireRuns.find(item => this.getSystemRunKey(item) === key);
+      if (!run) continue;
+      const eventView = this.employeeEventApprovalService.buildEventViewFromRun(run);
+      const approved = await this.employeeEventApprovalService.approveRetireEvent(
+        run.employeeId, eventView, this.loginEmployeeId, run.runId,
+      );
       if (approved) count++;
     }
     if (count > 0) {
-      this.showMessage(`${count}件の退社イベントを承認しました`);
+      this.showMessage(`${count}件の退社計算結果を承認しました`);
       await this.employeeService.getAllEmployees(true);
       await this.loadEvents();
     }
   }
 
-  // 退社イベント一括却下
   async bulkRejectRetire() {
     let count = 0;
     for (const key of this.selectedRetire) {
-      const event = this.retireEvents.find(item => this.getEventKey(item) === key);
-      if (!event) continue;
-      const rejected = await this.employeeEventApprovalService.rejectEvent(event.employeeId, event, this.loginEmployeeId);
+      const run = this.retireRuns.find(item => this.getSystemRunKey(item) === key);
+      if (!run) continue;
+      const rejected = await this.employeeEventApprovalService.rejectSystemRun(run.runId, this.loginEmployeeId);
       if (rejected) count++;
     }
     if (count > 0) {
-      this.showMessage(`${count}件の退社イベントを却下しました`);
-      await this.employeeService.getAllEmployees(true);
+      this.showMessage(`${count}件の退社計算結果を却下しました`);
       await this.loadEvents();
     }
   }
@@ -327,33 +372,37 @@ export class SystemApplicationList {
     this.approvalModalOpen = false;
     this.approvalModalType = null;
     this.approvingEvent = null;
+    this.approvingSystemRun = null;
     this.fixedSalaryDraft = null;
     this.insuranceDraft = null;
   }
 
   async rejectApprovalModal() {
-    if (!this.approvingEvent) return;
-    await this.onRejectEvent(this.approvingEvent);
+    if (this.approvingSystemRun) {
+      await this.onRejectSystemRun(this.approvingSystemRun);
+    } else if (this.approvingEvent) {
+      await this.onRejectEvent(this.approvingEvent);
+    }
     this.cancelApprovalModal();
   }
 
   async confirmApprovalModal() {
-    if (!this.approvingEvent) return;
+    if (!this.approvingSystemRun && !this.approvingEvent) return;
 
     let approved = false;
+    const employeeId = this.approvingSystemRun?.employeeId ?? this.approvingEvent!.employeeId;
+    const eventView = this.approvingSystemRun
+      ? this.employeeEventApprovalService.buildEventViewFromRun(this.approvingSystemRun)
+      : this.approvingEvent!;
+    const runId = this.approvingSystemRun?.runId;
+
     if (this.approvalModalType === 'fixedSalary' && this.fixedSalaryDraft) {
       approved = await this.employeeEventApprovalService.approveFixedSalaryEvent(
-        this.approvingEvent.employeeId,
-        this.approvingEvent,
-        this.fixedSalaryDraft,
-        this.loginEmployeeId,
+        employeeId, eventView, this.fixedSalaryDraft, this.loginEmployeeId, runId,
       );
     } else if (this.approvalModalType === 'insurance' && this.insuranceDraft) {
       approved = await this.employeeEventApprovalService.approveInsuranceEvent(
-        this.approvingEvent.employeeId,
-        this.approvingEvent,
-        this.insuranceDraft,
-        this.loginEmployeeId,
+        employeeId, eventView, this.insuranceDraft, this.loginEmployeeId, runId,
       );
     }
 

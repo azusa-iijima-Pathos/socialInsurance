@@ -94,10 +94,35 @@
   background: var(--im-color-gray-50, #f3f4f6);
 }
 
+.employee-detail-system-run-notice {
+  padding: var(--im-size-12);
+  margin-bottom: var(--im-size-16);
+  border: 1px solid var(--im-color-amber-400, #f59e0b);
+  border-radius: var(--im-radius-8);
+  background: #fffbeb;
+}
+
+.employee-detail-insurance-card {
+  position: relative;
+  padding: var(--im-size-14);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-gray-50);
+}
+
+.employee-detail-insurance-card__missing-number {
+  position: absolute;
+  top: var(--im-size-8);
+  right: var(--im-size-8);
+  color: #dc2626;
+  font-size: var(--im-font-12);
+  font-weight: 600;
+}
+
 .employee-detail-muted-area--active .employee-detail-section {
-  opacity: 0.72;
-  background: var(--im-color-gray-100, #eceff3);
-  pointer-events: none;
+  opacity: 1;
+  background: transparent;
+  pointer-events: auto;
 }
 
 .employee-detail-muted-area--active h2 {
@@ -153,13 +178,6 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--im-size-12);
-}
-
-.employee-detail-insurance-card {
-  padding: var(--im-size-14);
-  border: 1px solid var(--im-color-gray-150);
-  border-radius: var(--im-radius-8);
-  background: var(--im-color-gray-50);
 }
 
 .employee-detail-insurance-card h3 {

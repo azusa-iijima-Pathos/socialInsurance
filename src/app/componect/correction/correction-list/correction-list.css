@@ -1,0 +1,75 @@
+.correction-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--im-size-16);
+  margin-bottom: var(--im-size-16);
+}
+
+.correction-list-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: var(--im-size-8);
+}
+
+.correction-list-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-12);
+  margin-bottom: var(--im-size-16);
+}
+
+.correction-list-links a {
+  text-decoration: underline;
+}
+
+.correction-list-empty {
+  padding: var(--im-size-16);
+  border: 1px solid var(--im-color-slate-200);
+  border-radius: var(--im-radius-4);
+  background: #fff;
+}
+
+.correction-list-table-wrap {
+  overflow-x: auto;
+  padding: var(--im-size-12);
+  border: 1px solid var(--im-color-slate-200);
+  border-radius: var(--im-radius-4);
+  background: #fff;
+}
+
+.correction-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.correction-list-table th,
+.correction-list-table td {
+  padding: var(--im-size-10, 10px) var(--im-size-8);
+  border-bottom: 1px solid var(--im-color-slate-200);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.correction-list-table th {
+  background: var(--im-color-gray-50);
+  color: var(--im-color-slate-700);
+  font-weight: 600;
+}
+
+.correction-list-table td small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.85rem;
+}
+
+.correction-list-diff {
+  color: var(--im-color-danger, #dc2626);
+  font-weight: 600;
+}
+
+.correction-list-total {
+  font-weight: 600;
+}
