@@ -20,11 +20,13 @@
                     </p>
                     <p *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">
                         半角で入力してください</p>
+                    <p *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">
+                        社員IDが正しくありません</p>
                 </div>
             </div>
         </div>
 
-        <div class="im-field-block im-field-row">
+        <div class="im-field-block im-field-row" *ngIf="form.get('employeeId')?.value">
             <div class="im-field-row__label">
                 <label for="name">氏名</label>
             </div>

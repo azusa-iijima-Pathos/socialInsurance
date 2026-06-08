@@ -6,7 +6,7 @@
     </div>
   </header>
 
-  <section class="employee-detail-search-card">
+  <section class="employee-detail-search-card" style="margin-bottom: 10px;">
     <div class="employee-detail-search-card__fields">
       <label class="employee-detail-search-card__label" for="retroEmployeeSearch">社員検索</label>
       <input id="retroEmployeeSearch" type="text" class="employee-detail-search-card__input"
@@ -25,40 +25,49 @@
           </option>
         </optgroup>
       </select>
-      <button type="button" class="im-btn-primary employee-detail-search-card__button" (click)="selectEmployee()">検索</button>
+      <button type="button" class="im-btn-primary employee-detail-search-card__button"
+        (click)="selectEmployee()">検索</button>
     </div>
   </section>
+
+  <div style="display: flex; gap: 10px; justify-content: flex-end; margin-bottom: 10px; margin-right: auto;">
+    <button class="im-btn-soft" (click)="toCorrectionList()">差額調整一覧へ▶</button>
+  </div>
 
   <p *ngIf="message" class="im-action-message employee-detail-search-card__message">{{ message }}</p>
 
   <div class="employee-detail-content" *ngIf="selectedEmployee">
     <nav class="retroactive-tabs">
-      <button type="button" class="retroactive-tabs__btn" [class.retroactive-tabs__btn--active]="activeTab === 'insurance'"
+      <button type="button" class="retroactive-tabs__btn"
+        [class.retroactive-tabs__btn--active]="activeTab === 'insurance'"
         (click)="setActiveTab('insurance')">保険情報修正</button>
-      <button type="button" class="retroactive-tabs__btn" [class.retroactive-tabs__btn--active]="activeTab === 'fixedSalary'"
+      <button type="button" class="retroactive-tabs__btn"
+        [class.retroactive-tabs__btn--active]="activeTab === 'fixedSalary'"
         (click)="setActiveTab('fixedSalary')">固定給修正</button>
       <button type="button" class="retroactive-tabs__btn" [class.retroactive-tabs__btn--active]="activeTab === 'leave'"
         (click)="setActiveTab('leave')">産休・育休修正</button>
     </nav>
-
+    
     <form [formGroup]="form" class="employee-edit-form retroactive-form">
       <section class="employee-detail-section">
         <div class="employee-detail-section__header">
           <h2>現在の登録情報</h2>
         </div>
         <dl class="employee-detail-info-grid">
-          <div class="employee-detail-info-grid__item">
-            <dt>勤務状況</dt>
-            <dd>{{ selectedEmployee.workStatus }}</dd>
-          </div>
-          <div class="employee-detail-info-grid__item">
-            <dt>休職種別</dt>
-            <dd>{{ selectedEmployee.leaveTypes ?? '—' }}</dd>
-          </div>
-          <div class="employee-detail-info-grid__item">
-            <dt>休職開始日</dt>
-            <dd>{{ getLeaveStartDisplay() }}</dd>
-          </div>
+          <ng-container *ngIf="activeTab === 'leave'">
+            <div class="employee-detail-info-grid__item">
+              <dt>勤務状況</dt>
+              <dd>{{ selectedEmployee.workStatus }}</dd>
+            </div>
+            <div class="employee-detail-info-grid__item">
+              <dt>休職種別</dt>
+              <dd>{{ selectedEmployee.leaveTypes ?? '—' }}</dd>
+            </div>
+            <div class="employee-detail-info-grid__item">
+              <dt>休職開始日</dt>
+              <dd>{{ getLeaveStartDisplay() }}</dd>
+            </div>
+          </ng-container>
           <ng-container *ngIf="activeTab === 'insurance'">
             <div class="employee-detail-info-grid__item">
               <dt>等級</dt>
@@ -66,15 +75,18 @@
             </div>
             <div class="employee-detail-info-grid__item">
               <dt>健康保険</dt>
-              <dd>{{ getInsuranceStatusText(selectedEmployee.insurance?.healthInsurance) }}{{ getInsuranceDateText(selectedEmployee.insurance?.healthInsurance) }}</dd>
+              <dd>{{ getInsuranceStatusText(selectedEmployee.insurance?.healthInsurance) }}{{
+                getInsuranceDateText(selectedEmployee.insurance?.healthInsurance) }}</dd>
             </div>
             <div class="employee-detail-info-grid__item">
               <dt>介護保険</dt>
-              <dd>{{ getInsuranceStatusText(selectedEmployee.insurance?.nursingCareInsurance) }}{{ getInsuranceDateText(selectedEmployee.insurance?.nursingCareInsurance) }}</dd>
+              <dd>{{ getInsuranceStatusText(selectedEmployee.insurance?.nursingCareInsurance) }}{{
+                getInsuranceDateText(selectedEmployee.insurance?.nursingCareInsurance) }}</dd>
             </div>
             <div class="employee-detail-info-grid__item">
               <dt>厚生年金</dt>
-              <dd>{{ getInsuranceStatusText(selectedEmployee.insurance?.employeePensionInsurance) }}{{ getInsuranceDateText(selectedEmployee.insurance?.employeePensionInsurance) }}</dd>
+              <dd>{{ getInsuranceStatusText(selectedEmployee.insurance?.employeePensionInsurance) }}{{
+                getInsuranceDateText(selectedEmployee.insurance?.employeePensionInsurance) }}</dd>
             </div>
           </ng-container>
           <ng-container *ngIf="activeTab === 'fixedSalary'">
@@ -98,7 +110,8 @@
               <input type="date" id="retroApplyDate" formControlName="applyDate">
               <div class="error">
                 <p *ngIf="form.get('applyDate')?.errors?.['required'] && form.get('applyDate')?.touched">適用日は必須です</p>
-                <p *ngIf="form.get('applyDate')?.errors?.['retroactiveApplyDate'] && form.get('applyDate')?.touched">適用日は現在の作業月より前で、確定済み対象月がある日付を指定してください</p>
+                <p *ngIf="form.get('applyDate')?.errors?.['retroactiveApplyDate'] && form.get('applyDate')?.touched">
+                  適用日は現在の作業月より前で、確定済み対象月がある日付を指定してください</p>
               </div>
             </div>
           </div>
@@ -107,9 +120,12 @@
             <div class="im-field-row__control">
               <input type="number" id="retroCurrentGrade" min="0" max="50" formControlName="currentGrade">
               <div class="error">
-                <p *ngIf="form.get('currentGrade')?.errors?.['required'] && form.get('currentGrade')?.touched">標準報酬等級は必須です</p>
-                <p *ngIf="form.get('currentGrade')?.errors?.['min'] && form.get('currentGrade')?.touched">0以上で入力してください</p>
-                <p *ngIf="form.get('currentGrade')?.errors?.['max'] && form.get('currentGrade')?.touched">50以下で入力してください</p>
+                <p *ngIf="form.get('currentGrade')?.errors?.['required'] && form.get('currentGrade')?.touched">
+                  標準報酬等級は必須です</p>
+                <p *ngIf="form.get('currentGrade')?.errors?.['min'] && form.get('currentGrade')?.touched">0以上で入力してください
+                </p>
+                <p *ngIf="form.get('currentGrade')?.errors?.['max'] && form.get('currentGrade')?.touched">50以下で入力してください
+                </p>
               </div>
             </div>
           </div>
@@ -122,7 +138,8 @@
               <input type="date" id="retroApplyDateFixed" formControlName="applyDate">
               <div class="error">
                 <p *ngIf="form.get('applyDate')?.errors?.['required'] && form.get('applyDate')?.touched">適用日は必須です</p>
-                <p *ngIf="form.get('applyDate')?.errors?.['retroactiveApplyDate'] && form.get('applyDate')?.touched">適用日は現在の作業月より前の日付を指定してください</p>
+                <p *ngIf="form.get('applyDate')?.errors?.['retroactiveApplyDate'] && form.get('applyDate')?.touched">
+                  適用日は現在の作業月より前の日付を指定してください</p>
               </div>
             </div>
           </div>
@@ -131,6 +148,8 @@
             <div class="im-field-row__control">
               <input type="number" id="retroFixedSalary" min="0" formControlName="fixedSalary">
               <div class="error">
+                <p *ngIf="form.get('fixedSalary')?.errors?.['required'] && form.get('fixedSalary')?.touched">変更後固定給は必須です
+                </p>
                 <p *ngIf="form.get('fixedSalary')?.errors?.['min'] && form.get('fixedSalary')?.touched">0以上で入力してください</p>
               </div>
             </div>
@@ -144,7 +163,8 @@
               <input type="date" id="retroApplyDateLeave" formControlName="applyDate">
               <div class="error">
                 <p *ngIf="form.get('applyDate')?.errors?.['required'] && form.get('applyDate')?.touched">適用日は必須です</p>
-                <p *ngIf="form.get('applyDate')?.errors?.['retroactiveApplyDate'] && form.get('applyDate')?.touched">適用日は現在の作業月より前で、確定済み対象月がある日付を指定してください</p>
+                <p *ngIf="form.get('applyDate')?.errors?.['retroactiveApplyDate'] && form.get('applyDate')?.touched">
+                  適用日は現在の作業月より前で、確定済み対象月がある日付を指定してください</p>
               </div>
             </div>
           </div>
@@ -163,51 +183,75 @@
           <div class="employee-insurance-form-group" formGroupName="healthInsurance">
             <label>健康保険</label>
             <div class="im-radio-group">
-              <label class="im-radio-option"><input type="radio" formControlName="joined" value="joined"><span>加入</span></label>
-              <label class="im-radio-option"><input type="radio" formControlName="joined" value="notJoined"><span>未加入</span></label>
-              <label class="im-radio-option"><input type="radio" formControlName="joined" value="lost"><span>喪失</span></label>
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
+                  value="joined"><span>加入</span></label>
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
+                  value="notJoined"><span>未加入</span></label>
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
+                  value="lost"><span>喪失</span></label>
             </div>
-            <div class="insurance-detail-fields" [class.insurance-detail-fields--disabled]="form.get('healthInsurance.joined')?.value === 'notJoined'">
-              <div class="add-insurance-info-form-group"><label>健康保険番号</label><input type="text" formControlName="number"></div>
-              <div class="add-insurance-info-form-group"><label>健康保険取得日</label><input type="date" formControlName="acquiredDate"></div>
-              <div class="add-insurance-info-form-group"><label>健康保険喪失日</label><input type="date" formControlName="lostDate"></div>
-              <div class="add-insurance-info-form-group"><label>会社負担率 <input type="number" formControlName="companyBurdenRate"> ％</label></div>
+            <div class="insurance-detail-fields"
+              [class.insurance-detail-fields--disabled]="form.get('healthInsurance.joined')?.value === 'notJoined'">
+              <div class="add-insurance-info-form-group"><label>健康保険番号</label><input type="text"
+                  formControlName="number"></div>
+              <div class="add-insurance-info-form-group"><label>健康保険取得日</label><input type="date"
+                  formControlName="acquiredDate"></div>
+              <div class="add-insurance-info-form-group"><label>健康保険喪失日</label><input type="date"
+                  formControlName="lostDate"></div>
+              <div class="add-insurance-info-form-group"><label>会社負担率 <input type="number"
+                    formControlName="companyBurdenRate"> ％</label></div>
             </div>
           </div>
 
           <div class="employee-insurance-form-group" formGroupName="nursingCareInsurance">
             <label>介護保険</label>
             <div class="im-radio-group">
-              <label class="im-radio-option"><input type="radio" formControlName="joined" value="joined"><span>加入</span></label>
-              <label class="im-radio-option"><input type="radio" formControlName="joined" value="notJoined"><span>未加入</span></label>
-              <label class="im-radio-option"><input type="radio" formControlName="joined" value="lost"><span>喪失</span></label>
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
+                  value="joined"><span>加入</span></label>
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
+                  value="notJoined"><span>未加入</span></label>
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
+                  value="lost"><span>喪失</span></label>
             </div>
-            <div class="insurance-detail-fields" [class.insurance-detail-fields--disabled]="form.get('nursingCareInsurance.joined')?.value === 'notJoined'">
-              <div class="add-insurance-info-form-group"><label>介護保険番号</label><input type="text" formControlName="number"></div>
-              <div class="add-insurance-info-form-group"><label>介護保険取得日</label><input type="date" formControlName="acquiredDate"></div>
-              <div class="add-insurance-info-form-group"><label>介護保険喪失日</label><input type="date" formControlName="lostDate"></div>
-              <div class="add-insurance-info-form-group"><label>会社負担率 <input type="number" formControlName="companyBurdenRate"> ％</label></div>
+            <div class="insurance-detail-fields"
+              [class.insurance-detail-fields--disabled]="form.get('nursingCareInsurance.joined')?.value === 'notJoined'">
+              <div class="add-insurance-info-form-group"><label>介護保険番号</label><input type="text"
+                  formControlName="number"></div>
+              <div class="add-insurance-info-form-group"><label>介護保険取得日</label><input type="date"
+                  formControlName="acquiredDate"></div>
+              <div class="add-insurance-info-form-group"><label>介護保険喪失日</label><input type="date"
+                  formControlName="lostDate"></div>
+              <div class="add-insurance-info-form-group"><label>会社負担率 <input type="number"
+                    formControlName="companyBurdenRate"> ％</label></div>
             </div>
           </div>
 
           <div class="employee-insurance-form-group" formGroupName="employeePensionInsurance">
             <label>厚生年金</label>
             <div class="im-radio-group">
-              <label class="im-radio-option"><input type="radio" formControlName="joined" value="joined"><span>加入</span></label>
-              <label class="im-radio-option"><input type="radio" formControlName="joined" value="notJoined"><span>未加入</span></label>
-              <label class="im-radio-option"><input type="radio" formControlName="joined" value="lost"><span>喪失</span></label>
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
+                  value="joined"><span>加入</span></label>
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
+                  value="notJoined"><span>未加入</span></label>
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
+                  value="lost"><span>喪失</span></label>
             </div>
-            <div class="insurance-detail-fields" [class.insurance-detail-fields--disabled]="form.get('employeePensionInsurance.joined')?.value === 'notJoined'">
-              <div class="add-insurance-info-form-group"><label>厚生年金番号</label><input type="text" formControlName="number"></div>
-              <div class="add-insurance-info-form-group"><label>厚生年金取得日</label><input type="date" formControlName="acquiredDate"></div>
-              <div class="add-insurance-info-form-group"><label>厚生年金喪失日</label><input type="date" formControlName="lostDate"></div>
-              <div class="add-insurance-info-form-group"><label>会社負担率 <input type="number" formControlName="companyBurdenRate"> ％</label></div>
+            <div class="insurance-detail-fields"
+              [class.insurance-detail-fields--disabled]="form.get('employeePensionInsurance.joined')?.value === 'notJoined'">
+              <div class="add-insurance-info-form-group"><label>厚生年金番号</label><input type="text"
+                  formControlName="number"></div>
+              <div class="add-insurance-info-form-group"><label>厚生年金取得日</label><input type="date"
+                  formControlName="acquiredDate"></div>
+              <div class="add-insurance-info-form-group"><label>厚生年金喪失日</label><input type="date"
+                  formControlName="lostDate"></div>
+              <div class="add-insurance-info-form-group"><label>会社負担率 <input type="number"
+                    formControlName="companyBurdenRate"> ％</label></div>
             </div>
           </div>
         </div>
 
         <div class="employee-edit-actions">
-          <button type="button" class="im-btn-primary" (click)="submit()">
+          <button type="button" class="im-btn-primary" (click)="submit()" style="margin-right: auto; width: 100px;">
             {{ activeTab === 'fixedSalary' ? '反映' : '計算' }}
           </button>
         </div>
@@ -217,15 +261,16 @@
 </div>
 
 <div class="employee-edit-modal retroactive-preview-modal" *ngIf="previewModalOpen" (click)="cancelPreview()">
-  <div class="employee-edit-modal__panel employee-edit-modal__panel--wide employee-approval-modal" (click)="$event.stopPropagation()">
+  <div class="employee-edit-modal__panel employee-edit-modal__panel--wide employee-approval-modal"
+    (click)="$event.stopPropagation()">
     <div class="employee-edit-modal__header">
-      <h2>遡及修正プレビュー</h2>
+      <h2>遡及修正</h2>
       <button type="button" class="im-btn-soft retroactive-preview-modal__close" (click)="cancelPreview()">閉じる</button>
     </div>
     <div class="employee-approval-modal__body">
-      <p>{{ previewRemark }}：適用日から作業月1つ前までの差額（差額0円の月も含みます）</p>
+
       <div class="retroactive-preview-table-wrap">
-        <table class="insurance-confirm-list-table retroactive-preview-table">
+        <table class="insurance-confirm-list-table retroactive-preview-table" style="margin-top: 16px;">
           <thead>
             <tr>
               <th>対象月</th>
@@ -241,16 +286,25 @@
               <tr class="retroactive-preview-row--values">
                 <td rowspan="2">{{ row.year }}/{{ row.month }}</td>
                 <td rowspan="2">{{ row.grade }}</td>
-                <td>{{ row.currentHealth | number }}→<strong>{{ row.newHealth | number }}</strong>円</td>
-                <td>{{ row.currentNursing | number }}→<strong>{{ row.newNursing | number }}</strong>円</td>
-                <td>{{ row.currentPension | number }}→<strong>{{ row.newPension | number }}</strong>円</td>
-                <td class="retroactive-preview-total">{{ getPreviewCurrentTotal(row) | number }}→<strong>{{ getPreviewNewTotal(row) | number }}</strong>円</td>
+                <td>{{ row.currentHealth | number }}→{{ row.newHealth | number }}円</td>
+                <td>{{ row.currentNursing | number }}→{{ row.newNursing | number }}円</td>
+                <td>{{ row.currentPension | number }}→{{ row.newPension | number }}円</td>
+                <td class="retroactive-preview-total">{{ getPreviewCurrentTotal(row) | number }}→{{
+                  getPreviewNewTotal(row) | number }}円</td>
               </tr>
               <tr class="retroactive-preview-row--diffs">
-                <td class="retroactive-preview-diff">{{ row.healthDiff | number }}円</td>
-                <td class="retroactive-preview-diff">{{ row.nursingDiff | number }}円</td>
-                <td class="retroactive-preview-diff">{{ row.pensionDiff | number }}円</td>
-                <td class="retroactive-preview-total retroactive-preview-diff"><strong>{{ row.totalDiff | number }}円</strong></td>
+                <td class="retroactive-preview-diff"
+                  style="text-align: center; font-weight: bold; color: var(--im-color-red-800);">{{ row.healthDiff |
+                  number }}円</td>
+                <td class="retroactive-preview-diff"
+                  style="text-align: center; font-weight: bold; color: var(--im-color-red-800);">{{ row.nursingDiff |
+                  number }}円</td>
+                <td class="retroactive-preview-diff"
+                  style="text-align: center; font-weight: bold; color: var(--im-color-red-800);">{{ row.pensionDiff |
+                  number }}円</td>
+                <td class="retroactive-preview-total retroactive-preview-diff"
+                  style="text-align: center; font-weight: bold; color: var(--im-color-red-800);"><strong>{{
+                    row.totalDiff | number }}円</strong></td>
               </tr>
             </ng-container>
           </tbody>
@@ -262,4 +316,9 @@
       <button type="button" class="im-btn-soft" (click)="cancelPreview()">キャンセル</button>
     </div>
   </div>
+</div>
+
+<div *ngIf="!selectedEmployee" style="text-align: center; margin-top: 16px; color: var(--im-color-black);">
+  <p>社員が選択されていません</p>
+  <p>社員を選択して検索ボタンを押下してください</p>
 </div>

@@ -2,7 +2,7 @@
 
     <div class="header-left">
         <h1 class="app-title">
-            <button type="button" class="app-title-button" (click)="toTop()">社会保険管理システム</button>
+            <button type="button" class="app-title-button" (click)="toTop()" [disabled]="!showHeaderActions()">社会保険管理システム</button>
         </h1>
     </div>
 
@@ -10,12 +10,14 @@
     <div class="header-right">
         <ng-container *ngIf="showHeaderActions()">
             <button type="button" class="im-btn-soft" (click)="back()">◀</button>
+            <button type="button" class="im-btn-soft" *ngIf="permission() === '管理' || permission() === '承認'" (click)="toEmployeeTop()">従業員用ページ</button>
+            <button type="button" class="im-btn-soft" *ngIf="permission() === '管理' || permission() === '承認'" (click)="toManageTop()">管理者用ページ</button>
+            <div class="user-info" *ngIf="loginEmployeeId() !== null">
+                <p>社員ID: {{ loginEmployeeId() }}</p>
+                <p>権限: {{ permission() }}</p>
+                <p *ngIf="workingYear() && workingMonth()"> {{ workingYear() }}年{{ workingMonth() }}月分</p>
+            </div>
             <button type="button" class="im-btn-soft" (click)="logout()">ログアウト</button>
-            <p>loginEmployeeId: {{ loginEmployeeId() }}</p>
-            <p>companyId: {{ companyId() }}</p>
-            <p>permission: {{ permission() }}</p>
-            <p>作業年: {{ workingYear() }}</p>
-            <p>作業月: {{ workingMonth() }}</p>
         </ng-container>
     </div>
 

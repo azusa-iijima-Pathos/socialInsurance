@@ -1,6 +1,6 @@
 <h1>従業員トップページ</h1>
 
-<div class="information-area">
+<div *ngIf="permission === '申請'" class="information-area">
     <p>社会保険担当者様は、管理者に権限を変更してもらう必要があります。</p>
     <p>権限変更後に再度ログインしてください。</p>
 </div>
@@ -12,16 +12,15 @@
 
 
 <div *ngIf="workingMonth">
-    <div>
+    <div *ngIf="permission !== '閲覧'">
         <h3>申請</h3>
-        <a [routerLink]="['/lifeevent-application']">ライフイベント申請</a>
-        <p>休職申請</p>
+        <a [routerLink]="['/lifeevent-application']">ライフイベント申請</a><br>
         <a [routerLink]="['/my-application']">申請内容一覧</a>
     </div>
 
     <div>
         <h3>閲覧</h3>
         <a [routerLink]="['/my-insurance-detail']">登録情報閲覧</a><br>
-        <a [routerLink]="['/company-detail']">会社情報閲覧</a>
+        <a [routerLink]="['/company-detail']" [queryParams]="{ mode: 'view' }">会社情報閲覧</a>
     </div>
 </div>

@@ -1,6 +1,6 @@
 <div class="bonus-container">
     <h1 class="im-title">賞与登録</h1>
-    <p> {{ payrollId }}</p>
+    <h3> {{ bonusMonth }}月支払い分</h3>
 
     <div class="bonus-container__content">
         <div class="information-area" *ngIf="!isPayrollLocked">
@@ -11,14 +11,14 @@
             </p>
         </div>
 
-        <div class="information-area" *ngIf="isPayrollLocked">
+        <div *ngIf="isPayrollLocked" style="text-align: center; ">
             <p>
                 保険料確定済みのため、賞与情報は編集できません。<br>
                 支払い済み賞与に変更がある場合は差額調整を行ってください。
             </p>
         </div>
 
-        <button type="button" class="im-btn-primary" (click)="toBonusInsuranceConfirm()">賞与保険料確認へ</button>
+        <button type="button" class="im-btn-primary" style="width: 150px; margin-left: auto;" (click)="toBonusInsuranceConfirm()">賞与保険料確認へ▶</button>
 
         <div class="bonus-registration-layout" *ngIf="!isPayrollLocked">
             <section class="bonus-registration-card bonus-registration-card--csv">

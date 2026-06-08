@@ -8,10 +8,9 @@
 
     <div *ngIf="!workingMonth && permission === '管理'">
         <h3>初期設定</h3>
-        <a [routerLink]="['/company-setting']">（権限：管理）会社設定</a><br>
-        <a [routerLink]="['/permission-setting']">（トップ権限のみ）権限付与/解除</a><br>
-        <a [routerLink]="['/employee-addInsurance']">既存の従業員保険情報追加</a><br>
-
+        <a [routerLink]="['/company-setting']" [queryParams]="{ mode: 'initial' }">（権限：管理）会社設定</a><br>
+        <a [routerLink]="['/permission-setting']" [queryParams]="{ mode: 'initial' }">（トップ権限のみ）権限付与/解除</a><br>
+        <a [routerLink]="['/employee-addInsurance']" [queryParams]="{ mode: 'initial' }">既存の従業員保険情報追加</a><br>
     </div>
 
     <div *ngIf="!workingMonth && permission === '管理'">
@@ -52,13 +51,15 @@
     <div *ngIf="workingMonth">
         <h3>社会保険</h3>
         <a [routerLink]="['/insurance-confirm', getPreviousInsuranceOutputYear(), getPreviousInsuranceOutputMonth()]"
-            [queryParams]="{ mode: 'output' }">社会保険料閲覧</a><br>
+            [queryParams]="{ mode: 'output' }">確定済み保険料閲覧</a><br>
         <div *ngIf="latestLockedBonusPayrollId">
             <a [routerLink]="['/insurance-for-bonus', latestLockedBonusPayrollId]"
-                [queryParams]="{ mode: 'output' }">賞与社保険料閲覧</a><br>
+                [queryParams]="{ mode: 'output' }">確定済み賞与社保険料閲覧</a><br>
         </div>
         <a [routerLink]="['/calculation-base-pending-list']">算定基礎</a><br>
+
         <a>イベント一覧（月別で全イベントを確認）</a><br>
+
     </div>
 
     <div *ngIf="workingMonth">
@@ -89,16 +90,8 @@
         <a [routerLink]="['/permission-setting']">社員権限編集</a><br>
     </div>
 
-    <div *ngIf="workingMonth">
-        <h3>書類生成</h3>
-        <p>行政への提出書類</p>
-        <p>従業員への通知書類</p>
-    </div>
-
-    <div *ngIf="workingMonth">
-        <h3>シュミレーション</h3>
-        <p>個人保険料シュミレーション</p>
-        <p>会社保険料シュミレーション</p>
-    </div>
-
 </div>
+
+
+<button (click)="seedGrades()">等級マスタを更新</button>
+<button (click)="seedGrades2025()">等級マスタ2025を更新</button>

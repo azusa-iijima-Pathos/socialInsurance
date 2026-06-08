@@ -4,7 +4,8 @@ import { CompanyService } from '../Firestore/company-service';
 import { EmployeeService } from '../Firestore/employee-service';
 import { Employee } from '../../model/employee';
 import { OfficeService } from '../Firestore/office-service';
-
+import { UserService } from '../Firestore/user-service';
+import { User } from '../../model/user';
 
 @Injectable({
   providedIn: 'root',
@@ -14,6 +15,7 @@ export class ValidationService {
   private companyService = inject(CompanyService);
   private employeeService = inject(EmployeeService);
   private officeService = inject(OfficeService);
+  private userService = inject(UserService);
 
   /** 会社名のバリデーション */
   validateCompanyName = async (control: AbstractControl): Promise<ValidationErrors | null> => {
@@ -114,6 +116,14 @@ export class ValidationService {
     if (!employee) {
       return { employeeIncorrect: true };
     }
+
+    //すでに他のユーザが該当の会社IDと社員IDを使用している場合はエラー
+    const users: User[] = await this.userService.getUsersByCompanyId(companyId);
+    const user = users.find(user => user.employeeId === employeeId);
+    if (user) {
+      return { employeeIncorrect: true };
+    }
+
     //社員情報が取得できた場合は名前と生年月日が一致しているかチェック
     const employeeBirthDate = employee.birthDate?.toDate().toISOString().slice(0, 10);
     if (employee.firstName === firstName && employee.lastName === lastName && employeeBirthDate === birthDate) {

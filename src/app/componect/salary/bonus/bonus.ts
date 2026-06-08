@@ -35,8 +35,11 @@ export class Bonus {
   message = '';
   messageTimer: MessageTimer = null;
 
+  bonusMonth = '';
+
   async ngOnInit() {
     this.payrollId = this.route.snapshot.params['payrollId'];
+    this.bonusMonth = this.payrollId.replace('_bonus', '');
     this.isPayrollLocked = await this.payrollLockService.isPayrollLocked(this.payrollId);
     if (this.isPayrollLocked) {
       this.form.disable();
@@ -99,6 +102,7 @@ export class Bonus {
 
     this.message = CREATE_MESSAGES.SUCCESS;
     await this.payrollService.getAllPayrollListForMonth(this.payrollId, true);
+    this.resetForm();
     this.commonService.showTimedMessage(this.message, value => this.message = value, this.messageTimer);
   }
 

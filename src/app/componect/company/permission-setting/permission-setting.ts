@@ -7,7 +7,7 @@ import { CommonService, MessageTimer } from '../../../service/common/common-serv
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { PERMISSIONS } from '../../../constants/model-constants';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 
 @Component({
   selector: 'app-permission-setting',
@@ -22,9 +22,12 @@ export class PermissionSetting {
   commonService = inject(CommonService);
   private employeeService = inject(EmployeeService);
   private router = inject(Router);  
+  private route = inject(ActivatedRoute);
 
   companyId = sessionStorage.getItem('companyId');
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId');
+
+  mode = this.route.snapshot.queryParamMap.get('mode');
 
   users = signal<User[]>([]);
   permissionForUpdate: Record<string, User['permission']> = {};
@@ -65,11 +68,11 @@ export class PermissionSetting {
   }
 
   toSetting() {
-    this.router.navigate(['/company-setting']);
+    this.router.navigate(['/company-setting'], { queryParams: { mode: 'initial' } });
   }
 
   toAddEmployee() {
-    this.router.navigate(['/employee-addInsurance']);
+    this.router.navigate(['/employee-addInsurance'], { queryParams: { mode: 'initial' } });
   }
 
 }

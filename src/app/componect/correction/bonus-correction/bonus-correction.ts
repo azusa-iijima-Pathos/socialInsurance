@@ -14,6 +14,7 @@ import { Employee } from '../../../model/employee';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { InsuranceSnapshot } from '../../../model/insurance-snapshot';
+import { Router } from '@angular/router';
 
 type BonusCorrectionRow = {
   payroll: Payroll;
@@ -216,5 +217,12 @@ export class BonusCorrection {
       value => this.message = value,
       this.messageTimer,
     );
+  }
+
+  private router = inject(Router);
+
+  /** 賞与保険料差額一覧へ遷移 */
+  toCorrectionBonusList() {
+    this.router.navigate(['/correction-list'], { queryParams: { type: 'bonus' } });
   }
 }

@@ -8,7 +8,15 @@
     ※反映ボタンは９月以降に表示されます。
 </div>
 
-<div class="calculation-base-control">
+<div *ngIf="!canEditDisplayedYear" class="information-area">
+    下のプルダウンから、算定基礎対象年を選択し、表示ボタンを押下してください。
+</div>
+
+<div *ngIf="canEditDisplayedYear">
+    <p>過去データを確認する場合は、プルダウンから対象年を選択してください。</p>
+</div>
+
+<div class="calculation-base-control" style="display: flex; gap: 10px; margin-right: auto;">
     <label>
         対象年
         <select [(ngModel)]="targetYear">
@@ -17,21 +25,26 @@
             </option>
         </select>
     </label>
-    <button type="button" (click)="showSelectedYearRuns()">表示</button>
-    <button type="button" (click)="exportCalculationBaseCsv()">CSV出力</button>
-    <button *ngIf="runs.length === 0" type="button" (click)="calculateBase()" [disabled]="calculating">
-        算定基礎を自動計算する
-    </button>
+    <button type="button" (click)="showSelectedYearRuns()" class="im-btn-primary">表示</button>
+
 </div>
 
 
-<div *ngIf="runs.length === 0">
-    算定基礎データはありません。
+
+<div *ngIf="runs.length === 0" style="text-align: center;">
+    <p>算定基礎データはありません。</p>
+    <p>対象年の6月支払い給与をすべて入力済みであれば、下記ボタンより自動計算を行ってください。</p>
+    <button (click)="calculateBase()" [disabled]="calculating"
+    class="im-btn-primary">
+    算定基礎を自動計算する
+</button>
 </div>
 
 <div *ngIf="runs.length > 0">
     <div class="calculation-base-list-header">
         <h3>{{ displayYear }}年 算定基礎一覧</h3>
+        <button type="button" (click)="exportCalculationBaseCsv()" class="im-btn-soft"
+            style="margin-right: auto;">CSV出力</button>
         <span *ngIf="isInternallyApproved" class="calculation-base-status-badge">社内承認済み</span>
         <span *ngIf="isApplied" class="calculation-base-status-badge">反映済み</span>
     </div>
@@ -64,8 +77,11 @@
                 <td>{{ displayGrade(getPayload(run)['currentGrade']) }}</td>
                 <td>{{ displayGrade(getPayload(run)['calculatedGrade']) }}</td>
                 <td>
-                    <input *ngIf="editMode && canEditDisplayedYear" type="number" min="0" max="50" [(ngModel)]="approvedGradeMap[getEmployeeId(run)]" class="calculation-base-edit-input calculation-base-edit-input--small">
-                    <span *ngIf="!editMode || !canEditDisplayedYear">{{ displayGrade(approvedGradeMap[getEmployeeId(run)]) }}</span>
+                    <input *ngIf="editMode && canEditDisplayedYear" type="number" min="0" max="50"
+                        [(ngModel)]="approvedGradeMap[getEmployeeId(run)]"
+                        class="calculation-base-edit-input calculation-base-edit-input--small">
+                    <span *ngIf="!editMode || !canEditDisplayedYear">{{
+                        displayGrade(approvedGradeMap[getEmployeeId(run)]) }}</span>
                 </td>
                 <td>{{ getPayload(run)['averageSalary'] ? ((getPayload(run)['averageSalary'] | number) + '円') : '-' }}
                 </td>
@@ -81,9 +97,11 @@
     <p *ngFor="let error of calculationBaseEditErrors">{{ error }}</p>
 </div>
 <div *ngIf="runs.length > 0 && canEditDisplayedYear" class="calculation-base-actions">
-    <button *ngIf="!editMode" type="button" (click)="editApprovedGrades()">等級修正</button>
-    <button *ngIf="editMode" type="button" (click)="saveApprovedGrades()">修正内容を一括保存</button>
-    <button *ngIf="!editMode && !isInternallyApproved && !isApplied" type="button" (click)="approveRuns()">社内一括承認</button>
-    <button *ngIf="editMode" type="button" (click)="cancelEditApprovedGrades()">キャンセル</button>
-    <button *ngIf="!editMode && canApplyApprovedResults" type="button" (click)="applyApprovedResults()">算定基礎適用結果反映</button>
+    <button *ngIf="!editMode" type="button" (click)="editApprovedGrades()" class="im-btn-primary">等級修正</button>
+    <button *ngIf="editMode" type="button" (click)="saveApprovedGrades()" class="im-btn-primary">修正内容を一括保存</button>
+    <button *ngIf="!editMode && !isInternallyApproved && !isApplied" type="button" (click)="approveRuns()"
+        class="im-btn-primary">社内一括承認</button>
+    <button *ngIf="editMode" type="button" (click)="cancelEditApprovedGrades()" class="im-btn-soft">キャンセル</button>
+    <button *ngIf="!editMode && canApplyApprovedResults" type="button" (click)="applyApprovedResults()"
+        class="im-btn-primary">算定基礎適用結果反映</button>
 </div>

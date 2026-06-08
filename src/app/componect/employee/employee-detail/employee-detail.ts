@@ -69,7 +69,7 @@ export class EmployeeDetail {
   workingMonth = sessionStorage.getItem('workingMonth') ?? '';
   employeeEvents: EmployeeEvent[] = [];
   pendingSystemRuns: SystemCalculationRunItem[] = [];
-  showEventNotice = false;
+  // showEventNotice = false;
 
   approvalModalOpen = false;
   approvalModalType: 'fixedSalary' | 'insurance' | null = null;
@@ -187,7 +187,7 @@ export class EmployeeDetail {
       this.selectedEmployee = null;
       this.dependents = [];
       this.employeeEvents = [];
-      this.showEventNotice = false;
+      // this.showEventNotice = false;
       this.resetAutoCalculationResult();
       this.message = '従業員情報が見つかりませんでした';
     }
@@ -689,14 +689,17 @@ export class EmployeeDetail {
     ];
   }
 
+  /** 申請者 */
   getApplicantLabel(event: EmployeeEvent): string {
     return event.applicantType ?? '';
   }
 
+  /** 承認者 */
   getApproverLabel(event: EmployeeEvent): string {
     return event.approval?.approvedBy ?? '';
   }
 
+  /** 承認日 */
   getApprovalDateLabel(event: EmployeeEvent): string {
     return event.approval?.approvedDate ? this.commonService.formatDateTime(event.approval.approvedDate) : '';
   }
@@ -776,12 +779,12 @@ export class EmployeeDetail {
     await this.loadEmployeeEvents();
 
     if (this.employeeDetailEventService.hasImmediateEvent(createdEventIds)) {
-      this.showEventNotice = true;
-      this.showMessage(`${baseMessage} イベントが作成されました。下記のイベント一覧から確認してください。`);
+      // this.showEventNotice = true;
+      this.showMessage(`${baseMessage} 下記のイベント一覧から確認してください。`);
       return;
     }
 
-    this.showEventNotice = false;
+    // this.showEventNotice = false;
     this.showMessage(baseMessage);
   }
 

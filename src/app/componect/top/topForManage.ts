@@ -1,9 +1,14 @@
 import { Component, inject, computed } from '@angular/core';
-import {  RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { CompanyService } from '../../service/Firestore/company-service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PayrollLockService } from '../../service/Firestore/payroll-lock-service';
+import { STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_2025 } from '../../insuranceData/forEmployee';
+import { STANDARD_MONTHLY_REMUNERATION_PERIOD_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025 } from '../../insuranceData/forEmployee';
+import { writeBatch } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { Firestore } from '@angular/fire/firestore';
 
 
 @Component({
@@ -91,6 +96,43 @@ export class TopForManage {
       year--;
     }
     return `${year}-${String(month).padStart(2, '0')}`;
+  }
+
+
+  private firestore = inject(Firestore);
+
+
+  
+  //けんぽデータをFirestoreに保存
+  async seedGrades() {
+    await this.seedGradesForYear('2026', STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2026);
+  }
+
+  async seedGrades2025() {
+    await this.seedGradesForYear('2025', STANDARD_MONTHLY_REMUNERATION_2025, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025);
+  }
+
+  private async seedGradesForYear(
+    year: string,
+    grades: { grade: number;[key: string]: string | number }[],
+    period: { effectiveFrom: string; effectiveTo: string },
+  ) {
+    const batch = writeBatch(this.firestore);
+    batch.set(doc(this.firestore, 'standardMonthlyRemunerations', year), period, { merge: true });
+
+    for (const item of grades) {
+      const ref = doc(
+        this.firestore,
+        'standardMonthlyRemunerations',
+        year,
+        'grades',
+        `${item.grade}`
+      );
+
+      batch.set(ref, item);
+    }
+
+    await batch.commit();
   }
 
 } 

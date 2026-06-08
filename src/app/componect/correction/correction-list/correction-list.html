@@ -1,12 +1,13 @@
 <h1>{{ listType === 'bonus' ? '賞与保険料差額一覧' : '差額調整一覧' }}</h1>
 
-<p>申請月（作業月）ごとの差額調整を表示します。デフォルトは現在の作業月です。</p>
-
-
+<div class="information-area">
+  <p>作業月ごとの差額調整を表示します。</p>
+  <p>下のプルダウンから作業月を選択してください。</p>
+</div>
 
 <div class="correction-list-toolbar">
 
-  <label *ngIf="listType !== 'bonus'">申請月
+  <label *ngIf="listType !== 'bonus'">対象月
     <select [(ngModel)]="selectedMonthKey" (change)="onFilterChange()">
       <option *ngFor="let option of monthOptions" [value]="option.year + '-' + option.month">
         {{ option.label }}
@@ -14,22 +15,25 @@
     </select>
   </label>
 
-  <label *ngIf="listType === 'bonus'">確定済み賞与
+  <label *ngIf="listType === 'bonus'">対象賞与
     <select [(ngModel)]="selectedBonusPayrollId" (change)="onFilterChange()">
       <option value="">選択</option>
       <option *ngFor="let id of bonusPayrollIds" [value]="id">{{ displayBonusPayrollId(id) }}</option>
     </select>
   </label>
 
-  <button type="button" class="im-btn-soft" (click)="exportCsv()" [disabled]="runs.length === 0">CSV出力</button>
-
 </div>
 
 
 
-<div *ngIf="runs.length === 0" class="correction-list-empty">差額調整データはありません。</div>
+<div *ngIf="runs.length === 0" class="correction-list-empty"
+  style="text-align: center; margin-top: 16px; color: var(--im-color-black);">
+  選択中の月に行われた差額調整データはありません。
+</div>
 
 <div *ngIf="runs.length > 0" class="correction-list-table-wrap">
+  <button type="button" class="im-btn-soft" (click)="exportCsv()" [disabled]="runs.length === 0" style="margin-bottom: 10px; margin-right: auto;">
+    CSV出力</button>
   <table class="correction-list-table">
     <thead>
       <tr>
@@ -37,10 +41,18 @@
         <th>名前</th>
         <th>対象月</th>
         <th *ngIf="listType !== 'bonus'">等級</th>
-        <th>健康保険</th>
-        <th>介護保険</th>
-        <th>厚生年金</th>
-        <th>合計</th>
+        <th>健康保険<br>
+          <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
+        </th>
+        <th>介護保険<br>
+          <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
+        </th>
+        <th>厚生年金<br>
+          <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
+        </th>
+        <th>合計<br>
+          <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
+        </th>
         <th>種別</th>
       </tr>
     </thead>
@@ -51,24 +63,23 @@
         <td>{{ getAdjustMonth(run) }}</td>
         <td *ngIf="listType !== 'bonus'">{{ getGrade(run) }}</td>
         <td>
-          <span>{{ getCurrentHealth(run) | number }}→<strong>{{ getNewHealth(run) | number }}</strong>円</span>
-          <small class="correction-list-diff">差額 {{ getHealthDiff(run) | number }}円</small>
+          <span>{{ getCurrentHealth(run) | number }}→{{ getNewHealth(run) | number }}円</span>
+          <small class="correction-list-diff"> {{ getHealthDiff(run) | number }}円</small>
         </td>
         <td>
-          <span>{{ getCurrentNursing(run) | number }}→<strong>{{ getNewNursing(run) | number }}</strong>円</span>
-          <small class="correction-list-diff">差額 {{ getNursingDiff(run) | number }}円</small>
+          <span>{{ getCurrentNursing(run) | number }}→{{ getNewNursing(run) | number }}円</span>
+          <small class="correction-list-diff">{{ getNursingDiff(run) | number }}円</small>
         </td>
         <td>
-          <span>{{ getCurrentPension(run) | number }}→<strong>{{ getNewPension(run) | number }}</strong>円</span>
-          <small class="correction-list-diff">差額 {{ getPensionDiff(run) | number }}円</small>
+          <span>{{ getCurrentPension(run) | number }}→{{ getNewPension(run) | number }}円</span>
+          <small class="correction-list-diff">{{ getPensionDiff(run) | number }}円</small>
         </td>
         <td class="correction-list-total">
           <span>{{ getCurrentTotal(run) | number }}→<strong>{{ getNewTotal(run) | number }}</strong>円</span>
-          <small class="correction-list-diff">差額 <strong>{{ getTotalDiff(run) | number }}円</strong></small>
+          <small class="correction-list-diff"><strong>{{ getTotalDiff(run) | number }}円</strong></small>
         </td>
         <td>{{ getSourceType(run) }}</td>
       </tr>
     </tbody>
   </table>
 </div>
-

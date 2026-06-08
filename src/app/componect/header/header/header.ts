@@ -53,7 +53,11 @@ export class Header {
   }
 
   toTop() {
-    this.router.navigate(['/top']);
+    if (this.permission() === '管理' || this.permission() === '承認') {
+      this.router.navigate(['/top-for-manage']);
+    } else {
+      this.router.navigate(['/top-for-employee']);
+    }
   }
 
   //戻る
@@ -72,6 +76,16 @@ export class Header {
     this.hasSession.set(false);
     this.authService.logout();
     this.router.navigate(['/login']);
+  }
+
+  //従業員トップに（管理と承認の場合のみ）
+  toEmployeeTop() {
+      this.router.navigate(['/top-for-employee']);
+  }
+
+  //管理者トップに（管理と承認の場合のみ）
+  toManageTop() {
+    this.router.navigate(['/top-for-manage']);
   }
 
 }

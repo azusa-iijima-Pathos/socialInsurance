@@ -7,6 +7,12 @@
     <p>　確認の上、必要であれば差額調整から保険料の遡及修正を行ってください。</p>
 </div>
 
+<div style="display: flex; gap: 10px; margin-bottom: 10px;">
+    <button class="im-btn-soft" style="margin-right: 10px;" (click)="toMonthlySalary()">◀給与入力へ</button>
+    <button class="im-btn-primary" style="margin-left: auto;"
+        (click)="toInsuranceConfirm()">保険料確認へ▶</button>
+</div>
+
 <p *ngIf="message" class="im-action-message">{{ message }}</p>
 
 <!-- 一定年齢到達 -->
@@ -198,7 +204,8 @@
 <section class="employee-detail-section employee-detail-events">
     <h2>その他</h2>
     <p>変更を承諾した場合、即時保険登録内容が変わるため、内容を確認の上承認を行ってください。</p>
-    <div *ngIf="otherEvents.length === 0 && otherSystemRuns.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
+    <div *ngIf="otherEvents.length === 0 && otherSystemRuns.length === 0" class="employee-detail-empty">申請中のイベントはありません
+    </div>
     <div *ngIf="otherEvents.length > 0 || otherSystemRuns.length > 0" class="employee-detail-events-table-wrap">
         <table class="employee-detail-events-table">
             <thead>
@@ -248,6 +255,12 @@
         </table>
     </div>
 </section>
+
+<div style="display: flex; gap: 10px; margin-top: 10px;">
+    <button class="im-btn-soft" style="margin-right: 10px;" (click)="toMonthlySalary()">◀給与入力へ</button>
+    <button class="im-btn-primary" style="margin-left: auto;"
+        (click)="toInsuranceConfirm()">保険料確認へ▶</button>
+</div>
 
 <!-- 従業員申請 確認モーダル -->
 <div class="employee-edit-modal" *ngIf="employeeReviewModalOpen && reviewingEmployeeEvent">
@@ -421,7 +434,9 @@
 <!-- 年齢到達時の保険適用方法説明 モーダル -->
 <div class="information-area employee-edit-modal" *ngIf="reachAgeInfoModalOpen">
     <div class="employee-edit-modal__panel employee-approval-modal">
-        <div class="employee-edit-modal__header"><h2>年齢到達時の保険適用方法</h2></div>
+        <div class="employee-edit-modal__header">
+            <h2>年齢到達時の保険適用方法</h2>
+        </div>
         <div class="employee-approval-modal__body">
             <p>40歳：介護保険が適用になります</p>
             <p>65歳：介護保険が会社経由ではなくなるので、このシステム上では喪失とします。</p>

@@ -29,7 +29,7 @@
 </div>
 
 <div>
-    <button *ngIf="permission === '管理'" (click)="editCompany()">編集</button>
+    <button *ngIf="permission === '管理' && mode !== 'view'" (click)="editCompany()">編集</button>
 </div>
 
 <div *ngIf="isOpenModal" class="company-edit-modal">

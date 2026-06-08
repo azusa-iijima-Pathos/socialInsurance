@@ -9,7 +9,7 @@ import { EmployeeInsurance, InsuranceDetail } from '../../../model/employee';
 import { Timestamp } from '@angular/fire/firestore';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { AddInsuranceCsv } from '../add-insurance-csv/add-insurance-csv';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 
 type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
 type InsuranceStatus = 'joined' | 'notJoined' | 'lost';
@@ -28,6 +28,9 @@ export class AddInsuranceInfo {
   private destroyRef = inject(DestroyRef);
   commonService = inject(CommonService);
   private router = inject(Router);  
+  private route = inject(ActivatedRoute);
+
+  mode = this.route.snapshot.queryParamMap.get('mode');
 
   messageTimer: MessageTimer = null;
   
@@ -183,7 +186,7 @@ export class AddInsuranceInfo {
   }
 
   toPermissionSetting() {
-    this.router.navigate(['/permission-setting']);
+    this.router.navigate(['/permission-setting'], { queryParams: { mode: 'initial' } });
   }
 
   toStartStart() {

@@ -16,6 +16,7 @@ import { addMonths } from './event-id-service';
 type InsuranceStatusKind = 'joined' | 'notJoined' | 'lost';
 
 export type FixedSalaryApprovalDraft = {
+  occurredDate: Timestamp;
   currentGrade: number;
   revisionLabel: string;
   approvedGrade: number;
@@ -63,6 +64,7 @@ export class EmployeeEventApprovalService {
     if (revision.status === '判定不可') {
       return {
         currentGrade,
+        occurredDate: event.occurredDate!,
         revisionLabel: '判定不可のため等級変更なし',
         approvedGrade: currentGrade,
         canRevise: false,
@@ -73,6 +75,7 @@ export class EmployeeEventApprovalService {
       return {
         currentGrade,
         revisionLabel: '2等級以上の変更なし',
+        occurredDate: event.occurredDate!,
         approvedGrade: currentGrade,
         canRevise: false,
       };
@@ -80,6 +83,7 @@ export class EmployeeEventApprovalService {
 
     return {
       currentGrade,
+      occurredDate: event.occurredDate!,
       revisionLabel: String(revision.calculatedGrade),
       approvedGrade: revision.calculatedGrade ?? currentGrade,
       canRevise: true,

@@ -12,6 +12,6 @@ export class TopForEmployee {
 
   workingMonth = sessionStorage.getItem('workingMonth') ?? '';
 
-
+  permission = sessionStorage.getItem('permission') ?? '';
 
 }

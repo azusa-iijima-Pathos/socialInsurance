@@ -6,7 +6,7 @@ import { CompanyService } from '../../../service/Firestore/company-service';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 
 /**
  * 会社設定画面
@@ -25,12 +25,14 @@ export class Setting {
   private commonService = inject(CommonService);
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   companyId = sessionStorage.getItem('companyId');
 
   message: string = '';
   messageTimer: MessageTimer = null;
 
+  mode = this.route.snapshot.queryParamMap.get('mode');
 
   form = this.fb.nonNullable.group({
     salaryInputFormat: [1],
@@ -129,7 +131,7 @@ export class Setting {
 
   /** 従業員権限設定画面に遷移 */
   toEmployeePermissionSetting() {
-    this.router.navigate(['/permission-setting']);
+    this.router.navigate(['/permission-setting'], { queryParams: { mode: 'initial' } });
   }
 
 }

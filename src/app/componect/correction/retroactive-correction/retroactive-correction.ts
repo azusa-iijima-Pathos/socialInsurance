@@ -13,6 +13,7 @@ import { LeaveType } from '../../../constants/model-constants';
 import { addMonths, buildCurrentWorkMonthEventId, getFixedSalarySystemOccurredDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { Timestamp } from '@angular/fire/firestore';
+import { Router } from '@angular/router';
 
 type RetroactiveTab = 'insurance' | 'fixedSalary' | 'leave';
 type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
@@ -38,6 +39,7 @@ export class RetroactiveCorrection {
   private calculationRunService = inject(CalculationRunService);
   private eventService = inject(EventService);
   commonService = inject(CommonService);
+  private router = inject(Router);
 
   activeTab: RetroactiveTab = 'insurance';
   selectedEmployee: Employee | null = null;
@@ -55,7 +57,7 @@ export class RetroactiveCorrection {
     employeeId: ['', Validators.required],
     applyDate: ['', Validators.required],
     currentGrade: [0, [Validators.required, Validators.min(0), Validators.max(50)]],
-    fixedSalary: [0, [Validators.min(0)]],
+    fixedSalary: [0, [Validators.required, Validators.min(0)]],
     leaveTypes: ['産前産後' as LeaveType],
     leaveStartDate: [''],
     healthInsurance: this.fb.nonNullable.group({
@@ -109,6 +111,9 @@ export class RetroactiveCorrection {
     this.previewModalOpen = false;
   }
 
+  /**
+   * 社員情報を取得し、フォームに設定する
+   */
   async onEmployeeChange() {
     const employeeId = this.form.value.employeeId;
     if (!employeeId) {
@@ -250,7 +255,7 @@ export class RetroactiveCorrection {
       return;
     }
 
-    if (!confirm('固定給を反映します。固定給変更イベントと随時改定のシステム計算結果を作成します。よろしいですか？')) {
+    if (!confirm('固定給を変更します。\nよろしいですか？')) {
       return;
     }
 
@@ -307,11 +312,12 @@ export class RetroactiveCorrection {
         { before, after },
         Timestamp.fromDate(getFixedSalarySystemOccurredDate(revisionMonth)),
       );
-      this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定のシステム計算結果を作成しました。`);
+      this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。適用日から3か月後の随時改定を確認してください。`);
     } else {
       this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定は${revisionMonth.year}年${revisionMonth.month}月以降に反映されます。`);
     }
 
+    this.employeeService.getAllEmployees(true);
     await this.onEmployeeChange();
   }
 
@@ -336,6 +342,9 @@ export class RetroactiveCorrection {
     this.previewModalOpen = true;
   }
 
+  /**
+   * 遡及修正を承認する
+   */
   async approvePreview() {
     if (!this.selectedEmployee || this.previewRows.length === 0) return;
 
@@ -371,9 +380,13 @@ export class RetroactiveCorrection {
 
     this.previewModalOpen = false;
     this.showMessage(`${UPDATE_MESSAGES.SUCCESS}（${this.previewRows.length}件の差額調整を作成しました）`);
+    this.employeeService.getAllEmployees(true);
     await this.onEmployeeChange();
   }
 
+  /**
+   * 遡及修正プレビューをキャンセルする
+   */
   cancelPreview() {
     this.previewModalOpen = false;
   }
@@ -536,5 +549,10 @@ export class RetroactiveCorrection {
       const text = `${employee.employeeId} ${employee.firstName ?? ''} ${employee.lastName ?? ''}`.toLowerCase();
       return text.includes(keyword);
     });
+  }
+
+  /** 差額調整一覧へ遷移 */
+  toCorrectionList() {
+    this.router.navigate(['/correction-list']);
   }
 }

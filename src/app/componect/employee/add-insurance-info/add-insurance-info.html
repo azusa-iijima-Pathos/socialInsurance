@@ -7,9 +7,10 @@
         <p>※休職ではない場合、保険料の会社負担率は一律50%です。</p>
     </div>
 
-
-    <button type="button" class="im-btn-primary" (click)="toPermissionSetting()">◀従業員権限設定に戻る</button>
-    <button type="button" class="im-btn-primary" (click)="toStartStart()">トップ画面へ▶</button>
+    <div *ngIf="mode === 'initial'">
+        <button type="button" class="im-btn-primary" (click)="toPermissionSetting()">◀従業員権限設定に戻る</button>
+        <button type="button" class="im-btn-primary" (click)="toStartStart()">トップ画面へ▶</button>
+    </div>
 
     <div class="add-insurance-info-registration-layout">
         <app-add-insurance-csv></app-add-insurance-csv>
@@ -23,245 +24,255 @@
             </div>
             <p *ngIf="message" class="im-action-message">{{message}}</p>
 
-    <form [formGroup]="form" (ngSubmit)="onSubmit()">
-        <div class="add-insurance-info-basic-row">
-        <div class="add-insurance-info-form-group">
-            <label for="employeeId">社員ID</label>
-            <input type="text" id="employeeId" formControlName="employeeId">
-            <div class="error">
-                <p *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">社員IDは必須です</p>
-                <p *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">半角で入力してください
-                </p>
-                <p *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">
-                    社員IDが存在しません</p>
-            </div>
-        </div>
-        <div class="add-insurance-info-form-group add-insurance-info-grade-field">
-            <label for="currentGrade">標準報酬等級</label>
-            <input type="number" id="currentGrade" formControlName="currentGrade">
-            <p>※保険未加入の場合は0で入力してください</p>
-            <div class="error">
-                <p *ngIf="form.get('currentGrade')?.errors?.['required'] && form.get('currentGrade')?.touched">
-                    標準報酬等級は必須です</p>
-                <p *ngIf="form.get('currentGrade')?.errors?.['min'] && form.get('currentGrade')?.touched">
-                    標準報酬等級は0以上です</p>
-                <p *ngIf="form.get('currentGrade')?.errors?.['max'] && form.get('currentGrade')?.touched">
-                    標準報酬等級は50以下です</p>
-            </div>
-    
-        </div>
-        </div>
-        <div class="add-insurance-info-form-group" formGroupName="healthInsurance">
-            <label for="healthInsurance">健康保険</label>
-            <div class="im-radio-group">
-                <label class="im-radio-option" for="healthInsuranceJoined1">
-                    <input type="radio" id="healthInsuranceJoined1" formControlName="joined" value="joined">
-                    <span>加入</span>
-                </label>
-                <label class="im-radio-option" for="healthInsuranceJoined2">
-                    <input type="radio" id="healthInsuranceJoined2" formControlName="joined" value="notJoined">
-                    <span>未加入</span>
-                </label>
-                <label class="im-radio-option" for="healthInsuranceJoined3">
-                    <input type="radio" id="healthInsuranceJoined3" formControlName="joined" value="lost">
-                    <span>喪失</span>
-                </label>
-            </div>
-            <div class="insurance-detail-fields"
-                [class.insurance-detail-fields--disabled]="form.get('healthInsurance.joined')?.value === 'notJoined'">
-                <div class="add-insurance-info-form-group">
-                    <label for="healthInsuranceNumber">健康保険番号</label>
-                    <input type="text" id="healthInsuranceNumber" formControlName="number">
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('healthInsurance.number')?.errors?.['required'] && form.get('healthInsurance.number')?.touched">
-                            健康保険番号は必須です</p>
-                        <p
-                            *ngIf="form.get('healthInsurance.number')?.errors?.['pattern'] && form.get('healthInsurance.number')?.touched">
-                            半角で入力してください</p>
+            <form [formGroup]="form" (ngSubmit)="onSubmit()">
+                <div class="add-insurance-info-basic-row">
+                    <div class="add-insurance-info-form-group">
+                        <label for="employeeId">社員ID</label>
+                        <input type="text" id="employeeId" formControlName="employeeId">
+                        <div class="error">
+                            <p *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">
+                                社員IDは必須です</p>
+                            <p *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">
+                                半角で入力してください
+                            </p>
+                            <p
+                                *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">
+                                社員IDが存在しません</p>
+                        </div>
+                    </div>
+                    <div class="add-insurance-info-form-group add-insurance-info-grade-field">
+                        <label for="currentGrade">標準報酬等級</label>
+                        <input type="number" id="currentGrade" formControlName="currentGrade">
+                        <p>※保険未加入の場合は0で入力してください</p>
+                        <div class="error">
+                            <p
+                                *ngIf="form.get('currentGrade')?.errors?.['required'] && form.get('currentGrade')?.touched">
+                                標準報酬等級は必須です</p>
+                            <p *ngIf="form.get('currentGrade')?.errors?.['min'] && form.get('currentGrade')?.touched">
+                                標準報酬等級は0以上です</p>
+                            <p *ngIf="form.get('currentGrade')?.errors?.['max'] && form.get('currentGrade')?.touched">
+                                標準報酬等級は50以下です</p>
+                        </div>
+
                     </div>
                 </div>
-                <div class="add-insurance-info-form-group">
-                    <label for="healthInsuranceAcquiredDate">健康保険取得日</label>
-                    <input type="date" id="healthInsuranceAcquiredDate" formControlName="acquiredDate">
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('healthInsurance.acquiredDate')?.errors?.['required'] && form.get('healthInsurance.acquiredDate')?.touched">
-                            健康保険取得日は必須です</p>
+                <div class="add-insurance-info-form-group" formGroupName="healthInsurance">
+                    <label for="healthInsurance">健康保険</label>
+                    <div class="im-radio-group">
+                        <label class="im-radio-option" for="healthInsuranceJoined1">
+                            <input type="radio" id="healthInsuranceJoined1" formControlName="joined" value="joined">
+                            <span>加入</span>
+                        </label>
+                        <label class="im-radio-option" for="healthInsuranceJoined2">
+                            <input type="radio" id="healthInsuranceJoined2" formControlName="joined" value="notJoined">
+                            <span>未加入</span>
+                        </label>
+                        <label class="im-radio-option" for="healthInsuranceJoined3">
+                            <input type="radio" id="healthInsuranceJoined3" formControlName="joined" value="lost">
+                            <span>喪失</span>
+                        </label>
+                    </div>
+                    <div class="insurance-detail-fields"
+                        [class.insurance-detail-fields--disabled]="form.get('healthInsurance.joined')?.value === 'notJoined'">
+                        <div class="add-insurance-info-form-group">
+                            <label for="healthInsuranceNumber">健康保険番号</label>
+                            <input type="text" id="healthInsuranceNumber" formControlName="number">
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('healthInsurance.number')?.errors?.['required'] && form.get('healthInsurance.number')?.touched">
+                                    健康保険番号は必須です</p>
+                                <p
+                                    *ngIf="form.get('healthInsurance.number')?.errors?.['pattern'] && form.get('healthInsurance.number')?.touched">
+                                    半角で入力してください</p>
+                            </div>
+                        </div>
+                        <div class="add-insurance-info-form-group">
+                            <label for="healthInsuranceAcquiredDate">健康保険取得日</label>
+                            <input type="date" id="healthInsuranceAcquiredDate" formControlName="acquiredDate">
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('healthInsurance.acquiredDate')?.errors?.['required'] && form.get('healthInsurance.acquiredDate')?.touched">
+                                    健康保険取得日は必須です</p>
+                            </div>
+                        </div>
+                        <div class="add-insurance-info-form-group">
+                            <label for="healthInsuranceLostDate">健康保険喪失日</label>
+                            <input type="date" id="healthInsuranceLostDate" formControlName="lostDate">
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('healthInsurance.lostDate')?.errors?.['required'] && form.get('healthInsurance.lostDate')?.touched">
+                                    健康保険喪失日は必須です</p>
+                                <p
+                                    *ngIf="form.get('healthInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && form.get('healthInsurance.lostDate')?.touched">
+                                    健康保険喪失日は取得日より後の日付で入力してください</p>
+                            </div>
+                        </div>
+                        <div class="add-insurance-info-form-group">
+                            <label for="healthInsuranceCompanyBurdenRate">会社負担率
+                                <input type="number" id="healthInsuranceCompanyBurdenRate"
+                                    formControlName="companyBurdenRate">
+                                ％</label>
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('healthInsurance.companyBurdenRate')?.errors?.['required'] && form.get('healthInsurance.companyBurdenRate')?.touched">
+                                    会社負担率は必須です</p>
+                                <p
+                                    *ngIf="form.get('healthInsurance.companyBurdenRate')?.errors?.['min'] && form.get('healthInsurance.companyBurdenRate')?.touched">
+                                    会社負担率は0以上です</p>
+                                <p
+                                    *ngIf="form.get('healthInsurance.companyBurdenRate')?.errors?.['max'] && form.get('healthInsurance.companyBurdenRate')?.touched">
+                                    会社負担率は100以下です</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="add-insurance-info-form-group">
-                    <label for="healthInsuranceLostDate">健康保険喪失日</label>
-                    <input type="date" id="healthInsuranceLostDate" formControlName="lostDate">
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('healthInsurance.lostDate')?.errors?.['required'] && form.get('healthInsurance.lostDate')?.touched">
-                            健康保険喪失日は必須です</p>
-                        <p
-                            *ngIf="form.get('healthInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && form.get('healthInsurance.lostDate')?.touched">
-                            健康保険喪失日は取得日より後の日付で入力してください</p>
+                <div class="add-insurance-info-form-group" formGroupName="nursingCareInsurance">
+                    <label for="nursingCareInsurance">介護保険</label>
+                    <div class="im-radio-group">
+                        <label class="im-radio-option" for="nursingCareInsuranceJoined1">
+                            <input type="radio" id="nursingCareInsuranceJoined1" formControlName="joined"
+                                value="joined">
+                            <span>加入</span>
+                        </label>
+                        <label class="im-radio-option" for="nursingCareInsuranceJoined2">
+                            <input type="radio" id="nursingCareInsuranceJoined2" formControlName="joined"
+                                value="notJoined">
+                            <span>未加入</span>
+                        </label>
+                        <label class="im-radio-option" for="nursingCareInsuranceJoined3">
+                            <input type="radio" id="nursingCareInsuranceJoined3" formControlName="joined" value="lost">
+                            <span>喪失</span>
+                        </label>
+                    </div>
+                    <div class="insurance-detail-fields"
+                        [class.insurance-detail-fields--disabled]="form.get('nursingCareInsurance.joined')?.value === 'notJoined'">
+                        <div class="add-insurance-info-form-group">
+                            <label for="nursingCareInsuranceNumber">介護保険番号</label>
+                            <input type="text" id="nursingCareInsuranceNumber" formControlName="number">
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('nursingCareInsurance.number')?.errors?.['required'] && form.get('nursingCareInsurance.number')?.touched">
+                                    介護保険番号は必須です</p>
+                                <p
+                                    *ngIf="form.get('nursingCareInsurance.number')?.errors?.['pattern'] && form.get('nursingCareInsurance.number')?.touched">
+                                    半角で入力してください</p>
+                            </div>
+                        </div>
+                        <div class="add-insurance-info-form-group">
+                            <label for="nursingCareInsuranceAcquiredDate">介護保険取得日</label>
+                            <input type="date" id="nursingCareInsuranceAcquiredDate" formControlName="acquiredDate">
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('nursingCareInsurance.acquiredDate')?.errors?.['required'] && form.get('nursingCareInsurance.acquiredDate')?.touched">
+                                    介護保険取得日は必須です</p>
+                            </div>
+                        </div>
+                        <div class="add-insurance-info-form-group">
+                            <label for="nursingCareInsuranceLostDate">介護保険喪失日</label>
+                            <input type="date" id="nursingCareInsuranceLostDate" formControlName="lostDate">
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('nursingCareInsurance.lostDate')?.errors?.['required'] && form.get('nursingCareInsurance.lostDate')?.touched">
+                                    介護保険喪失日は必須です</p>
+                                <p
+                                    *ngIf="form.get('nursingCareInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && form.get('nursingCareInsurance.lostDate')?.touched">
+                                    介護保険喪失日は取得日より後の日付で入力してください</p>
+                            </div>
+                        </div>
+                        <div class="add-insurance-info-form-group">
+                            <label for="nursingCareInsuranceCompanyBurdenRate">会社負担率
+                                <input type="number" id="nursingCareInsuranceCompanyBurdenRate"
+                                    formControlName="companyBurdenRate">
+                                ％</label>
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('nursingCareInsurance.companyBurdenRate')?.errors?.['required'] && form.get('nursingCareInsurance.companyBurdenRate')?.touched">
+                                    会社負担率は必須です</p>
+                                <p
+                                    *ngIf="form.get('nursingCareInsurance.companyBurdenRate')?.errors?.['min'] && form.get('nursingCareInsurance.companyBurdenRate')?.touched">
+                                    会社負担率は0以上です</p>
+                                <p
+                                    *ngIf="form.get('nursingCareInsurance.companyBurdenRate')?.errors?.['max'] && form.get('nursingCareInsurance.companyBurdenRate')?.touched">
+                                    会社負担率は100以下です</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="add-insurance-info-form-group">
-                    <label for="healthInsuranceCompanyBurdenRate">会社負担率
-                        <input type="number" id="healthInsuranceCompanyBurdenRate" formControlName="companyBurdenRate">
-                        ％</label>
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('healthInsurance.companyBurdenRate')?.errors?.['required'] && form.get('healthInsurance.companyBurdenRate')?.touched">
-                            会社負担率は必須です</p>
-                        <p
-                            *ngIf="form.get('healthInsurance.companyBurdenRate')?.errors?.['min'] && form.get('healthInsurance.companyBurdenRate')?.touched">
-                            会社負担率は0以上です</p>
-                        <p
-                            *ngIf="form.get('healthInsurance.companyBurdenRate')?.errors?.['max'] && form.get('healthInsurance.companyBurdenRate')?.touched">
-                            会社負担率は100以下です</p>
+                <div class="add-insurance-info-form-group" formGroupName="employeePensionInsurance">
+                    <label for="employeePensionInsurance">厚生年金</label>
+                    <div class="im-radio-group">
+                        <label class="im-radio-option" for="employeePensionInsuranceJoined1">
+                            <input type="radio" id="employeePensionInsuranceJoined1" formControlName="joined"
+                                value="joined">
+                            <span>加入</span>
+                        </label>
+                        <label class="im-radio-option" for="employeePensionInsuranceJoined2">
+                            <input type="radio" id="employeePensionInsuranceJoined2" formControlName="joined"
+                                value="notJoined">
+                            <span>未加入</span>
+                        </label>
+                        <label class="im-radio-option" for="employeePensionInsuranceJoined3">
+                            <input type="radio" id="employeePensionInsuranceJoined3" formControlName="joined"
+                                value="lost">
+                            <span>喪失</span>
+                        </label>
+                    </div>
+                    <div class="insurance-detail-fields"
+                        [class.insurance-detail-fields--disabled]="form.get('employeePensionInsurance.joined')?.value === 'notJoined'">
+                        <div class="add-insurance-info-form-group">
+                            <label for="employeePensionInsuranceNumber">厚生年金番号</label>
+                            <input type="text" id="employeePensionInsuranceNumber" formControlName="number">
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('employeePensionInsurance.number')?.errors?.['required'] && form.get('employeePensionInsurance.number')?.touched">
+                                    厚生年金番号は必須です</p>
+                                <p
+                                    *ngIf="form.get('employeePensionInsurance.number')?.errors?.['pattern'] && form.get('employeePensionInsurance.number')?.touched">
+                                    半角で入力してください</p>
+                            </div>
+                        </div>
+                        <div class="add-insurance-info-form-group">
+                            <label for="employeePensionInsuranceAcquiredDate">厚生年金取得日</label>
+                            <input type="date" id="employeePensionInsuranceAcquiredDate" formControlName="acquiredDate">
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('employeePensionInsurance.acquiredDate')?.errors?.['required'] && form.get('employeePensionInsurance.acquiredDate')?.touched">
+                                    厚生年金取得日は必須です</p>
+                            </div>
+                        </div>
+                        <div class="add-insurance-info-form-group">
+                            <label for="employeePensionInsuranceLostDate">厚生年金喪失日</label>
+                            <input type="date" id="employeePensionInsuranceLostDate" formControlName="lostDate">
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('employeePensionInsurance.lostDate')?.errors?.['required'] && form.get('employeePensionInsurance.lostDate')?.touched">
+                                    厚生年金喪失日は必須です</p>
+                                <p
+                                    *ngIf="form.get('employeePensionInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && form.get('employeePensionInsurance.lostDate')?.touched">
+                                    厚生年金喪失日は取得日より後の日付で入力してください</p>
+                            </div>
+                        </div>
+                        <div class="add-insurance-info-form-group">
+                            <label for="employeePensionInsuranceCompanyBurdenRate">会社負担率
+                                <input type="number" id="employeePensionInsuranceCompanyBurdenRate"
+                                    formControlName="companyBurdenRate">
+                                ％</label>
+                            <div class="error">
+                                <p
+                                    *ngIf="form.get('employeePensionInsurance.companyBurdenRate')?.errors?.['required'] && form.get('employeePensionInsurance.companyBurdenRate')?.touched">
+                                    会社負担率は必須です</p>
+                                <p
+                                    *ngIf="form.get('employeePensionInsurance.companyBurdenRate')?.errors?.['min'] && form.get('employeePensionInsurance.companyBurdenRate')?.touched">
+                                    会社負担率は0以上です</p>
+                                <p
+                                    *ngIf="form.get('employeePensionInsurance.companyBurdenRate')?.errors?.['max'] && form.get('employeePensionInsurance.companyBurdenRate')?.touched">
+                                    会社負担率は100以下です</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
-        <div class="add-insurance-info-form-group" formGroupName="nursingCareInsurance">
-            <label for="nursingCareInsurance">介護保険</label>
-            <div class="im-radio-group">
-                <label class="im-radio-option" for="nursingCareInsuranceJoined1">
-                    <input type="radio" id="nursingCareInsuranceJoined1" formControlName="joined" value="joined">
-                    <span>加入</span>
-                </label>
-                <label class="im-radio-option" for="nursingCareInsuranceJoined2">
-                    <input type="radio" id="nursingCareInsuranceJoined2" formControlName="joined" value="notJoined">
-                    <span>未加入</span>
-                </label>
-                <label class="im-radio-option" for="nursingCareInsuranceJoined3">
-                    <input type="radio" id="nursingCareInsuranceJoined3" formControlName="joined" value="lost">
-                    <span>喪失</span>
-                </label>
-            </div>
-            <div class="insurance-detail-fields"
-                [class.insurance-detail-fields--disabled]="form.get('nursingCareInsurance.joined')?.value === 'notJoined'">
-                <div class="add-insurance-info-form-group">
-                    <label for="nursingCareInsuranceNumber">介護保険番号</label>
-                    <input type="text" id="nursingCareInsuranceNumber" formControlName="number">
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('nursingCareInsurance.number')?.errors?.['required'] && form.get('nursingCareInsurance.number')?.touched">
-                            介護保険番号は必須です</p>
-                        <p
-                            *ngIf="form.get('nursingCareInsurance.number')?.errors?.['pattern'] && form.get('nursingCareInsurance.number')?.touched">
-                            半角で入力してください</p>
-                    </div>
-                </div>
-                <div class="add-insurance-info-form-group">
-                    <label for="nursingCareInsuranceAcquiredDate">介護保険取得日</label>
-                    <input type="date" id="nursingCareInsuranceAcquiredDate" formControlName="acquiredDate">
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('nursingCareInsurance.acquiredDate')?.errors?.['required'] && form.get('nursingCareInsurance.acquiredDate')?.touched">
-                            介護保険取得日は必須です</p>
-                    </div>
-                </div>
-                <div class="add-insurance-info-form-group">
-                    <label for="nursingCareInsuranceLostDate">介護保険喪失日</label>
-                    <input type="date" id="nursingCareInsuranceLostDate" formControlName="lostDate">
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('nursingCareInsurance.lostDate')?.errors?.['required'] && form.get('nursingCareInsurance.lostDate')?.touched">
-                            介護保険喪失日は必須です</p>
-                        <p
-                            *ngIf="form.get('nursingCareInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && form.get('nursingCareInsurance.lostDate')?.touched">
-                            介護保険喪失日は取得日より後の日付で入力してください</p>
-                    </div>
-                </div>
-                <div class="add-insurance-info-form-group">
-                    <label for="nursingCareInsuranceCompanyBurdenRate">会社負担率
-                        <input type="number" id="nursingCareInsuranceCompanyBurdenRate"
-                            formControlName="companyBurdenRate">
-                        ％</label>
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('nursingCareInsurance.companyBurdenRate')?.errors?.['required'] && form.get('nursingCareInsurance.companyBurdenRate')?.touched">
-                            会社負担率は必須です</p>
-                        <p
-                            *ngIf="form.get('nursingCareInsurance.companyBurdenRate')?.errors?.['min'] && form.get('nursingCareInsurance.companyBurdenRate')?.touched">
-                            会社負担率は0以上です</p>
-                        <p
-                            *ngIf="form.get('nursingCareInsurance.companyBurdenRate')?.errors?.['max'] && form.get('nursingCareInsurance.companyBurdenRate')?.touched">
-                            会社負担率は100以下です</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="add-insurance-info-form-group" formGroupName="employeePensionInsurance">
-            <label for="employeePensionInsurance">厚生年金</label>
-            <div class="im-radio-group">
-                <label class="im-radio-option" for="employeePensionInsuranceJoined1">
-                    <input type="radio" id="employeePensionInsuranceJoined1" formControlName="joined" value="joined">
-                    <span>加入</span>
-                </label>
-                <label class="im-radio-option" for="employeePensionInsuranceJoined2">
-                    <input type="radio" id="employeePensionInsuranceJoined2" formControlName="joined" value="notJoined">
-                    <span>未加入</span>
-                </label>
-                <label class="im-radio-option" for="employeePensionInsuranceJoined3">
-                    <input type="radio" id="employeePensionInsuranceJoined3" formControlName="joined" value="lost">
-                    <span>喪失</span>
-                </label>
-            </div>
-            <div class="insurance-detail-fields"
-                [class.insurance-detail-fields--disabled]="form.get('employeePensionInsurance.joined')?.value === 'notJoined'">
-                <div class="add-insurance-info-form-group">
-                    <label for="employeePensionInsuranceNumber">厚生年金番号</label>
-                    <input type="text" id="employeePensionInsuranceNumber" formControlName="number">
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('employeePensionInsurance.number')?.errors?.['required'] && form.get('employeePensionInsurance.number')?.touched">
-                            厚生年金番号は必須です</p>
-                        <p
-                            *ngIf="form.get('employeePensionInsurance.number')?.errors?.['pattern'] && form.get('employeePensionInsurance.number')?.touched">
-                            半角で入力してください</p>
-                    </div>
-                </div>
-                <div class="add-insurance-info-form-group">
-                    <label for="employeePensionInsuranceAcquiredDate">厚生年金取得日</label>
-                    <input type="date" id="employeePensionInsuranceAcquiredDate" formControlName="acquiredDate">
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('employeePensionInsurance.acquiredDate')?.errors?.['required'] && form.get('employeePensionInsurance.acquiredDate')?.touched">
-                            厚生年金取得日は必須です</p>
-                    </div>
-                </div>
-                <div class="add-insurance-info-form-group">
-                    <label for="employeePensionInsuranceLostDate">厚生年金喪失日</label>
-                    <input type="date" id="employeePensionInsuranceLostDate" formControlName="lostDate">
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('employeePensionInsurance.lostDate')?.errors?.['required'] && form.get('employeePensionInsurance.lostDate')?.touched">
-                            厚生年金喪失日は必須です</p>
-                        <p
-                            *ngIf="form.get('employeePensionInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && form.get('employeePensionInsurance.lostDate')?.touched">
-                            厚生年金喪失日は取得日より後の日付で入力してください</p>
-                    </div>
-                </div>
-                <div class="add-insurance-info-form-group">
-                    <label for="employeePensionInsuranceCompanyBurdenRate">会社負担率
-                        <input type="number" id="employeePensionInsuranceCompanyBurdenRate"
-                            formControlName="companyBurdenRate">
-                        ％</label>
-                    <div class="error">
-                        <p
-                            *ngIf="form.get('employeePensionInsurance.companyBurdenRate')?.errors?.['required'] && form.get('employeePensionInsurance.companyBurdenRate')?.touched">
-                            会社負担率は必須です</p>
-                        <p
-                            *ngIf="form.get('employeePensionInsurance.companyBurdenRate')?.errors?.['min'] && form.get('employeePensionInsurance.companyBurdenRate')?.touched">
-                            会社負担率は0以上です</p>
-                        <p
-                            *ngIf="form.get('employeePensionInsurance.companyBurdenRate')?.errors?.['max'] && form.get('employeePensionInsurance.companyBurdenRate')?.touched">
-                            会社負担率は100以下です</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <button type="submit" class="im-btn-primary add-insurance-info-submit">登録</button>
-    </form>
+                <button type="submit" class="im-btn-primary add-insurance-info-submit">登録</button>
+            </form>
         </section>
     </div>
 </div>

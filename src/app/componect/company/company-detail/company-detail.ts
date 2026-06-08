@@ -9,6 +9,7 @@ import { BUSINESS_TYPES, PREFECTURES, BusinessType, Prefecture } from '../../../
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { OfficeService } from '../../../service/Firestore/office-service';
 import { Office } from '../../../model/office';
+import { ActivatedRoute } from '@angular/router';
 
 @Component({
   selector: 'app-company-detail',
@@ -22,6 +23,9 @@ export class CompanyDetail {
   commonService = inject(CommonService);
   private companyLogicService = inject(CompanyLogicService);
   private officeService = inject(OfficeService);
+  private route = inject(ActivatedRoute);
+
+  mode = this.route.snapshot.queryParamMap.get('mode');
 
   message: string = '';
   messageTimer: MessageTimer = null;

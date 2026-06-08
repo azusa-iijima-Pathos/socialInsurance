@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { EmployeeEventItem, EventService } from '../../../service/Firestore/event-service';
 import { CalculationRunService, SystemCalculationRunItem } from '../../../service/Firestore/calculation-run-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
@@ -444,5 +444,17 @@ export class SystemApplicationList {
   }
 
 
+  private router = inject(Router);
+
+
+  /** 給与入力へ遷移 */
+  toMonthlySalary() {
+    this.router.navigate(['/monthly-salary', this.workingYear, this.workingMonth]);
+  }
+
+  /** 保険料確認へ遷移 */
+  toInsuranceConfirm() {
+    this.router.navigate(['/insurance-confirm', this.workingYear, this.workingMonth]);
+  }
 
 }

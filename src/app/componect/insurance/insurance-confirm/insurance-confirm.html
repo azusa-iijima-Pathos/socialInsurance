@@ -1,20 +1,72 @@
-<h2>保険料確認　{{ workingYear }}年{{ workingMonth }}月分 </h2>
+<span *ngIf="!isOutputMode">
+    <h2>保険料確認　{{ workingYear }}年{{ workingMonth }}月分 </h2>
+</span>
+<span *ngIf="isOutputMode">
+    <h2>確定済み保険料確認</h2>
+</span>
 
+
+<div *ngIf="!isOutputMode">
+    <div class="information-area">
+        <p>今月の給与・勤務実績と今月の申請を全て入力の上、保険料確定を行ってください。</p>
+        <p>確定後の保険料修正は差額調整になります。</p>
+    </div>
+    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+        <button class="im-btn-soft" (click)="toPayrollForm()">◀◀給与・勤務実績登録へ</button>
+        <button class="im-btn-soft" (click)="toApplicationList()">◀今月の申請一覧へ</button>
+        <button class="im-btn-soft" style="margin-left: auto;" (click)="toTop()">トップ画面に戻る▶</button>
+    </div>
+</div>
+
+<!-- 確定済みの保険料確認用 -->
+<div *ngIf="isOutputMode">
+    <div class="information-area">
+        <p>確定済みの保険料を確認できます。</p>
+        <p>下のプルダウンから確認する年月を選択してください。</p>
+        <p>保険料を変更する場合は、遡及修正を行ってください。</p>
+    </div>
+</div>
+
+
+<!-- 確定後の一覧用の年月選択 -->
 <div *ngIf="isOutputMode">
     <select [(ngModel)]="outputYearMonth" (change)="changeOutputYearMonth()">
         <option *ngFor="let yearMonth of getOutputYearMonthOptions()" [value]="yearMonth">
             {{ yearMonth }}
         </option>
     </select>
+    <h3> {{ outputYearMonth }}月分 </h3>
 </div>
 
 <div *ngIf="payrollData.length === 0 && !isOutputMode">
-    給与・勤務実績が未登録です。<br>
-    登録後に保険料確認を行ってください。
+    <div style="text-align: center; margin-top: 20px;">
+        <p>給与・勤務実績が未登録です。</p>
+        <p>登録後に保険料確認を行ってください。</p>
+        <button class="im-btn-primary" (click)="toPayrollForm()">給与・勤務実績登録へ</button>
+    </div>
 </div>
 
-<div *ngIf="dataForShow.length > 0">
-        <h3>{{ workingYear }}年{{ workingMonth }}月 保険料従業員別一覧</h3>
+<div *ngIf="payrollData.length > 0">
+    <div *ngIf=" dataForShow.length> 0">
+        <h3>保険料従業員別一覧</h3>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <button *ngIf="!editMode && !editButtonDisabled" class="im-btn-primary"
+                (click)="editInsurance()">保険料修正</button>
+            
+            <button *ngIf="editMode" class="im-btn-primary" (click)="saveInsuranceDrafts()"
+                [disabled]="insuranceEditErrors.length > 0">修正内容を一時保存</button>
+            <button *ngIf="editMode" class="im-btn-soft" (click)="cancelEditInsurance()">キャンセル</button>
+
+            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()" >CSV出力（保険料）</button>
+
+            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()" >CSV出力（給与含む）</button>
+
+            <button *ngIf="!editMode && !editButtonDisabled" class="im-btn-primary"
+                (click)="confirmInsurance()" style="margin-left: auto;">保険料確定</button>
+        </div>
+
+
         <table class="insurance-confirm-list-table">
             <thead>
                 <tr>
@@ -42,65 +94,116 @@
                     <tr>
                         <td rowspan="2">{{ employee.employeeId }}</td>
                         <td rowspan="2">
-                            <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: employee.employeeId }">{{ employee.employeeName }}</a>
+                            <a [routerLink]="['/employee-detail']"
+                                [queryParams]="{ employeeId: employee.employeeId }">{{
+                                employee.employeeName }}</a>
                         </td>
                         <td>{{ employee.hasPayrollData ? (employee.actualWorkingDays + '日') : '未入力' }}</td>
                         <td>{{ employee.hasPayrollData ? ((employee.fixedSalary |number) + '円') : '未入力' }}</td>
                         <td rowspan="2">{{ employee.grade ? (employee.grade + '等級') : '未設定' }}</td>
                         <td class="insurance-confirm-merged-top">
-                            <input *ngIf="editMode && employee.hasPayrollData" class="insurance-confirm-edit-input" type="number" min="0" [(ngModel)]="employee.healthInsurance" (ngModelChange)="updateEmployeeInsuranceTotal(employee)">
-                            <span *ngIf="!editMode || !employee.hasPayrollData" [class.insurance-confirm-edited-amount]="employee.hasPayrollData && isEditedAmount(employee, 'healthInsurance')">{{ employee.hasPayrollData ? ((employee.healthInsurance|number) + '円') : '未定' }}</span>
-                            <small *ngIf="employee.hasPayrollData && isEditedAmount(employee, 'healthInsurance')" class="insurance-confirm-calculated-amount">自動計算：{{ employee.calculatedValues.healthInsurance | number }}円</small>
+                            <input *ngIf="editMode && employee.hasPayrollData" class="insurance-confirm-edit-input"
+                                type="number" min="0" [(ngModel)]="employee.healthInsurance"
+                                (ngModelChange)="updateEmployeeInsuranceTotal(employee)">
+                            <span *ngIf="!editMode || !employee.hasPayrollData"
+                                [class.insurance-confirm-edited-amount]="employee.hasPayrollData && isEditedAmount(employee, 'healthInsurance')">{{
+                                employee.hasPayrollData ? ((employee.healthInsurance|number) + '円') : '未定' }}</span>
+                            <small *ngIf="employee.hasPayrollData && isEditedAmount(employee, 'healthInsurance')"
+                                class="insurance-confirm-calculated-amount">自動計算：{{
+                                employee.calculatedValues.healthInsurance | number }}円</small>
                         </td>
                         <td class="insurance-confirm-merged-top">
-                            <input *ngIf="editMode && employee.hasPayrollData" class="insurance-confirm-edit-input" type="number" min="0" [(ngModel)]="employee.nursingCareInsurance" (ngModelChange)="updateEmployeeInsuranceTotal(employee)">
-                            <span *ngIf="!editMode || !employee.hasPayrollData" [class.insurance-confirm-edited-amount]="employee.hasPayrollData && isEditedAmount(employee, 'nursingCareInsurance')">{{ employee.hasPayrollData ? ((employee.nursingCareInsurance|number) + '円') : '未定' }}</span>
-                            <small *ngIf="employee.hasPayrollData && isEditedAmount(employee, 'nursingCareInsurance')" class="insurance-confirm-calculated-amount">自動計算：{{ employee.calculatedValues.nursingCareInsurance | number }}円</small>
+                            <input *ngIf="editMode && employee.hasPayrollData" class="insurance-confirm-edit-input"
+                                type="number" min="0" [(ngModel)]="employee.nursingCareInsurance"
+                                (ngModelChange)="updateEmployeeInsuranceTotal(employee)">
+                            <span *ngIf="!editMode || !employee.hasPayrollData"
+                                [class.insurance-confirm-edited-amount]="employee.hasPayrollData && isEditedAmount(employee, 'nursingCareInsurance')">{{
+                                employee.hasPayrollData ? ((employee.nursingCareInsurance|number) + '円') : '未定'
+                                }}</span>
+                            <small *ngIf="employee.hasPayrollData && isEditedAmount(employee, 'nursingCareInsurance')"
+                                class="insurance-confirm-calculated-amount">自動計算：{{
+                                employee.calculatedValues.nursingCareInsurance | number }}円</small>
                         </td>
                         <td class="insurance-confirm-merged-top">
-                            <input *ngIf="editMode && employee.hasPayrollData" class="insurance-confirm-edit-input" type="number" min="0" [(ngModel)]="employee.pensionInsurance" (ngModelChange)="updateEmployeeInsuranceTotal(employee)">
-                            <span *ngIf="!editMode || !employee.hasPayrollData" [class.insurance-confirm-edited-amount]="employee.hasPayrollData && isEditedAmount(employee, 'pensionInsurance')">{{ employee.hasPayrollData ? ((employee.pensionInsurance|number) + '円') : '未定' }}</span>
-                            <small *ngIf="employee.hasPayrollData && isEditedAmount(employee, 'pensionInsurance')" class="insurance-confirm-calculated-amount">自動計算：{{ employee.calculatedValues.pensionInsurance | number }}円</small>
+                            <input *ngIf="editMode && employee.hasPayrollData" class="insurance-confirm-edit-input"
+                                type="number" min="0" [(ngModel)]="employee.pensionInsurance"
+                                (ngModelChange)="updateEmployeeInsuranceTotal(employee)">
+                            <span *ngIf="!editMode || !employee.hasPayrollData"
+                                [class.insurance-confirm-edited-amount]="employee.hasPayrollData && isEditedAmount(employee, 'pensionInsurance')">{{
+                                employee.hasPayrollData ? ((employee.pensionInsurance|number) + '円') : '未定' }}</span>
+                            <small *ngIf="employee.hasPayrollData && isEditedAmount(employee, 'pensionInsurance')"
+                                class="insurance-confirm-calculated-amount">自動計算：{{
+                                employee.calculatedValues.pensionInsurance | number }}円</small>
                         </td>
-                        <td class="insurance-confirm-merged-top">{{ employee.hasPayrollData ? ((employee.totalInsurance|number) + '円') : '未定' }}</td>
+                        <td class="insurance-confirm-merged-top">{{ employee.hasPayrollData ?
+                            ((employee.totalInsurance|number) + '円') : '未定' }}</td>
                     </tr>
                     <tr>
                         <td>{{ employee.hasPayrollData ? (employee.actualWorkingHours + '時間') : '未入力' }}</td>
                         <td>{{ employee.hasPayrollData ? ((employee.actualPaymentAmount |number) + '円') : '未入力' }}</td>
                         <td class="insurance-confirm-merged-bottom">
                             <span *ngIf="editMode && employee.hasPayrollData">
-                                （<input class="insurance-confirm-edit-input insurance-confirm-edit-input--small" [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'healthInsuranceForCompany')" type="number" min="0" [(ngModel)]="employee.healthInsuranceForCompany" (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円
-                                / <input class="insurance-confirm-edit-input insurance-confirm-edit-input--small" [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'healthInsuranceForEmployee')" type="number" min="0" [(ngModel)]="employee.healthInsuranceForEmployee" (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円）
+                                （<input class="insurance-confirm-edit-input insurance-confirm-edit-input--small"
+                                    [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'healthInsuranceForCompany')"
+                                    type="number" min="0" [(ngModel)]="employee.healthInsuranceForCompany"
+                                    (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円
+                                / <input class="insurance-confirm-edit-input insurance-confirm-edit-input--small"
+                                    [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'healthInsuranceForEmployee')"
+                                    type="number" min="0" [(ngModel)]="employee.healthInsuranceForEmployee"
+                                    (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円）
                             </span>
-                            <span *ngIf="!editMode && employee.hasPayrollData && employee.healthInsurance > 0">（{{ employee.healthInsuranceForCompany|number }}円
+                            <span *ngIf="!editMode && employee.hasPayrollData && employee.healthInsurance > 0">（{{
+                                employee.healthInsuranceForCompany|number }}円
                                 / {{
                                 employee.healthInsuranceForEmployee |number }}円）</span>
-                            <small *ngIf="employee.hasPayrollData && (isEditedAmount(employee, 'healthInsuranceForCompany') || isEditedAmount(employee, 'healthInsuranceForEmployee'))" class="insurance-confirm-calculated-amount">
-                                自動計算：{{ employee.calculatedValues.healthInsuranceForCompany | number }}円 / {{ employee.calculatedValues.healthInsuranceForEmployee | number }}円
+                            <small
+                                *ngIf="employee.hasPayrollData && (isEditedAmount(employee, 'healthInsuranceForCompany') || isEditedAmount(employee, 'healthInsuranceForEmployee'))"
+                                class="insurance-confirm-calculated-amount">
+                                自動計算：{{ employee.calculatedValues.healthInsuranceForCompany | number }}円 / {{
+                                employee.calculatedValues.healthInsuranceForEmployee | number }}円
                             </small>
                         </td>
                         <td class="insurance-confirm-merged-bottom">
                             <span *ngIf="editMode && employee.hasPayrollData">
-                                （<input class="insurance-confirm-edit-input insurance-confirm-edit-input--small" [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'nursingCareInsuranceForCompany')" type="number" min="0" [(ngModel)]="employee.nursingCareInsuranceForCompany" (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円
-                                / <input class="insurance-confirm-edit-input insurance-confirm-edit-input--small" [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'nursingCareInsuranceForEmployee')" type="number" min="0" [(ngModel)]="employee.nursingCareInsuranceForEmployee" (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円）
+                                （<input class="insurance-confirm-edit-input insurance-confirm-edit-input--small"
+                                    [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'nursingCareInsuranceForCompany')"
+                                    type="number" min="0" [(ngModel)]="employee.nursingCareInsuranceForCompany"
+                                    (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円
+                                / <input class="insurance-confirm-edit-input insurance-confirm-edit-input--small"
+                                    [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'nursingCareInsuranceForEmployee')"
+                                    type="number" min="0" [(ngModel)]="employee.nursingCareInsuranceForEmployee"
+                                    (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円）
                             </span>
                             <span *ngIf="!editMode && employee.hasPayrollData && employee.nursingCareInsurance > 0">（{{
                                 employee.nursingCareInsuranceForCompany|number
                                 }}円 / {{ employee.nursingCareInsuranceForEmployee |number }}円）</span>
-                            <small *ngIf="employee.hasPayrollData && (isEditedAmount(employee, 'nursingCareInsuranceForCompany') || isEditedAmount(employee, 'nursingCareInsuranceForEmployee'))" class="insurance-confirm-calculated-amount">
-                                自動計算：{{ employee.calculatedValues.nursingCareInsuranceForCompany | number }}円 / {{ employee.calculatedValues.nursingCareInsuranceForEmployee | number }}円
+                            <small
+                                *ngIf="employee.hasPayrollData && (isEditedAmount(employee, 'nursingCareInsuranceForCompany') || isEditedAmount(employee, 'nursingCareInsuranceForEmployee'))"
+                                class="insurance-confirm-calculated-amount">
+                                自動計算：{{ employee.calculatedValues.nursingCareInsuranceForCompany | number }}円 / {{
+                                employee.calculatedValues.nursingCareInsuranceForEmployee | number }}円
                             </small>
                         </td>
                         <td class="insurance-confirm-merged-bottom">
                             <span *ngIf="editMode && employee.hasPayrollData">
-                                （<input class="insurance-confirm-edit-input insurance-confirm-edit-input--small" [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'pensionInsuranceForCompany')" type="number" min="0" [(ngModel)]="employee.pensionInsuranceForCompany" (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円
-                                / <input class="insurance-confirm-edit-input insurance-confirm-edit-input--small" [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'pensionInsuranceForEmployee')" type="number" min="0" [(ngModel)]="employee.pensionInsuranceForEmployee" (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円）
+                                （<input class="insurance-confirm-edit-input insurance-confirm-edit-input--small"
+                                    [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'pensionInsuranceForCompany')"
+                                    type="number" min="0" [(ngModel)]="employee.pensionInsuranceForCompany"
+                                    (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円
+                                / <input class="insurance-confirm-edit-input insurance-confirm-edit-input--small"
+                                    [class.insurance-confirm-edited-input]="isEditedAmount(employee, 'pensionInsuranceForEmployee')"
+                                    type="number" min="0" [(ngModel)]="employee.pensionInsuranceForEmployee"
+                                    (ngModelChange)="updateEmployeeInsuranceTotal(employee)">円）
                             </span>
-                            <span *ngIf="!editMode && employee.hasPayrollData && employee.pensionInsurance > 0">（{{ employee.pensionInsuranceForCompany|number
+                            <span *ngIf="!editMode && employee.hasPayrollData && employee.pensionInsurance > 0">（{{
+                                employee.pensionInsuranceForCompany|number
                                 }}円 / {{
                                 employee.pensionInsuranceForEmployee |number }}円）</span>
-                            <small *ngIf="employee.hasPayrollData && (isEditedAmount(employee, 'pensionInsuranceForCompany') || isEditedAmount(employee, 'pensionInsuranceForEmployee'))" class="insurance-confirm-calculated-amount">
-                                自動計算：{{ employee.calculatedValues.pensionInsuranceForCompany | number }}円 / {{ employee.calculatedValues.pensionInsuranceForEmployee | number }}円
+                            <small
+                                *ngIf="employee.hasPayrollData && (isEditedAmount(employee, 'pensionInsuranceForCompany') || isEditedAmount(employee, 'pensionInsuranceForEmployee'))"
+                                class="insurance-confirm-calculated-amount">
+                                自動計算：{{ employee.calculatedValues.pensionInsuranceForCompany | number }}円 / {{
+                                employee.calculatedValues.pensionInsuranceForEmployee | number }}円
                             </small>
                         </td>
                         <td class="insurance-confirm-merged-bottom">
@@ -117,15 +220,21 @@
             <p *ngFor="let error of insuranceEditErrors">{{ error }}</p>
         </div>
 
-        <button *ngIf="!editMode && !editButtonDisabled" class="btn btn-primary" (click)="editInsurance()">保険料修正</button>
-        <button *ngIf="editMode" class="btn btn-primary" (click)="saveInsuranceDrafts()" [disabled]="insuranceEditErrors.length > 0">修正内容を一時保存</button>
-        <button *ngIf="editMode" class="btn btn-primary" (click)="cancelEditInsurance()">キャンセル</button>
+        <div style="display: flex; gap: 10px; margin-right: auto;">
+            <button *ngIf="!editMode && !editButtonDisabled" class="im-btn-primary"
+                (click)="editInsurance()">保険料修正</button>
+            
+            <button *ngIf="editMode" class="im-btn-primary" (click)="saveInsuranceDrafts()"
+                [disabled]="insuranceEditErrors.length > 0">修正内容を一時保存</button>
+            <button *ngIf="editMode" class="im-btn-soft" (click)="cancelEditInsurance()">キャンセル</button>
 
-        <button *ngIf="!editMode" class="btn btn-primary" (click)="exportInsuranceOnlyCsv()">CSV出力（保険料）</button>
+            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()" >CSV出力（保険料）</button>
 
-        <button *ngIf="!editMode" class="btn btn-primary" (click)="exportWithSalaryCsv()">CSV出力（給与含む）</button>
+            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()" >CSV出力（給与含む）</button>
 
-        <button *ngIf="!editMode && !editButtonDisabled" class="btn btn-primary" (click)="confirmInsurance()">保険料確定</button>
+            <button *ngIf="!editMode && !editButtonDisabled" class="im-btn-primary"
+                (click)="confirmInsurance()" style="margin-left: auto;">保険料確定</button>
+        </div>
 
         <h3>保険料合計</h3>
         <table>
@@ -162,7 +271,9 @@
                 </tr>
             </tbody>
         </table>
+    </div>
 </div>
-<div *ngIf="dataForShow.length === 0">
-    作業月の保険料がありません。
+
+<div style="text-align: center; margin-top: 20px;" *ngIf="isOutputMode && (dataForShow.length === 0 || payrollData.length === 0)">
+        確定済みの保険データがありません。
 </div>

@@ -9,9 +9,14 @@
                 ・固定給は基本給、固定手当、通勤手当の合計です。<br>
                 ・総支給額は固定給と変動給（残業代など）の合計です。<br>
                 @if(inputFormat === 1) {
-                    <p>※固定給、総支給額は自動計算されます。</p>
-                }
+            <p>※固定給、総支給額は自動計算されます。</p>
+            }
             </p>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="im-btn-primary" (click)="toApplicationList()">今月の申請一覧へ▶</button>
+            <button class="im-btn-soft" (click)="toInsuranceConfirm()">保険料確認へ▶▶</button>
         </div>
 
         <div class="monthly-salary-registration-layout">
@@ -20,188 +25,196 @@
             </section>
 
             <section class="monthly-salary-registration-card monthly-salary-registration-card--individual">
-            <form [formGroup]="form" (ngSubmit)="registerIndividualSalary()">
-                <section
-                    class="monthly-salary-container__content__form__section im-fields-grid monthly-salary-basic-section">
-                    <h2 class="section-title">個別登録</h2>
-                    <div class="monthly-salary-container__content__message">
-                        <p *ngIf="message" class="im-action-message">{{ message }}</p>
-                    </div>
-                    <div class="im-field-block im-field-row monthly-salary-basic-field">
-                        <div class="im-field-row__label">
-                            <label for="employeeId">社員ID</label>
+                <form [formGroup]="form" (ngSubmit)="registerIndividualSalary()">
+                    <section
+                        class="monthly-salary-container__content__form__section im-fields-grid monthly-salary-basic-section">
+                        <h2 class="section-title">個別登録</h2>
+                        <div class="monthly-salary-container__content__message">
+                            <p *ngIf="message" class="im-action-message">{{ message }}</p>
                         </div>
-                        <div class="im-field-row__control">
-                            <input type="text" id="employeeId" formControlName="employeeId">
+                        <div class="im-field-block im-field-row monthly-salary-basic-field">
+                            <div class="im-field-row__label">
+                                <label for="employeeId">社員ID</label>
+                            </div>
+                            <div class="im-field-row__control">
+                                <input type="text" id="employeeId" formControlName="employeeId">
+                                <div class="error">
+                                    <p
+                                        *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">
+                                        社員IDは必須です</p>
+                                    <p
+                                        *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">
+                                        半角で入力してください</p>
+                                    <p
+                                        *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">
+                                        社員IDが存在しません</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="monthly-salary-basic-pair">
+                            <div class="im-field-block im-field-row monthly-salary-basic-field">
+                                <div class="im-field-row__label">
+                                    <label for="actualWorkingDays">勤務日数(月単位)</label>
+                                </div>
+                                <div class="im-field-row__control">
+                                    <div class="monthly-salary-inline-control">
+                                        <input type="number" id="actualWorkingDays" formControlName="actualWorkingDays">
+                                        <span class="monthly-salary-unit">日</span>
+                                    </div>
+                                    <div class="error">
+                                        <p
+                                            *ngIf="form.get('actualWorkingDays')?.errors?.['required'] && form.get('actualWorkingDays')?.touched">
+                                            勤務日数は必須です</p>
+                                        <p
+                                            *ngIf="form.get('actualWorkingDays')?.errors?.['min'] && form.get('actualWorkingDays')?.touched">
+                                            勤務日数は0日以上で入力してください</p>
+                                        <p *ngIf="form.hasError('invalidWorkingDays') ">
+                                            勤務時間がある場合、勤務日数は1日以上で入力してください</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="im-field-block im-field-row monthly-salary-basic-field">
+                                <div class="im-field-row__label">
+                                    <label for="actualWorkingHours">勤務時間(月単位)</label>
+                                </div>
+                                <div class="im-field-row__control">
+                                    <div class="monthly-salary-inline-control">
+                                        <input type="number" id="actualWorkingHours"
+                                            formControlName="actualWorkingHours">
+                                        <span class="monthly-salary-unit">時間</span>
+                                    </div>
+                                    <div class="error">
+                                        <p
+                                            *ngIf="form.get('actualWorkingHours')?.errors?.['required'] && form.get('actualWorkingHours')?.touched">
+                                            勤務時間は必須です</p>
+                                        <p
+                                            *ngIf="form.get('actualWorkingHours')?.errors?.['min'] && form.get('actualWorkingHours')?.touched">
+                                            勤務時間は0時間以上で入力してください</p>
+                                        <p *ngIf="form.hasError('invalidWorkingHours')">
+                                            勤務日数がある場合、勤務時間は1時間以上で入力してください</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row monthly-salary-basic-field">
+                            <div class="im-field-row__label">
+                                <label for="targetMonth">対象期間</label>
+                            </div>
+                            <div class="im-field-row__control monthly-salary-period-control">
+                                <input type="date" id="targetPeriodStart" formControlName="targetPeriodStart">
+                                <span class="monthly-salary-separator">～</span>
+                                <input type="date" id="targetPeriodEnd" formControlName="targetPeriodEnd">
+                            </div>
                             <div class="error">
                                 <p
-                                    *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">
-                                    社員IDは必須です</p>
+                                    *ngIf="form.get('targetPeriodStart')?.errors?.['required'] && form.get('targetPeriodStart')?.touched">
+                                    対象期間開始日は必須です</p>
                                 <p
-                                    *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">
-                                    半角で入力してください</p>
+                                    *ngIf="form.get('targetPeriodEnd')?.errors?.['required'] && form.get('targetPeriodEnd')?.touched">
+                                    対象期間終了日は必須です</p>
                                 <p
-                                    *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">
-                                    社員IDが存在しません</p>
+                                    *ngIf="form.hasError('targetPeriodStartMonthMismatch') && form.get('targetPeriodStart')?.touched">
+                                    対象期間開始日は作業月と同じ月で入力してください</p>
                             </div>
                         </div>
-                    </div>
-                    <div class="monthly-salary-basic-pair">
-                    <div class="im-field-block im-field-row monthly-salary-basic-field">
-                        <div class="im-field-row__label">
-                            <label for="actualWorkingDays">勤務日数(月単位)</label>
-                        </div>
-                        <div class="im-field-row__control">
-                            <div class="monthly-salary-inline-control">
-                                <input type="number" id="actualWorkingDays" formControlName="actualWorkingDays">
-                                <span class="monthly-salary-unit">日</span>
+                        <div class="im-field-block im-field-row monthly-salary-basic-field">
+                            <div class="im-field-row__label">
+                                <label for="paymentDate">支給日</label>
                             </div>
-                            <div class="error">
-                                <p
-                                    *ngIf="form.get('actualWorkingDays')?.errors?.['required'] && form.get('actualWorkingDays')?.touched">
-                                    勤務日数は必須です</p>
-                                <p
-                                    *ngIf="form.get('actualWorkingDays')?.errors?.['min'] && form.get('actualWorkingDays')?.touched">
-                                    勤務日数は0日以上で入力してください</p>
-                                <p *ngIf="form.hasError('invalidWorkingDays') ">
-                                    勤務時間がある場合、勤務日数は1日以上で入力してください</p>
+                            <div class="im-field-row__control">
+                                <input type="date" id="paymentDate" formControlName="paymentDate">
                             </div>
                         </div>
-                    </div>
-                    <div class="im-field-block im-field-row monthly-salary-basic-field">
-                        <div class="im-field-row__label">
-                            <label for="actualWorkingHours">勤務時間(月単位)</label>
-                        </div>
-                        <div class="im-field-row__control">
-                            <div class="monthly-salary-inline-control">
-                                <input type="number" id="actualWorkingHours" formControlName="actualWorkingHours">
-                                <span class="monthly-salary-unit">時間</span>
-                            </div>
-                            <div class="error">
-                                <p
-                                    *ngIf="form.get('actualWorkingHours')?.errors?.['required'] && form.get('actualWorkingHours')?.touched">
-                                    勤務時間は必須です</p>
-                                <p
-                                    *ngIf="form.get('actualWorkingHours')?.errors?.['min'] && form.get('actualWorkingHours')?.touched">
-                                    勤務時間は0時間以上で入力してください</p>
-                                <p *ngIf="form.hasError('invalidWorkingHours')">
-                                    勤務日数がある場合、勤務時間は1時間以上で入力してください</p>
-                            </div>
-                        </div>
-                    </div>
-                    </div>
-                    <div class="im-field-block im-field-row monthly-salary-basic-field">
-                        <div class="im-field-row__label">
-                            <label for="targetMonth">対象期間</label>
-                        </div>
-                        <div class="im-field-row__control monthly-salary-period-control">
-                            <input type="date" id="targetPeriodStart" formControlName="targetPeriodStart">
-                            <span class="monthly-salary-separator">～</span>
-                            <input type="date" id="targetPeriodEnd" formControlName="targetPeriodEnd">
-                        </div>
-                        <div class="error">
-                            <p
-                                *ngIf="form.get('targetPeriodStart')?.errors?.['required'] && form.get('targetPeriodStart')?.touched">
-                                対象期間開始日は必須です</p>
-                            <p
-                                *ngIf="form.get('targetPeriodEnd')?.errors?.['required'] && form.get('targetPeriodEnd')?.touched">
-                                対象期間終了日は必須です</p>
-                            <p *ngIf="form.hasError('targetPeriodStartMonthMismatch') && form.get('targetPeriodStart')?.touched">
-                                対象期間開始日は作業月と同じ月で入力してください</p>
-                        </div>
-                    </div>
-                    <div class="im-field-block im-field-row monthly-salary-basic-field">
-                        <div class="im-field-row__label">
-                            <label for="paymentDate">支給日</label>
-                        </div>
-                        <div class="im-field-row__control">
-                            <input type="date" id="paymentDate" formControlName="paymentDate">
-                        </div>
-                    </div>
-                </section>
+                    </section>
 
-                <section class="monthly-salary-container__content__form__section monthly-salary-form-subsection" *ngIf="inputFormat === 1">
-                    <span class="monthly-salary-section-label">給与内訳</span>
-                    <div class="monthly-salary-form-grid">
-                    <div class="monthly-salary-container__content__form__item">
-                        <label for="basicSalary">基本給</label>
-                        <input type="number" id="basicSalary" formControlName="basicSalary">
-                        <span>円</span>
-                        <p *ngIf="form.get('basicSalary')?.errors?.['required'] && form.get('basicSalary')?.touched">
-                            基本給は必須です</p>
-                        <p *ngIf="form.get('basicSalary')?.errors?.['min'] && form.get('basicSalary')?.touched">
-                            基本給は0円以上で入力してください</p>
-                    </div>
-                    <div class="monthly-salary-container__content__form__item">
-                        <label for="fixedAllowance">固定手当</label>
-                        <input type="number" id="fixedAllowance" formControlName="fixedAllowance">
-                        <span>円</span>
-                        <p
-                            *ngIf="form.get('fixedAllowance')?.errors?.['required'] && form.get('fixedAllowance')?.touched">
-                            固定手当は必須です</p>
-                        <p *ngIf="form.get('fixedAllowance')?.errors?.['min'] && form.get('fixedAllowance')?.touched">
-                            固定手当は0円以上で入力してください</p>
-                    </div>
-                    <div class="monthly-salary-container__content__form__item">
-                        <label for="transportAllowance">通勤手当</label>
-                        <input type="number" id="transportAllowance" formControlName="transportAllowance">
-                        <span>円</span>
-                        <p
-                            *ngIf="form.get('transportAllowance')?.errors?.['required'] && form.get('transportAllowance')?.touched">
-                            通勤手当は必須です</p>
-                        <p
-                            *ngIf="form.get('transportAllowance')?.errors?.['min'] && form.get('transportAllowance')?.touched">
-                            通勤手当は0円以上で入力してください</p>
-                    </div>
-                    <div class="monthly-salary-container__content__form__item">
-                        <label for="variableAllowance">変動給</label>
-                        <input type="number" id="variableAllowance" formControlName="variableAllowance">
-                        <span>円</span>
-                        <p
-                            *ngIf="form.get('variableAllowance')?.errors?.['required'] && form.get('variableAllowance')?.touched">
-                            変動給は必須です</p>
-                        <p
-                            *ngIf="form.get('variableAllowance')?.errors?.['min'] && form.get('variableAllowance')?.touched">
-                            変動給は0円以上で入力してください</p>
-                    </div>
-                    </div>
-                </section>
+                    <section class="monthly-salary-container__content__form__section monthly-salary-form-subsection"
+                        *ngIf="inputFormat === 1">
+                        <span class="monthly-salary-section-label">給与内訳</span>
+                        <div class="monthly-salary-form-grid">
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="basicSalary">基本給</label>
+                                <input type="number" id="basicSalary" formControlName="basicSalary">
+                                <span>円</span>
+                                <p
+                                    *ngIf="form.get('basicSalary')?.errors?.['required'] && form.get('basicSalary')?.touched">
+                                    基本給は必須です</p>
+                                <p *ngIf="form.get('basicSalary')?.errors?.['min'] && form.get('basicSalary')?.touched">
+                                    基本給は0円以上で入力してください</p>
+                            </div>
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="fixedAllowance">固定手当</label>
+                                <input type="number" id="fixedAllowance" formControlName="fixedAllowance">
+                                <span>円</span>
+                                <p
+                                    *ngIf="form.get('fixedAllowance')?.errors?.['required'] && form.get('fixedAllowance')?.touched">
+                                    固定手当は必須です</p>
+                                <p
+                                    *ngIf="form.get('fixedAllowance')?.errors?.['min'] && form.get('fixedAllowance')?.touched">
+                                    固定手当は0円以上で入力してください</p>
+                            </div>
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="transportAllowance">通勤手当</label>
+                                <input type="number" id="transportAllowance" formControlName="transportAllowance">
+                                <span>円</span>
+                                <p
+                                    *ngIf="form.get('transportAllowance')?.errors?.['required'] && form.get('transportAllowance')?.touched">
+                                    通勤手当は必須です</p>
+                                <p
+                                    *ngIf="form.get('transportAllowance')?.errors?.['min'] && form.get('transportAllowance')?.touched">
+                                    通勤手当は0円以上で入力してください</p>
+                            </div>
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="variableAllowance">変動給</label>
+                                <input type="number" id="variableAllowance" formControlName="variableAllowance">
+                                <span>円</span>
+                                <p
+                                    *ngIf="form.get('variableAllowance')?.errors?.['required'] && form.get('variableAllowance')?.touched">
+                                    変動給は必須です</p>
+                                <p
+                                    *ngIf="form.get('variableAllowance')?.errors?.['min'] && form.get('variableAllowance')?.touched">
+                                    変動給は0円以上で入力してください</p>
+                            </div>
+                        </div>
+                    </section>
 
-                <section class="monthly-salary-container__content__form__section monthly-salary-form-subsection">
-                    <span class="monthly-salary-section-label">支給額</span>
-                    <div class="monthly-salary-form-grid">
-                    <div class="monthly-salary-container__content__form__item">
-                        <label for="fixedSalary">固定給</label>
-                        <input type="number" id="fixedSalary" formControlName="fixedSalary" [readonly]="inputFormat === 1">
-                        <span>円</span>
-                        <p *ngIf="form.get('fixedSalary')?.errors?.['required'] && form.get('fixedSalary')?.touched">
-                            固定給は必須です</p>
-                        <p *ngIf="form.get('fixedSalary')?.errors?.['min'] && form.get('fixedSalary')?.touched">
-                            固定給は0円以上で入力してください</p>
-                    </div>
-                    <div class="monthly-salary-container__content__form__item">
-                        <label for="actualPaymentAmount">総支給額</label>
-                        <input type="number" id="actualPaymentAmount" formControlName="actualPaymentAmount" [readonly]="inputFormat === 1">
-                        <span>円</span>
-                        <p
-                            *ngIf="form.get('actualPaymentAmount')?.errors?.['required'] && form.get('actualPaymentAmount')?.touched">
-                            総支給額は必須です</p>
-                        <p
-                            *ngIf="form.get('actualPaymentAmount')?.errors?.['min'] && form.get('actualPaymentAmount')?.touched">
-                            総支給額は0円以上で入力してください</p>
-                    </div>
-                    </div>
-                    <div class="monthly-salary-form-error">
-                        <p *ngIf="form.hasError('invalidSalary')">勤務実績がある場合、総支給額は1円以上で入力してください</p>
-                        <p *ngIf="form.hasError('invalidActualPaymentAmount')">総支給額は固定給以上で入力してください</p>
-                    </div>
-                </section>
+                    <section class="monthly-salary-container__content__form__section monthly-salary-form-subsection">
+                        <span class="monthly-salary-section-label">支給額</span>
+                        <div class="monthly-salary-form-grid">
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="fixedSalary">固定給</label>
+                                <input type="number" id="fixedSalary" formControlName="fixedSalary"
+                                    [readonly]="inputFormat === 1">
+                                <span>円</span>
+                                <p
+                                    *ngIf="form.get('fixedSalary')?.errors?.['required'] && form.get('fixedSalary')?.touched">
+                                    固定給は必須です</p>
+                                <p *ngIf="form.get('fixedSalary')?.errors?.['min'] && form.get('fixedSalary')?.touched">
+                                    固定給は0円以上で入力してください</p>
+                            </div>
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="actualPaymentAmount">総支給額</label>
+                                <input type="number" id="actualPaymentAmount" formControlName="actualPaymentAmount"
+                                    [readonly]="inputFormat === 1">
+                                <span>円</span>
+                                <p
+                                    *ngIf="form.get('actualPaymentAmount')?.errors?.['required'] && form.get('actualPaymentAmount')?.touched">
+                                    総支給額は必須です</p>
+                                <p
+                                    *ngIf="form.get('actualPaymentAmount')?.errors?.['min'] && form.get('actualPaymentAmount')?.touched">
+                                    総支給額は0円以上で入力してください</p>
+                            </div>
+                        </div>
+                        <div class="monthly-salary-form-error">
+                            <p *ngIf="form.hasError('invalidSalary')">勤務実績がある場合、総支給額は1円以上で入力してください</p>
+                            <p *ngIf="form.hasError('invalidActualPaymentAmount')">総支給額は固定給以上で入力してください</p>
+                        </div>
+                    </section>
 
-                <div class="monthly-salary-form-actions">
-                    <button type="submit" class="im-btn-primary">登録</button>
-                    <button type="button" class="im-btn-soft" (click)="resetForm()">リセット</button>
-                </div>
-            </form>
+                    <div class="monthly-salary-form-actions">
+                        <button type="submit" class="im-btn-primary">登録</button>
+                        <button type="button" class="im-btn-soft" (click)="resetForm()">リセット</button>
+                    </div>
+                </form>
             </section>
         </div>
 
@@ -209,6 +222,11 @@
             <h3>給与・勤務実績一覧</h3>
             <app-salary-list *ngIf="payrollId" [payrollId]="payrollId"></app-salary-list>
         </section>
+    </div>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button class="im-btn-primary" (click)="toApplicationList()">今月の申請一覧へ▶</button>
+        <button class="im-btn-soft" (click)="toInsuranceConfirm()">保険料確認へ▶▶</button>
     </div>
 
 </div>

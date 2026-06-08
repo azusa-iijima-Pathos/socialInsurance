@@ -537,4 +537,13 @@ export class InsuranceForBonus {
     }));
   }
 
+  /** 賞与入力へ遷移 */
+  toBonusInput() {
+    this.router.navigate(['/bonus', this.payrollId]);
+  }
+  /** トップ画面に遷移 */
+  toTop() {
+    this.router.navigate(['/top-for-manage']);
+  }
+
 }

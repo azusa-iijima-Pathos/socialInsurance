@@ -4,10 +4,11 @@
         <p *ngIf="message" class="im-action-message">{{ message }}</p>
     </div>
 
+    <div *ngIf="allPayrollListForMonth().length === 0" style="text-align: center; margin-top: 16px; color: var(--im-color-black);">
+        <p>給与・勤務実績が登録されていません</p>
+    </div>
+
     <div class="monthly-salary-list-container__content">
-        <div *ngIf="allPayrollListForMonth().length === 0">
-            <p>給与・勤務実績が登録されていません</p>
-        </div>
         <div *ngIf="allPayrollListForMonth().length > 0">
             <table class="monthly-salary-list-container__content__table">
                 <thead>
@@ -50,7 +51,7 @@
             <div class="salary-edit-modal__header">
                 <h2>
                     {{ isBonus ? '賞与編集' : '給与・勤務実績編集' }}
-                    <span class="salary-edit-modal__payroll-id">社員ID：{{ form.value.employeeId }} 　 {{ isBonus ? '支給月' : '対象月' }}：{{ form.value.payrollId }}</span>
+                    <span class="salary-edit-modal__payroll-id">社員ID：{{ form.value.employeeId }}　名前：{{commonService.getEmployeeName(form.value.employeeId!)}}　{{ isBonus ? '支給月' : '対象月' }}：{{ form.value.payrollId }}</span>
                 </h2>
             </div>
             <form class="salary-edit-form" [formGroup]="form" (ngSubmit)="editPayrollModalSubmit()">
@@ -141,13 +142,10 @@
                             <div class="error">
                                 <p *ngIf="form.get('actualPaymentAmount')?.errors?.['required'] && form.get('actualPaymentAmount')?.touched">総支給額は必須です</p>
                                 <p *ngIf="form.get('actualPaymentAmount')?.errors?.['min'] && form.get('actualPaymentAmount')?.touched">0以上で入力してください</p>
+                                <p *ngIf="form.hasError('invalidActualPaymentAmount')">総支給額は固定給以上で入力してください</p>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <div class="salary-edit-form-error" *ngIf="correctionMode && !isBonus">
-                    <p *ngIf="form.hasError('invalidActualPaymentAmount')">総支給額は固定給以上で入力してください</p>
                 </div>
 
                 <div class="salary-edit-actions">

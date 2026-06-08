@@ -580,4 +580,19 @@ export class InsuranceConfirm {
     this.insuranceConfirmCsvService.exportWithSalary(this.dataForShow, this.workingYear, this.workingMonth);
   }
 
+  /** 給与・勤務実績登録へ遷移 */
+  toPayrollForm() {
+    this.router.navigate(['/monthly-salary', this.workingYear, this.workingMonth]);
+  }
+
+  /** 今月の申請一覧へ遷移 */
+  toApplicationList() {
+    this.router.navigate(['/system-application-list']);
+  }
+
+  /** トップ画面に遷移 */
+  toTop() {
+    this.router.navigate(['/top-for-manage']);
+  }
+
 }

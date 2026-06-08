@@ -95,8 +95,14 @@ export class UserForm {
     sessionStorage.removeItem('loginUserUID');
     //セッションストレージの会社IDを登録（もしくは上書き）
     sessionStorage.setItem('companyId', user.companyId!);
+    //セッションストレージの権限を登録（もしくは上書き）
+    sessionStorage.setItem('permission', user.permission!);
 
-    this.router.navigate(['/top']);
+    if(this.permission === '管理' || this.permission === '承認') {
+      this.router.navigate(['/top-for-manage']);
+    } else {
+      this.router.navigate(['/top-for-employee']);
+    }
   }
 
   toCompanyForm() {

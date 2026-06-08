@@ -148,6 +148,11 @@ export class CompanyForm {
       return;
     }
 
+    const confirmResult = await window.confirm('会社情報を登録します。よろしいですか？');
+    if (!confirmResult) {
+      return;
+    }
+
     //社会保険加入義務(自動か手動かで判定結果をセット)
     if (!this.socialInsuranceByManual) {
       this.form.patchValue({

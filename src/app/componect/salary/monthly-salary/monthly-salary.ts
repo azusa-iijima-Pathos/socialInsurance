@@ -272,4 +272,13 @@ export class MonthlySalary {
     this.applySalaryInputValidators();
   }
 
+  /** 今月の申請一覧へ遷移 */
+  toApplicationList() {
+    this.router.navigate(['/system-application-list']);
+  }
+
+  /** 保険料確認へ遷移 */
+  toInsuranceConfirm() {
+    this.router.navigate(['/insurance-confirm', this.workingYear, this.workingMonth]);
+  }
 }
