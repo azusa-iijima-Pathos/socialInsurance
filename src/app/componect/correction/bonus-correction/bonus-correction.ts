@@ -8,6 +8,7 @@ import { PayrollService } from '../../../service/Firestore/payroll-service';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
 import { InsuranceSnapshotService } from '../../../service/Firestore/insurance-snapshot-service';
+import { InsuranceDisplayService } from '../../../service/logic/insurance-display.service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { Payroll } from '../../../model/payroll';
 import { Employee } from '../../../model/employee';
@@ -42,6 +43,7 @@ export class BonusCorrection {
   private calculationRunService = inject(CalculationRunService);
   private payrollLockService = inject(PayrollLockService);
   private insuranceSnapshotService = inject(InsuranceSnapshotService);
+  private insuranceDisplayService = inject(InsuranceDisplayService);
   commonService = inject(CommonService);
 
   message = '';
@@ -70,6 +72,8 @@ export class BonusCorrection {
   async loadRows() {
     this.rows = [];
     if (!this.selectedPayrollId) return;
+    const adjustmentRuns = (await this.calculationRunService.getAllCalculationRuns())
+      .filter(run => run.type === '差額調整');
     await this.payrollService.getAllPayrollListForMonth(this.selectedPayrollId);
     const payrollList = this.payrollService.allPayrollListForMonth()
       .find(item => item.payrollId === this.selectedPayrollId)?.payrollList ?? [];
@@ -78,7 +82,9 @@ export class BonusCorrection {
       const employeeId = payroll.employeeId ?? '';
       const employee = employeeId ? await this.employeeService.getEmployeeByEmployeeId(employeeId) : null;
       const snapshot = employeeId ? await this.insuranceSnapshotService.getSnapshot(employeeId, this.selectedPayrollId) : null;
-      const totals = this.getSnapshotTotals(snapshot);
+      const totals = snapshot
+        ? this.insuranceDisplayService.getAdjustedSnapshotTotals(snapshot, adjustmentRuns, employeeId, this.selectedPayrollId)
+        : { health: 0, nursing: 0, pension: 0 };
       this.rows.push({
         payroll,
         employeeName: employeeId ? this.commonService.getEmployeeName(employeeId) ?? employeeId : '',

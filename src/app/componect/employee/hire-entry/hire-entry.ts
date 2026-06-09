@@ -56,6 +56,8 @@ export class HireEntry {
   private messageTimer: MessageTimer = null;
 
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? '';
+  workingYear = sessionStorage.getItem('workingYear') ?? '';
+  workingMonth = sessionStorage.getItem('workingMonth') ?? '';
 
   form = this.fb.nonNullable.group({
     employeeId: ['', [Validators.required, Validators.pattern('^[a-zA-Z0-9]+$')], [this.validationService.validateEmployeeId]],

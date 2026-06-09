@@ -67,6 +67,10 @@
               <dt>休職開始日</dt>
               <dd>{{ getLeaveStartDisplay() }}</dd>
             </div>
+            <div class="employee-detail-info-grid__item">
+              <dt>休職終了日</dt>
+              <dd>{{ getLeaveEndDisplay() }}</dd>
+            </div>
           </ng-container>
           <ng-container *ngIf="activeTab === 'insurance'">
             <div class="employee-detail-info-grid__item">
@@ -177,6 +181,26 @@
               </select>
             </div>
           </div>
+          <div class="im-field-block im-field-row employee-edit-field">
+            <div class="im-field-row__label"><label for="retroLeaveStartDate">休職開始日</label></div>
+            <div class="im-field-row__control">
+              <input type="date" id="retroLeaveStartDate" formControlName="leaveStartDate">
+              <div class="error">
+                <p *ngIf="form.get('leaveStartDate')?.errors?.['required'] && form.get('leaveStartDate')?.touched">
+                  休職開始日または休職終了日のいずれかを入力してください</p>
+              </div>
+            </div>
+          </div>
+          <div class="im-field-block im-field-row employee-edit-field">
+            <div class="im-field-row__label"><label for="retroLeaveEndDate">休職終了日</label></div>
+            <div class="im-field-row__control">
+              <input type="date" id="retroLeaveEndDate" formControlName="leaveEndDate">
+              <div class="error">
+                <p *ngIf="form.get('leaveEndDate')?.errors?.['leaveEndBeforeStart'] && form.get('leaveEndDate')?.touched">
+                  休職終了日は休職開始日より後の日付で入力してください</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="retroactive-insurance-grid" *ngIf="activeTab === 'insurance'">
@@ -193,13 +217,25 @@
             <div class="insurance-detail-fields"
               [class.insurance-detail-fields--disabled]="form.get('healthInsurance.joined')?.value === 'notJoined'">
               <div class="add-insurance-info-form-group"><label>健康保険番号</label><input type="text"
-                  formControlName="number"></div>
+                  formControlName="number">
+                <div class="error"><p *ngIf="getInsuranceControlError('healthInsurance.number', '健康保険番号')">{{
+                  getInsuranceControlError('healthInsurance.number', '健康保険番号') }}</p></div>
+              </div>
               <div class="add-insurance-info-form-group"><label>健康保険取得日</label><input type="date"
-                  formControlName="acquiredDate"></div>
+                  formControlName="acquiredDate">
+                <div class="error"><p *ngIf="getInsuranceControlError('healthInsurance.acquiredDate', '健康保険取得日')">{{
+                  getInsuranceControlError('healthInsurance.acquiredDate', '健康保険取得日') }}</p></div>
+              </div>
               <div class="add-insurance-info-form-group"><label>健康保険喪失日</label><input type="date"
-                  formControlName="lostDate"></div>
+                  formControlName="lostDate">
+                <div class="error"><p *ngIf="getInsuranceControlError('healthInsurance.lostDate', '健康保険喪失日')">{{
+                  getInsuranceControlError('healthInsurance.lostDate', '健康保険喪失日') }}</p></div>
+              </div>
               <div class="add-insurance-info-form-group"><label>会社負担率 <input type="number"
-                    formControlName="companyBurdenRate"> ％</label></div>
+                    formControlName="companyBurdenRate"> ％</label>
+                <div class="error"><p *ngIf="getInsuranceControlError('healthInsurance.companyBurdenRate', '会社負担率')">{{
+                  getInsuranceControlError('healthInsurance.companyBurdenRate', '会社負担率') }}</p></div>
+              </div>
             </div>
           </div>
 
@@ -208,7 +244,7 @@
             <div class="im-radio-group">
               <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入</span></label>
-              <label class="im-radio-option"><input type="radio" formControlName="joined"
+              <label class="im-radio-option" *ngIf="!areSubInsuranceOptionsLimited()"><input type="radio" formControlName="joined"
                   value="notJoined"><span>未加入</span></label>
               <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="lost"><span>喪失</span></label>
@@ -216,13 +252,25 @@
             <div class="insurance-detail-fields"
               [class.insurance-detail-fields--disabled]="form.get('nursingCareInsurance.joined')?.value === 'notJoined'">
               <div class="add-insurance-info-form-group"><label>介護保険番号</label><input type="text"
-                  formControlName="number"></div>
+                  formControlName="number">
+                <div class="error"><p *ngIf="getInsuranceControlError('nursingCareInsurance.number', '介護保険番号')">{{
+                  getInsuranceControlError('nursingCareInsurance.number', '介護保険番号') }}</p></div>
+              </div>
               <div class="add-insurance-info-form-group"><label>介護保険取得日</label><input type="date"
-                  formControlName="acquiredDate"></div>
+                  formControlName="acquiredDate">
+                <div class="error"><p *ngIf="getInsuranceControlError('nursingCareInsurance.acquiredDate', '介護保険取得日')">{{
+                  getInsuranceControlError('nursingCareInsurance.acquiredDate', '介護保険取得日') }}</p></div>
+              </div>
               <div class="add-insurance-info-form-group"><label>介護保険喪失日</label><input type="date"
-                  formControlName="lostDate"></div>
+                  formControlName="lostDate">
+                <div class="error"><p *ngIf="getInsuranceControlError('nursingCareInsurance.lostDate', '介護保険喪失日')">{{
+                  getInsuranceControlError('nursingCareInsurance.lostDate', '介護保険喪失日') }}</p></div>
+              </div>
               <div class="add-insurance-info-form-group"><label>会社負担率 <input type="number"
-                    formControlName="companyBurdenRate"> ％</label></div>
+                    formControlName="companyBurdenRate"> ％</label>
+                <div class="error"><p *ngIf="getInsuranceControlError('nursingCareInsurance.companyBurdenRate', '会社負担率')">{{
+                  getInsuranceControlError('nursingCareInsurance.companyBurdenRate', '会社負担率') }}</p></div>
+              </div>
             </div>
           </div>
 
@@ -231,7 +279,7 @@
             <div class="im-radio-group">
               <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入</span></label>
-              <label class="im-radio-option"><input type="radio" formControlName="joined"
+              <label class="im-radio-option" *ngIf="!areSubInsuranceOptionsLimited()"><input type="radio" formControlName="joined"
                   value="notJoined"><span>未加入</span></label>
               <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="lost"><span>喪失</span></label>
@@ -239,13 +287,25 @@
             <div class="insurance-detail-fields"
               [class.insurance-detail-fields--disabled]="form.get('employeePensionInsurance.joined')?.value === 'notJoined'">
               <div class="add-insurance-info-form-group"><label>厚生年金番号</label><input type="text"
-                  formControlName="number"></div>
+                  formControlName="number">
+                <div class="error"><p *ngIf="getInsuranceControlError('employeePensionInsurance.number', '厚生年金番号')">{{
+                  getInsuranceControlError('employeePensionInsurance.number', '厚生年金番号') }}</p></div>
+              </div>
               <div class="add-insurance-info-form-group"><label>厚生年金取得日</label><input type="date"
-                  formControlName="acquiredDate"></div>
+                  formControlName="acquiredDate">
+                <div class="error"><p *ngIf="getInsuranceControlError('employeePensionInsurance.acquiredDate', '厚生年金取得日')">{{
+                  getInsuranceControlError('employeePensionInsurance.acquiredDate', '厚生年金取得日') }}</p></div>
+              </div>
               <div class="add-insurance-info-form-group"><label>厚生年金喪失日</label><input type="date"
-                  formControlName="lostDate"></div>
+                  formControlName="lostDate">
+                <div class="error"><p *ngIf="getInsuranceControlError('employeePensionInsurance.lostDate', '厚生年金喪失日')">{{
+                  getInsuranceControlError('employeePensionInsurance.lostDate', '厚生年金喪失日') }}</p></div>
+              </div>
               <div class="add-insurance-info-form-group"><label>会社負担率 <input type="number"
-                    formControlName="companyBurdenRate"> ％</label></div>
+                    formControlName="companyBurdenRate"> ％</label>
+                <div class="error"><p *ngIf="getInsuranceControlError('employeePensionInsurance.companyBurdenRate', '会社負担率')">{{
+                  getInsuranceControlError('employeePensionInsurance.companyBurdenRate', '会社負担率') }}</p></div>
+              </div>
             </div>
           </div>
           <div class="error" *ngIf="form.hasError('healthInsuranceDependency')">

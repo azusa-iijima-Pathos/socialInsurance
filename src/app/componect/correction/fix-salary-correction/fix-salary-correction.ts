@@ -80,11 +80,9 @@ export class FixSalaryCorrection {
     const workingKey = working.year * 12 + working.month;
 
     if (revisionKey <= workingKey) {
-      const baseRunId = `固定給変更_${revisionMonth.year}_${String(revisionMonth.month).padStart(2, '0')}`;
-      await this.calculationRunService.createSystemEventRun(
+      await this.calculationRunService.createAdHocRevisionRun(
         employeeId,
-        baseRunId,
-        '固定給変更',
+        revisionMonth,
         { before, after },
         Timestamp.fromDate(getFixedSalarySystemOccurredDate(revisionMonth)),
       );

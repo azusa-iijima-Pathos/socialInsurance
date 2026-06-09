@@ -2,8 +2,9 @@
     <h1 class="im-title">入社処理</h1>
 
     <div class="information-area">
-        <p>従業員情報を登録してください。</p>
+        <p>{{ workingMonth }}月に入社した従業員の情報を登録してください。</p>
         <p>扶養情報は従業員が登録することも可能です。（その場合、承認が必要になります。）</p>
+        <p>※保険情報は行政の確定前であっても暫定で登録してください。（確定後、保険番号を従業員情報から登録してください。）</p>
     </div>
 
     <p *ngIf="message" class="im-action-message">{{ message }}</p>

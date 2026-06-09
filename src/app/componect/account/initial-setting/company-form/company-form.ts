@@ -196,6 +196,8 @@ export class CompanyForm {
     if (!userUpdateResult) {
       throw new Error('アカウント権限更新失敗');
     }
+    
+    sessionStorage.setItem('permission', '管理');
 
     //本社を1事業所として登録
     const office: Partial<Office> = {

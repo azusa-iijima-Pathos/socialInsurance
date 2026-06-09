@@ -174,7 +174,7 @@
                                     }}</dd>
                             </div>
                             <div class="employee-detail-info-grid__item"
-                                *ngIf="selectedEmployee.insurance?.healthInsurance?.lostDate">
+                                *ngIf="!selectedEmployee.insurance?.healthInsurance?.joined && selectedEmployee.insurance?.healthInsurance?.lostDate">
                                 <dt>喪失日</dt>
                                 <dd>{{ commonService.formatDate(selectedEmployee.insurance?.healthInsurance?.lostDate!)
                                     }}</dd>
@@ -207,7 +207,7 @@
                                     }}</dd>
                             </div>
                             <div class="employee-detail-info-grid__item"
-                                *ngIf="selectedEmployee.insurance?.nursingCareInsurance?.lostDate">
+                                *ngIf="!selectedEmployee.insurance?.nursingCareInsurance?.joined && selectedEmployee.insurance?.nursingCareInsurance?.lostDate">
                                 <dt>喪失日</dt>
                                 <dd>{{
                                     commonService.formatDate(selectedEmployee.insurance?.nursingCareInsurance?.lostDate!)
@@ -241,7 +241,7 @@
                                     }}</dd>
                             </div>
                             <div class="employee-detail-info-grid__item"
-                                *ngIf="selectedEmployee.insurance?.employeePensionInsurance?.lostDate">
+                                *ngIf="!selectedEmployee.insurance?.employeePensionInsurance?.joined && selectedEmployee.insurance?.employeePensionInsurance?.lostDate">
                                 <dt>喪失日</dt>
                                 <dd>{{
                                     commonService.formatDate(selectedEmployee.insurance?.employeePensionInsurance?.lostDate!)
@@ -630,6 +630,9 @@
                                     <p
                                         *ngIf="insuranceForm.get('healthInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && insuranceForm.get('healthInsurance.lostDate')?.touched">
                                         健康保険喪失日は取得日より後の日付で入力してください</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('healthInsurance.lostDate')?.errors?.['lostDateNotAllowed'] && insuranceForm.get('healthInsurance.lostDate')?.touched">
+                                        加入・未加入の場合は喪失日を入力できません</p>
                                 </div>
                             </div>
                         </div>
@@ -716,6 +719,9 @@
                                     <p
                                         *ngIf="insuranceForm.get('nursingCareInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && insuranceForm.get('nursingCareInsurance.lostDate')?.touched">
                                         介護保険喪失日は取得日より後の日付で入力してください</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('nursingCareInsurance.lostDate')?.errors?.['lostDateNotAllowed'] && insuranceForm.get('nursingCareInsurance.lostDate')?.touched">
+                                        加入・未加入の場合は喪失日を入力できません</p>
                                 </div>
                             </div>
                         </div>
@@ -798,6 +804,9 @@
                                     <p
                                         *ngIf="insuranceForm.get('employeePensionInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && insuranceForm.get('employeePensionInsurance.lostDate')?.touched">
                                         厚生年金喪失日は取得日より後の日付で入力してください</p>
+                                    <p
+                                        *ngIf="insuranceForm.get('employeePensionInsurance.lostDate')?.errors?.['lostDateNotAllowed'] && insuranceForm.get('employeePensionInsurance.lostDate')?.touched">
+                                        加入・未加入の場合は喪失日を入力できません</p>
                                 </div>
                             </div>
                         </div>

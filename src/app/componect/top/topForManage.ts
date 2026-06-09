@@ -1,14 +1,14 @@
 import { Component, inject, computed } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { CompanyService } from '../../service/Firestore/company-service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PayrollLockService } from '../../service/Firestore/payroll-lock-service';
 import { STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_2025 } from '../../insuranceData/forEmployee';
 import { STANDARD_MONTHLY_REMUNERATION_PERIOD_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025 } from '../../insuranceData/forEmployee';
-import { writeBatch } from 'firebase/firestore';
-import { doc } from 'firebase/firestore';
-import { Firestore } from '@angular/fire/firestore';
+import { PREFECTURE_INSURANCE_RATES_2026, PREFECTURE_INSURANCE_RATES_2025 } from '../../insuranceData/forEmployee';
+import { INSURANCE_RATE_PERIOD_2026, INSURANCE_RATE_PERIOD_2025 } from '../../insuranceData/forEmployee';
+import { Firestore, doc, writeBatch } from '@angular/fire/firestore';
 
 
 @Component({
@@ -102,15 +102,53 @@ export class TopForManage {
   private firestore = inject(Firestore);
 
 
-  
+  private router = inject(Router);
+  toCompanySetting() {
+    this.router.navigate(['/company-setting'], { queryParams: { mode: 'initial' } });
+  }
+
   //けんぽデータをFirestoreに保存
   async seedGrades() {
+    console.log('seedGrades');
     await this.seedGradesForYear('2026', STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2026);
   }
 
   async seedGrades2025() {
+    console.log('seedGrades2025');
     await this.seedGradesForYear('2025', STANDARD_MONTHLY_REMUNERATION_2025, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025);
   }
+
+  async seedInsuranceRates() {
+    await this.seedInsuranceRatesForYear('2026', PREFECTURE_INSURANCE_RATES_2026, INSURANCE_RATE_PERIOD_2026);
+  }
+
+  async seedInsuranceRates2025() {
+    await this.seedInsuranceRatesForYear('2025', PREFECTURE_INSURANCE_RATES_2025, INSURANCE_RATE_PERIOD_2025);
+  }
+
+  private async seedInsuranceRatesForYear(
+    year: string,
+    rates: { id: string; [key: string]: string | number }[],
+    period: { effectiveFrom: string; effectiveTo: string },
+  ) {
+    const batch = writeBatch(this.firestore);
+    batch.set(doc(this.firestore, 'insuranceRates', year), period, { merge: true });
+
+    for (const item of rates) {
+      const ref = doc(
+        this.firestore,
+        'insuranceRates',
+        year,
+        'prefectures',
+        `${item.id}`
+      );
+
+      batch.set(ref, item);
+    }
+
+    await batch.commit();
+  }
+
 
   private async seedGradesForYear(
     year: string,

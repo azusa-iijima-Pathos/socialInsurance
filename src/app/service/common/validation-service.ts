@@ -114,6 +114,7 @@ export class ValidationService {
     const employee: Employee | null = await this.employeeService.getEmployeeByCompanyIdAndEmployeeId(companyId, employeeId);
     //社員情報が取得できない場合はエラー
     if (!employee) {
+      console.log('社員情報が取得できない');
       return { employeeIncorrect: true };
     }
 
@@ -121,14 +122,21 @@ export class ValidationService {
     const users: User[] = await this.userService.getUsersByCompanyId(companyId);
     const user = users.find(user => user.employeeId === employeeId);
     if (user) {
+      console.log('すでに他のユーザが該当の会社IDと社員IDを使用している');
       return { employeeIncorrect: true };
     }
 
     //社員情報が取得できた場合は名前と生年月日が一致しているかチェック
-    const employeeBirthDate = employee.birthDate?.toDate().toISOString().slice(0, 10);
+    const date = employee.birthDate?.toDate();
+
+    const employeeBirthDate =
+      `${date!.getFullYear()}-${String(date!.getMonth() + 1).padStart(2, '0')}-${String(date!.getDate()).padStart(2, '0')}`;
+
     if (employee.firstName === firstName && employee.lastName === lastName && employeeBirthDate === birthDate) {
       return null;
     } else {
+      console.log(employee.firstName, employee.lastName, employeeBirthDate, birthDate);
+      console.log('名前と生年月日が一致していない');
       return { employeeIncorrect: true };
     }
   }

@@ -23,6 +23,7 @@
     <div class="information-area">
         <p>確定済みの保険料を確認できます。</p>
         <p>下のプルダウンから確認する年月を選択してください。</p>
+        <p>差額調整後のデータと確定時のデータを切り替えることができます。</p>
         <p>保険料を変更する場合は、遡及修正を行ってください。</p>
     </div>
 </div>
@@ -35,7 +36,15 @@
             {{ yearMonth }}
         </option>
     </select>
-    <h3> {{ outputYearMonth }}月分 </h3>
+    <div style="display: flex; gap: 10px; ">
+        <h3> {{ outputYearMonth }}月分 </h3>
+        <div style="display: flex; gap: 0px; margin-top: 15px; margin-bottom: 15px;">
+            <button class="im-btn-soft" [class.im-btn-primary]="outputViewMode === 'adjusted'"
+                (click)="setOutputViewMode('adjusted')">差額調整済みデータ</button>
+            <button class="im-btn-soft" [class.im-btn-primary]="outputViewMode === 'confirmed'"
+                (click)="setOutputViewMode('confirmed')">確定時データ</button>
+        </div>
+    </div>
 </div>
 
 <div *ngIf="payrollData.length === 0 && !isOutputMode">
@@ -46,26 +55,34 @@
     </div>
 </div>
 
-<div *ngIf="payrollData.length > 0">
+<div *ngIf="payrollData.length > 0 || (isOutputMode && dataForShow.length > 0)">
     <div *ngIf=" dataForShow.length> 0">
-        <h3>保険料従業員別一覧</h3>
 
-        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <button *ngIf="!editMode && !editButtonDisabled" class="im-btn-primary"
-                (click)="editInsurance()">保険料修正</button>
-            
-            <button *ngIf="editMode" class="im-btn-primary" (click)="saveInsuranceDrafts()"
-                [disabled]="insuranceEditErrors.length > 0">修正内容を一時保存</button>
-            <button *ngIf="editMode" class="im-btn-soft" (click)="cancelEditInsurance()">キャンセル</button>
+        <div class="header-container" style="display: flex; justify-content: space-between;">
+            <h3>保険料従業員別一覧</h3>
+            <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: flex-end; height: 35px;"
+                *ngIf="isOutputMode">
+                <button class="im-btn-soft" (click)="exportInsuranceOnlyCsv()">CSV出力（保険料）</button>
+                <button class="im-btn-soft" (click)="exportWithSalaryCsv()">CSV出力（給与含む）</button>
+            </div>
 
-            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()" >CSV出力（保険料）</button>
+            <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: flex-end; height: 35px;"
+                *ngIf="!isOutputMode">
 
-            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()" >CSV出力（給与含む）</button>
 
-            <button *ngIf="!editMode && !editButtonDisabled" class="im-btn-primary"
-                (click)="confirmInsurance()" style="margin-left: auto;">保険料確定</button>
+                <button *ngIf="editMode" class="im-btn-primary" (click)="saveInsuranceDrafts()"
+                    [disabled]="insuranceEditErrors.length > 0">修正内容を一時保存</button>
+                <button *ngIf="editMode" class="im-btn-soft" (click)="cancelEditInsurance()">キャンセル</button>
+
+                <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()">CSV出力（保険料）</button>
+
+                <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()">CSV出力（給与含む）</button>
+                <button *ngIf="!editMode && !editButtonDisabled" class="im-btn-primary"
+                    (click)="editInsurance()">保険料修正</button>
+                <button *ngIf="!editMode && !editButtonDisabled && !isOutputMode" class="im-btn-primary"
+                    (click)="confirmInsurance()" style="margin-left: auto;">保険料確定</button>
+            </div>
         </div>
-
 
         <table class="insurance-confirm-list-table">
             <thead>
@@ -220,23 +237,19 @@
             <p *ngFor="let error of insuranceEditErrors">{{ error }}</p>
         </div>
 
-        <div style="display: flex; gap: 10px; margin-right: auto;">
-            <button *ngIf="!editMode && !editButtonDisabled" class="im-btn-primary"
-                (click)="editInsurance()">保険料修正</button>
-            
+        <div style="display: flex; gap: 10px; justify-content: flex-end; height: 35px;" *ngIf="!isOutputMode">
             <button *ngIf="editMode" class="im-btn-primary" (click)="saveInsuranceDrafts()"
                 [disabled]="insuranceEditErrors.length > 0">修正内容を一時保存</button>
             <button *ngIf="editMode" class="im-btn-soft" (click)="cancelEditInsurance()">キャンセル</button>
-
-            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()" >CSV出力（保険料）</button>
-
-            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()" >CSV出力（給与含む）</button>
-
+            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()">CSV出力（保険料）</button>
+            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()">CSV出力（給与含む）</button>
             <button *ngIf="!editMode && !editButtonDisabled" class="im-btn-primary"
-                (click)="confirmInsurance()" style="margin-left: auto;">保険料確定</button>
+                (click)="editInsurance()">保険料修正</button>
+            <button *ngIf="!editMode && !editButtonDisabled && !isOutputMode" class="im-btn-primary"
+                (click)="confirmInsurance()">保険料確定</button>
         </div>
 
-        <h3>保険料合計</h3>
+        <h3>保険料会社合計</h3>
         <table>
             <thead>
                 <tr>
@@ -269,11 +282,40 @@
                     <td>{{ insuranceSummary.pensionInsuranceForCompany | number }}円</td>
                     <td style="font-weight: bold;">{{ insuranceSummary.totalInsuranceForCompany | number }}円</td>
                 </tr>
+                <tr>
+                    <th>年度通算合計（{{ fiscalYearLabel }}）</th>
+                    <td>{{ fiscalYearSummary.healthInsuranceNotice | number }}円</td>
+                    <td>{{ fiscalYearSummary.nursingCareInsuranceNotice | number }}円</td>
+                    <td>{{ fiscalYearSummary.pensionInsuranceNotice | number }}円</td>
+                    <td style="font-weight: bold;">{{ fiscalYearSummary.totalInsuranceNotice | number }}円</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>事業所別一覧<small>（納入告知額）</small></h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>事業所</th>
+                    <th>健康保険</th>
+                    <th>介護保険</th>
+                    <th>厚生年金</th>
+                    <th>合計</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let office of officeSummaries">
+                    <th>{{ office.officeName }}</th>
+                    <td>{{ office.healthInsuranceNotice | number }}円</td>
+                    <td>{{ office.nursingCareInsuranceNotice | number }}円</td>
+                    <td>{{ office.pensionInsuranceNotice | number }}円</td>
+                    <td>{{ office.totalInsuranceNotice | number }}円</td>
+                </tr>
             </tbody>
         </table>
     </div>
 </div>
 
-<div style="text-align: center; margin-top: 20px;" *ngIf="isOutputMode && (dataForShow.length === 0 || payrollData.length === 0)">
-        確定済みの保険データがありません。
+<div style="text-align: center; margin-top: 20px;" *ngIf="isOutputMode && dataForShow.length === 0">
+    確定済みの保険データがありません。
 </div>

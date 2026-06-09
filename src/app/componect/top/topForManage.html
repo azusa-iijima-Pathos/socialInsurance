@@ -1,25 +1,15 @@
 <div class="top-container">
     <h1>トップページ</h1>
 
-    <div *ngIf="!workingMonth && permission === '管理'" class="information-area">
+    <div *ngIf="!workingMonth && permission === '管理'" style="text-align: center;">
         <p>初期設定を行ってください。</p>
-        <p>初期設定を行った後、作業月を設定してください。</p>
+        <p>作業月の設定まで完了するとシステムを使用することができます。</p>
+        <button class="im-btn-primary" (click)="toCompanySetting()">初期設定設定へ▶</button>
     </div>
 
-    <div *ngIf="!workingMonth && permission === '管理'">
-        <h3>初期設定</h3>
-        <a [routerLink]="['/company-setting']" [queryParams]="{ mode: 'initial' }">（権限：管理）会社設定</a><br>
-        <a [routerLink]="['/permission-setting']" [queryParams]="{ mode: 'initial' }">（トップ権限のみ）権限付与/解除</a><br>
-        <a [routerLink]="['/employee-addInsurance']" [queryParams]="{ mode: 'initial' }">既存の従業員保険情報追加</a><br>
-    </div>
-
-    <div *ngIf="!workingMonth && permission === '管理'">
-        <h3>作業月設定</h3>
-        <p>現在の作業月が設定されていません。</p>
-        <p>これから保険料を算出する給与の対象月を設定してください。</p>
-        <input type="number" [(ngModel)]="workingYearInput" min="2000">年
-        <input type="number" [(ngModel)]="workingMonthInput" [min]="1" [max]="12">月
-        <button (click)="setWorkingMonth()">設定</button>
+    <div *ngIf="!workingMonth && permission === '承認'" style="text-align: center;">
+        <p>作業月の設定まで完了するとシステムを使用することができます。</p>
+        <p>管理者に作業月の設定を依頼してください。</p>
     </div>
 
     <div *ngIf="workingMonth">
@@ -93,5 +83,4 @@
 </div>
 
 
-<button (click)="seedGrades()">等級マスタを更新</button>
-<button (click)="seedGrades2025()">等級マスタ2025を更新</button>
+

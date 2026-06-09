@@ -11,6 +11,8 @@ import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { CompanyService } from '../Firestore/company-service';
 import { InsuranceRates } from '../Firestore/insurance-rates';
 import { PayrollService } from '../Firestore/payroll-service';
+import { InsuranceDisplayService } from './insurance-display.service';
+import { CalculationRun } from '../../model/calculation-run';
 
 export type MonthlyInsuranceDiff = {
   payrollId: string;
@@ -60,6 +62,8 @@ export class CorrectionLogicService {
   private calculationRunService = inject(CalculationRunService);
   private insuranceRates = inject(InsuranceRates);
   private payrollService = inject(PayrollService);
+  private insuranceDisplayService = inject(InsuranceDisplayService);
+  private differenceAdjustmentRuns: CalculationRun[] | null = null;
   enumerateConfirmedMonths(from: YearMonth, toExclusive: YearMonth): YearMonth[] {
     const months: YearMonth[] = [];
     let current = { ...from };
@@ -150,6 +154,7 @@ export class CorrectionLogicService {
     const snapshots = await this.insuranceSnapshotService.getSnapshotsForEmployee(employee.employeeId);
     const snapshotMap = new Map(snapshots.map(snapshot => [snapshot.payrollId ?? '', snapshot]));
     const prefecture = await this.officeService.getOfficeLocation(employee.employmentContract?.officeId ?? '');
+    const adjustmentRuns = await this.getDifferenceAdjustmentRuns();
     const rows: MonthlyInsuranceComparisonRow[] = [];
 
     for (const month of this.enumerateConfirmedMonths(from, toExclusive)) {
@@ -158,7 +163,7 @@ export class CorrectionLogicService {
       if (!snapshot) continue;
 
       const recalculated = await this.calculateMonthlyInsurance(employee, afterInsurance, prefecture ?? undefined, payrollId);
-      const current = this.getSnapshotTotals(snapshot);
+      const current = this.getAdjustedSnapshotTotals(snapshot, adjustmentRuns, employee.employeeId, payrollId);
       const calculated = this.getCalculatedTotals(recalculated);
 
       rows.push({
@@ -219,6 +224,43 @@ export class CorrectionLogicService {
     return candidates[0];
   }
 
+  /** 休職終了日をイベント・システム計算結果から特定（直近の復職） */
+  async getLeaveEndFromEvents(employeeId: string): Promise<Date | null> {
+    const candidates: Date[] = [];
+
+    const events = await this.eventService.getEmployeeEvents(employeeId);
+    for (const event of events) {
+      if (event.eventType !== '勤務状況変更' && event.eventType !== '雇用形態変更') continue;
+      const after = event.payload?.['after'] as Employee | undefined;
+      const before = event.payload?.['before'] as Employee | undefined;
+      if (before?.workStatus !== '休職中') continue;
+      if (after?.workStatus === '休職中') continue;
+
+      const date = event.occurredDate?.toDate() ?? event.appliedDate?.toDate();
+      if (date) candidates.push(date);
+    }
+
+    const runs = await this.calculationRunService.getAllCalculationRuns();
+    for (const run of runs) {
+      const runEmployeeId = String(run.targetEmployeeIds ?? run.payload?.['employeeId'] ?? '');
+      if (runEmployeeId !== employeeId || (run.type !== 'イベント' && run.type !== '随時改定')) continue;
+
+      const eventType = run.payload?.['eventType'];
+      if (eventType !== '勤務状況変更' && eventType !== '雇用形態変更') continue;
+
+      const after = run.payload?.['after'] as Employee | undefined;
+      const before = run.payload?.['before'] as Employee | undefined;
+      if (before?.workStatus !== '休職中' || after?.workStatus === '休職中') continue;
+
+      const occurred = run.payload?.['occurredDate'] as { toDate?: () => Date } | undefined;
+      if (occurred?.toDate) candidates.push(occurred.toDate());
+    }
+
+    if (candidates.length === 0) return null;
+    candidates.sort((left, right) => right.getTime() - left.getTime());
+    return candidates[0];
+  }
+
   /** 賞与修正時の保険料比較 */
   async calculateBonusInsuranceComparison(
     employee: Employee,
@@ -228,7 +270,8 @@ export class CorrectionLogicService {
     const snapshot = await this.insuranceSnapshotService.getSnapshot(employee.employeeId, payrollId);
     if (!snapshot) return null;
 
-    const current = this.getSnapshotTotals(snapshot);
+    const adjustmentRuns = await this.getDifferenceAdjustmentRuns();
+    const current = this.getAdjustedSnapshotTotals(snapshot, adjustmentRuns, employee.employeeId, payrollId);
     const calculated = await this.calculateBonusInsuranceTotals(employee, payrollId, newAmount);
 
     return {
@@ -262,6 +305,7 @@ export class CorrectionLogicService {
     const snapshots = await this.insuranceSnapshotService.getSnapshotsForEmployee(employee.employeeId);
     const snapshotMap = new Map(snapshots.map(snapshot => [snapshot.payrollId ?? '', snapshot]));
     const prefecture = await this.officeService.getOfficeLocation(employee.employmentContract?.officeId ?? '');
+    const adjustmentRuns = await this.getDifferenceAdjustmentRuns();
     const diffs: MonthlyInsuranceDiff[] = [];
 
     for (const month of this.enumerateConfirmedMonths(from, toExclusive)) {
@@ -270,7 +314,7 @@ export class CorrectionLogicService {
       if (!snapshot) continue;
 
       const recalculated = await this.calculateMonthlyInsurance(employee, afterInsurance, prefecture ?? undefined, payrollId);
-      const oldTotals = this.getSnapshotTotals(snapshot);
+      const oldTotals = this.getAdjustedSnapshotTotals(snapshot, adjustmentRuns, employee.employeeId, payrollId);
       const newTotals = this.getCalculatedTotals(recalculated);
 
       const healthDiff = newTotals.health - oldTotals.health;
@@ -353,17 +397,26 @@ export class CorrectionLogicService {
       && (employee.leaveTypes === '産前産後' || employee.leaveTypes === '育児');
   }
 
+  private async getDifferenceAdjustmentRuns(): Promise<CalculationRun[]> {
+    if (this.differenceAdjustmentRuns) {
+      return this.differenceAdjustmentRuns;
+    }
+    const runs = await this.calculationRunService.getAllCalculationRuns();
+    this.differenceAdjustmentRuns = runs.filter(run => run.type === '差額調整');
+    return this.differenceAdjustmentRuns;
+  }
+
+  private getAdjustedSnapshotTotals(
+    snapshot: InsuranceSnapshot,
+    runs: CalculationRun[],
+    employeeId: string,
+    payrollId: string,
+  ) {
+    return this.insuranceDisplayService.getAdjustedSnapshotTotals(snapshot, runs, employeeId, payrollId);
+  }
+
   private getSnapshotTotals(snapshot: InsuranceSnapshot) {
-    const payments = snapshot.insurancePayments ?? [];
-    const sum = (type: string) => {
-      const payment = payments.find(item => item.insuranceType === type);
-      return (payment?.employeeBurdenAmount ?? 0) + (payment?.companyBurdenAmount ?? 0);
-    };
-    return {
-      health: sum('健康保険'),
-      nursing: sum('介護保険'),
-      pension: sum('厚生年金'),
-    };
+    return this.insuranceDisplayService.getSnapshotTotals(snapshot);
   }
 
   private getCalculatedTotals(calculated: { health: number; nursing: number; pension: number }) {

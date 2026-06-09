@@ -253,10 +253,12 @@ export class MonthlySalary {
     const result = await this.payrollService.registerPayroll(employeeId, salary);
     if (!result) {
       this.message = CREATE_MESSAGES.FAILED;
+      this.form.reset();
       return;
     }
     this.message = CREATE_MESSAGES.SUCCESS;
     await this.payrollService.getAllPayrollListForMonth(this.payrollId, true);
+    this.form.reset();
     this.commonService.showTimedMessage(this.message, value => this.message = value, this.messageTimer);
   }
 

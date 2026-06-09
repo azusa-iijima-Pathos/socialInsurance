@@ -44,7 +44,7 @@ export type BonusInsuranceConfirmCsvRow = {
 })
 export class InsuranceConfirmCsvService {
 
-  exportInsuranceOnly(rows: InsuranceConfirmCsvRow[], workingYear: number, workingMonth: number) {
+  exportInsuranceOnly(rows: InsuranceConfirmCsvRow[], workingYear: number, workingMonth: number, suffix = '') {
     const headers = [
       '従業員ID',
       '健康保険総額',
@@ -76,10 +76,10 @@ export class InsuranceConfirmCsvService {
       row.totalInsuranceForEmployee,
     ]);
 
-    this.downloadCsv(headers, body, `insurance-confirm-${workingYear}-${String(workingMonth).padStart(2, '0')}.csv`);
+    this.downloadCsv(headers, body, `insurance-confirm-${workingYear}-${String(workingMonth).padStart(2, '0')}${suffix}.csv`);
   }
 
-  exportWithSalary(rows: InsuranceConfirmCsvRow[], workingYear: number, workingMonth: number) {
+  exportWithSalary(rows: InsuranceConfirmCsvRow[], workingYear: number, workingMonth: number, suffix = '') {
     const headers = [
       '従業員ID',
       '固定給',
@@ -117,10 +117,10 @@ export class InsuranceConfirmCsvService {
       row.totalInsuranceForEmployee,
     ]);
 
-    this.downloadCsv(headers, body, `insurance-confirm-with-salary-${workingYear}-${String(workingMonth).padStart(2, '0')}.csv`);
+    this.downloadCsv(headers, body, `insurance-confirm-with-salary-${workingYear}-${String(workingMonth).padStart(2, '0')}${suffix}.csv`);
   }
 
-  exportBonusInsuranceOnly(rows: BonusInsuranceConfirmCsvRow[], payrollId: string) {
+  exportBonusInsuranceOnly(rows: BonusInsuranceConfirmCsvRow[], payrollId: string, suffix = '') {
     const headers = [
       '従業員ID',
       '健康保険総額',
@@ -152,10 +152,10 @@ export class InsuranceConfirmCsvService {
       row.totalInsuranceForEmployee,
     ]);
 
-    this.downloadCsv(headers, body, `bonus-insurance-confirm-${payrollId}.csv`);
+    this.downloadCsv(headers, body, `bonus-insurance-confirm-${payrollId}${suffix}.csv`);
   }
 
-  exportBonusWithSalary(rows: BonusInsuranceConfirmCsvRow[], payrollId: string) {
+  exportBonusWithSalary(rows: BonusInsuranceConfirmCsvRow[], payrollId: string, suffix = '') {
     const headers = [
       '従業員ID',
       '賞与支給額',
@@ -195,7 +195,7 @@ export class InsuranceConfirmCsvService {
       row.totalInsuranceForEmployee,
     ]);
 
-    this.downloadCsv(headers, body, `bonus-insurance-confirm-with-salary-${payrollId}.csv`);
+    this.downloadCsv(headers, body, `bonus-insurance-confirm-with-salary-${payrollId}${suffix}.csv`);
   }
 
   private downloadCsv(headers: string[], body: (string | number)[][], fileName: string) {

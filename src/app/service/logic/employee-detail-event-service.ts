@@ -8,8 +8,9 @@ import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { CompanyService } from '../Firestore/company-service';
 import { EmployeeLogicService } from './employee-logic-service';
 import {
+  addMonths,
+  buildAdHocRevisionRunId,
   buildCurrentWorkMonthEventId,
-  buildFixedSalarySystemEventId,
   buildRetireSystemEventId,
   getFixedSalarySystemOccurredDate,
   getWorkingYearMonth,
@@ -187,10 +188,11 @@ export class EmployeeDetailEventService {
     const adminId = await this.createAdminApprovedEvent(employeeId, '固定給変更', before, after, loginEmployeeId);
     if (adminId) createdIds.push(adminId);
 
-    const systemId = await this.calculationRunService.createSystemEventRun(
+    const working = getWorkingYearMonth();
+    const revisionMonth = addMonths(working.year, working.month, 3);
+    const systemId = await this.calculationRunService.createAdHocRevisionRun(
       employeeId,
-      buildFixedSalarySystemEventId(),
-      '固定給変更',
+      revisionMonth,
       { before, after },
       Timestamp.fromDate(getFixedSalarySystemOccurredDate()),
     );
@@ -246,8 +248,9 @@ export class EmployeeDetailEventService {
 
   private getActualInsuranceStatus(detail?: { joined?: boolean; lostDate?: unknown }): InsuranceStatusKind {
     if (!detail) return 'notJoined';
+    if (detail.joined) return 'joined';
     if (detail.lostDate) return 'lost';
-    return detail.joined ? 'joined' : 'notJoined';
+    return 'notJoined';
   }
 
   private hasDependentChanges(before: Dependent[], after: Dependent[]): boolean {

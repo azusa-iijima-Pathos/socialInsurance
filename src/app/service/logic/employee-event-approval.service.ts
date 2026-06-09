@@ -397,8 +397,9 @@ export class EmployeeEventApprovalService {
 
   private getActualStatus(detail?: InsuranceDetail): InsuranceStatusKind {
     if (!detail) return 'notJoined';
+    if (detail.joined) return 'joined';
     if (detail.lostDate) return 'lost';
-    return detail.joined ? 'joined' : 'notJoined';
+    return 'notJoined';
   }
 
   private buildInsuranceDetailFromDraft(

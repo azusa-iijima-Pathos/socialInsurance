@@ -16,6 +16,9 @@ import { InsuranceRates } from '../../../service/Firestore/insurance-rates';
 import { FormsModule } from '@angular/forms';
 import { InsuranceDraftService } from '../../../service/Firestore/insurance-draft-service';
 import { InsuranceDraft } from '../../../model/insurance-draft';
+import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
+import { CalculationRun } from '../../../model/calculation-run';
+import { InsuranceDisplayService, InsuranceNoticeSummary, OfficeInsuranceSummary } from '../../../service/logic/insurance-display.service';
 
 type EmployeeInsurance = {
   employeeId: string;
@@ -57,20 +60,9 @@ type InsuranceCalculatedValues = {
   pensionInsuranceForEmployee: number;
 };
 
-type InsuranceSummary = {
-  healthInsuranceNotice: number;
-  nursingCareInsuranceNotice: number;
-  pensionInsuranceNotice: number;
-  totalInsuranceNotice: number;
-  healthInsuranceForEmployee: number;
-  nursingCareInsuranceForEmployee: number;
-  pensionInsuranceForEmployee: number;
-  totalInsuranceForEmployee: number;
-  healthInsuranceForCompany: number;
-  nursingCareInsuranceForCompany: number;
-  pensionInsuranceForCompany: number;
-  totalInsuranceForCompany: number;
-};
+type InsuranceSummary = InsuranceNoticeSummary;
+
+type OutputViewMode = 'adjusted' | 'confirmed';
 
 
 @Component({
@@ -93,6 +85,8 @@ export class InsuranceConfirm {
   private insuranceSnapshotService = inject(InsuranceSnapshotService);
   private insuranceDraftService = inject(InsuranceDraftService);
   private insuranceRates = inject(InsuranceRates);
+  private calculationRunService = inject(CalculationRunService);
+  private insuranceDisplayService = inject(InsuranceDisplayService);
 
   companyId = sessionStorage.getItem('companyId');
 
@@ -111,22 +105,16 @@ export class InsuranceConfirm {
   insuranceDraftMap: Record<string, InsuranceDraft> = {};
   editMode = false;
   isOutputMode = false;
+  outputViewMode: OutputViewMode = 'adjusted';
   outputYearMonth = '';
+  fiscalYearLabel = '';
+  differenceAdjustmentRuns: CalculationRun[] = [];
+  confirmedOutputRows: EmployeeInsurance[] = [];
+  adjustedOutputRows: EmployeeInsurance[] = [];
+  fiscalYearSummary: InsuranceSummary = this.createEmptySummary();
+  officeSummaries: OfficeInsuranceSummary[] = [];
   insuranceEditErrors: string[] = [];
-  insuranceSummary: InsuranceSummary = {
-    healthInsuranceNotice: 0,
-    nursingCareInsuranceNotice: 0,
-    pensionInsuranceNotice: 0,
-    totalInsuranceNotice: 0,
-    healthInsuranceForEmployee: 0,
-    nursingCareInsuranceForEmployee: 0,
-    pensionInsuranceForEmployee: 0,
-    totalInsuranceForEmployee: 0,
-    healthInsuranceForCompany: 0,
-    nursingCareInsuranceForCompany: 0,
-    pensionInsuranceForCompany: 0,
-    totalInsuranceForCompany: 0,
-  };
+  insuranceSummary: InsuranceSummary = this.createEmptySummary();
 
   async ngOnInit() {
     // //標準月額報酬を取得
@@ -172,7 +160,158 @@ export class InsuranceConfirm {
     }, {});
 
     //従業員情報から保険料を取得
-    await this.getEmployeeInsurance(this.employeeData);
+    if (this.isOutputMode) {
+      await this.loadOutputModeData();
+    } else {
+      await this.getEmployeeInsurance(this.employeeData);
+      await this.updateExtendedSummaries(false);
+    }
+  }
+
+  setOutputViewMode(mode: OutputViewMode) {
+    this.outputViewMode = mode;
+    this.dataForShow = mode === 'adjusted' ? this.adjustedOutputRows : this.confirmedOutputRows;
+    this.calculateInsuranceSummary();
+    void this.updateExtendedSummaries(mode === 'adjusted');
+  }
+
+  private async loadOutputModeData() {
+    this.differenceAdjustmentRuns = (await this.calculationRunService.getAllCalculationRuns())
+      .filter(run => run.type === '差額調整');
+    await this.officeService.getAllOffice();
+    this.confirmedOutputRows = [];
+    this.adjustedOutputRows = [];
+
+    for (const employee of this.employeeData) {
+      const payroll = this.payrollData.find(item => item.employeeId === employee.employeeId);
+      const snapshot = await this.insuranceSnapshotService.getSnapshot(employee.employeeId, this.payrollId);
+      if (!snapshot && !payroll) continue;
+
+      const confirmedBreakdown = this.insuranceDisplayService.getSnapshotBreakdown(snapshot);
+      const adjustedBreakdown = this.insuranceDisplayService.getAdjustedSnapshotBreakdown(
+        snapshot,
+        this.differenceAdjustmentRuns,
+        employee.employeeId,
+        this.payrollId,
+      );
+
+      const adjustedGrade = this.insuranceDisplayService.getAdjustedGrade(
+        snapshot,
+        this.differenceAdjustmentRuns,
+        employee.employeeId,
+        this.payrollId,
+      );
+
+      this.confirmedOutputRows.push(this.buildOutputRow(employee, payroll, snapshot, confirmedBreakdown));
+      this.adjustedOutputRows.push(this.buildOutputRow(employee, payroll, snapshot, adjustedBreakdown, adjustedGrade));
+    }
+
+    this.setOutputViewMode(this.outputViewMode);
+  }
+
+  private buildOutputRow(
+    employee: Employee,
+    payroll: Payroll | undefined,
+    snapshot: InsuranceSnapshot | null,
+    breakdown: ReturnType<InsuranceDisplayService['getSnapshotBreakdown']>,
+    gradeOverride?: number,
+  ): EmployeeInsurance {
+    const hasPayrollData = Boolean(payroll);
+    const calculatedValues = {
+      healthInsurance: breakdown.healthInsurance,
+      nursingCareInsurance: breakdown.nursingCareInsurance,
+      pensionInsurance: breakdown.pensionInsurance,
+      healthInsuranceForCompany: breakdown.healthInsuranceForCompany,
+      nursingCareInsuranceForCompany: breakdown.nursingCareInsuranceForCompany,
+      pensionInsuranceForCompany: breakdown.pensionInsuranceForCompany,
+      healthInsuranceForEmployee: breakdown.healthInsuranceForEmployee,
+      nursingCareInsuranceForEmployee: breakdown.nursingCareInsuranceForEmployee,
+      pensionInsuranceForEmployee: breakdown.pensionInsuranceForEmployee,
+    };
+
+    return {
+      employeeId: employee.employeeId,
+      employeeName: this.commonService.getEmployeeName(employee.employeeId)!,
+      hasPayrollData,
+      actualWorkingDays: payroll?.actualWorkingDays ?? 0,
+      actualWorkingHours: payroll?.actualWorkingHours ?? 0,
+      fixedSalary: payroll?.fixedSalary ?? 0,
+      actualPaymentAmount: payroll?.actualPaymentAmount ?? 0,
+      grade: gradeOverride ?? Number(snapshot?.grade ?? employee.insurance?.currentGrade ?? 0),
+      ...breakdown,
+      calculatedValues,
+    };
+  }
+
+  private async updateExtendedSummaries(useAdjusted: boolean) {
+    const range = this.insuranceDisplayService.getFiscalYearRange(this.payrollId);
+    this.fiscalYearLabel = range.label;
+    this.fiscalYearSummary = await this.buildFiscalYearSummary(range.start, range.end, useAdjusted);
+    await this.officeService.getAllOffice();
+    this.officeSummaries = this.insuranceDisplayService.buildOfficeSummaries(
+      this.dataForShow,
+      this.employeeData,
+      this.officeService.allOfficeNameMap(),
+    );
+  }
+
+  private async buildFiscalYearSummary(start: string, end: string, useAdjusted: boolean): Promise<InsuranceSummary> {
+    const months = this.insuranceDisplayService.enumerateYearMonths(start, end);
+    const rows: ReturnType<InsuranceDisplayService['getSnapshotBreakdown']>[] = [];
+
+    if (this.isOutputMode) {
+      for (const employee of this.employeeData) {
+        const snapshots = await this.insuranceSnapshotService.getSnapshotsForEmployee(employee.employeeId);
+        const snapshotMap = new Map(snapshots.map(snapshot => [snapshot.payrollId ?? '', snapshot]));
+        for (const monthPayrollId of months) {
+          const snapshot = snapshotMap.get(monthPayrollId);
+          if (!snapshot) continue;
+          rows.push(
+            useAdjusted
+              ? this.insuranceDisplayService.getAdjustedSnapshotBreakdown(
+                snapshot,
+                this.differenceAdjustmentRuns,
+                employee.employeeId,
+                monthPayrollId,
+              )
+              : this.insuranceDisplayService.getSnapshotBreakdown(snapshot),
+          );
+        }
+      }
+      return this.insuranceDisplayService.summarizeRows(rows);
+    }
+
+    for (const monthPayrollId of months) {
+      if (monthPayrollId === this.payrollId) {
+        rows.push(...this.dataForShow.filter(item => item.hasPayrollData));
+        continue;
+      }
+
+      for (const employee of this.employeeData) {
+        const snapshot = await this.insuranceSnapshotService.getSnapshot(employee.employeeId, monthPayrollId);
+        if (!snapshot) continue;
+        rows.push(this.insuranceDisplayService.getSnapshotBreakdown(snapshot));
+      }
+    }
+
+    return this.insuranceDisplayService.summarizeRows(rows);
+  }
+
+  private createEmptySummary(): InsuranceSummary {
+    return {
+      healthInsuranceNotice: 0,
+      nursingCareInsuranceNotice: 0,
+      pensionInsuranceNotice: 0,
+      totalInsuranceNotice: 0,
+      healthInsuranceForEmployee: 0,
+      nursingCareInsuranceForEmployee: 0,
+      pensionInsuranceForEmployee: 0,
+      totalInsuranceForEmployee: 0,
+      healthInsuranceForCompany: 0,
+      nursingCareInsuranceForCompany: 0,
+      pensionInsuranceForCompany: 0,
+      totalInsuranceForCompany: 0,
+    };
   }
 
   async changeOutputYearMonth() {
@@ -313,6 +452,9 @@ export class InsuranceConfirm {
       this.dataForShow.push(employeeInsurance);
     }
     this.calculateInsuranceSummary();
+    if (!this.isOutputMode) {
+      await this.updateExtendedSummaries(false);
+    }
   }
 
   private applyDraft(employeeInsurance: EmployeeInsurance) {
@@ -369,29 +511,7 @@ export class InsuranceConfirm {
   }
 
   private calculateInsuranceSummary() {
-    const healthInsuranceNotice = Math.floor(this.dataForShow.reduce((total, item) => total + item.healthInsurance, 0));
-    const nursingCareInsuranceNotice = Math.floor(this.dataForShow.reduce((total, item) => total + item.nursingCareInsurance, 0));
-    const pensionInsuranceNotice = Math.floor(this.dataForShow.reduce((total, item) => total + item.pensionInsurance, 0));
-    const totalInsuranceNotice = Math.floor(this.dataForShow.reduce((total, item) => total + item.totalInsurance, 0));
-    const healthInsuranceForEmployee = this.dataForShow.reduce((total, item) => total + item.healthInsuranceForEmployee, 0);
-    const nursingCareInsuranceForEmployee = this.dataForShow.reduce((total, item) => total + item.nursingCareInsuranceForEmployee, 0);
-    const pensionInsuranceForEmployee = this.dataForShow.reduce((total, item) => total + item.pensionInsuranceForEmployee, 0);
-    const totalInsuranceForEmployee = healthInsuranceForEmployee + nursingCareInsuranceForEmployee + pensionInsuranceForEmployee;
-
-    this.insuranceSummary = {
-      healthInsuranceNotice,
-      nursingCareInsuranceNotice,
-      pensionInsuranceNotice,
-      totalInsuranceNotice,
-      healthInsuranceForEmployee,
-      nursingCareInsuranceForEmployee,
-      pensionInsuranceForEmployee,
-      totalInsuranceForEmployee,
-      healthInsuranceForCompany: healthInsuranceNotice - healthInsuranceForEmployee,
-      nursingCareInsuranceForCompany: nursingCareInsuranceNotice - nursingCareInsuranceForEmployee,
-      pensionInsuranceForCompany: pensionInsuranceNotice - pensionInsuranceForEmployee,
-      totalInsuranceForCompany: totalInsuranceNotice - totalInsuranceForEmployee,
-    };
+    this.insuranceSummary = this.insuranceDisplayService.summarizeRows(this.dataForShow.filter(item => item.hasPayrollData));
   }
 
   editInsurance() {
@@ -573,11 +693,23 @@ export class InsuranceConfirm {
   }
 
   exportInsuranceOnlyCsv() {
-    this.insuranceConfirmCsvService.exportInsuranceOnly(this.dataForShow, this.workingYear, this.workingMonth);
+    const suffix = this.isOutputMode ? `-${this.outputViewMode}` : '';
+    this.insuranceConfirmCsvService.exportInsuranceOnly(
+      this.dataForShow,
+      this.workingYear,
+      this.workingMonth,
+      suffix,
+    );
   }
 
   exportWithSalaryCsv() {
-    this.insuranceConfirmCsvService.exportWithSalary(this.dataForShow, this.workingYear, this.workingMonth);
+    const suffix = this.isOutputMode ? `-${this.outputViewMode}` : '';
+    this.insuranceConfirmCsvService.exportWithSalary(
+      this.dataForShow,
+      this.workingYear,
+      this.workingMonth,
+      suffix,
+    );
   }
 
   /** 給与・勤務実績登録へ遷移 */

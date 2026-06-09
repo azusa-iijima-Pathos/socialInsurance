@@ -18,31 +18,34 @@
         <div>
             <h4>健康保険</h4>
             <p>健康保険：{{ showStatus('healthInsurance') }}</p>
-            <div *ngIf="employee!.insurance!.healthInsurance!.joined || employee!.insurance!.healthInsurance!.lostDate">
+            <div *ngIf="showInsuranceDetail('healthInsurance')">
                 <p>健康保険番号：{{ employee!.insurance!.healthInsurance!.number }}</p>
-                <p>健康保険取得日：{{ commonService.formatDate(employee!.insurance!.healthInsurance!.acquiredDate) }}</p>
+                <p *ngIf="employee!.insurance!.healthInsurance!.acquiredDate">健康保険取得日：{{
+                    commonService.formatDate(employee!.insurance!.healthInsurance!.acquiredDate) }}</p>
             </div>
-            <p *ngIf="employee!.insurance!.healthInsurance!.lostDate">健康保険喪失日：{{
+            <p *ngIf="showLostDate('healthInsurance')">健康保険喪失日：{{
                 commonService.formatDate(employee!.insurance!.healthInsurance!.lostDate) }}</p>
         </div>
         <div>
             <h4>介護保険</h4>
             <p>介護保険：{{ showStatus('nursingCareInsurance') }}</p>
-            <div *ngIf="employee!.insurance!.nursingCareInsurance!.joined || employee!.insurance!.nursingCareInsurance!.lostDate">
+            <div *ngIf="showInsuranceDetail('nursingCareInsurance')">
                 <p>介護保険番号：{{ employee!.insurance!.nursingCareInsurance!.number }}</p>
-                <p>介護保険取得日：{{ commonService.formatDate(employee!.insurance!.nursingCareInsurance!.acquiredDate) }}</p>
+                <p *ngIf="employee!.insurance!.nursingCareInsurance!.acquiredDate">介護保険取得日：{{
+                    commonService.formatDate(employee!.insurance!.nursingCareInsurance!.acquiredDate) }}</p>
             </div>
-            <p *ngIf="employee!.insurance!.nursingCareInsurance!.lostDate">介護保険喪失日：{{
+            <p *ngIf="showLostDate('nursingCareInsurance')">介護保険喪失日：{{
                 commonService.formatDate(employee!.insurance!.nursingCareInsurance!.lostDate) }}</p>
         </div>
         <div>
             <h4>厚生年金</h4>
             <p>厚生年金：{{ showStatus('employeePensionInsurance') }}</p>
-            <div *ngIf="employee!.insurance!.employeePensionInsurance!.joined || employee!.insurance!.employeePensionInsurance!.lostDate">
+            <div *ngIf="showInsuranceDetail('employeePensionInsurance')">
                 <p>厚生年金番号：{{ employee!.insurance!.employeePensionInsurance!.number }}</p>
-                <p>厚生年金取得日：{{ commonService.formatDate(employee!.insurance!.employeePensionInsurance!.acquiredDate) }}</p>
+                <p *ngIf="employee!.insurance!.employeePensionInsurance!.acquiredDate">厚生年金取得日：{{
+                    commonService.formatDate(employee!.insurance!.employeePensionInsurance!.acquiredDate) }}</p>
             </div>
-            <p *ngIf="employee!.insurance!.employeePensionInsurance!.lostDate">厚生年金喪失日：{{
+            <p *ngIf="showLostDate('employeePensionInsurance')">厚生年金喪失日：{{
                 commonService.formatDate(employee!.insurance!.employeePensionInsurance!.lostDate) }}</p>
         </div>
     </div>

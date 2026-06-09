@@ -12,6 +12,7 @@ import { ActivatedRoute } from '@angular/router';
 import { DependentService } from '../../../service/Firestore/dependent-service';
 import { Dependent } from '../../../model/dependent';
 import { EmployeeDetailEventService } from '../../../service/logic/employee-detail-event-service';
+import { InsuranceFormService } from '../../../service/logic/insurance-form.service';
 import { EmployeeEventApprovalService, FixedSalaryApprovalDraft, InsuranceApprovalDraft } from '../../../service/logic/employee-event-approval.service';
 import { EventService } from '../../../service/Firestore/event-service';
 import { CalculationRunService, SystemCalculationRunItem } from '../../../service/Firestore/calculation-run-service';
@@ -60,6 +61,7 @@ export class EmployeeDetail {
   private fb = inject(FormBuilder);
   private validationService = inject(ValidationService);
   private employeeDetailEventService = inject(EmployeeDetailEventService);
+  private insuranceFormService = inject(InsuranceFormService);
   private employeeEventApprovalService = inject(EmployeeEventApprovalService);
   private eventService = inject(EventService);
   private calculationRunService = inject(CalculationRunService);
@@ -236,10 +238,7 @@ export class EmployeeDetail {
     if (!insuranceDetail) {
       return '未登録';
     }
-    if (insuranceDetail.lostDate) {
-      return '喪失';
-    }
-    return insuranceDetail.joined ? '加入' : '未加入';
+    return this.insuranceFormService.getStatusForDisplay(insuranceDetail);
   }
 
 
@@ -314,8 +313,8 @@ export class EmployeeDetail {
     };
 
     const newWorkStatus = this.contractForm.controls.workStatus.value as WorkStatus;
-    const wasRetireStatus = previousEmployee.workStatus === '退社済み' || previousEmployee.workStatus === '退社予定';
-    const isNewRetireStatus = newWorkStatus === '退社済み' || newWorkStatus === '退社予定';
+    const wasRetireStatus = previousEmployee.workStatus === '退社済み';
+    const isNewRetireStatus = newWorkStatus === '退社済み' ;
     if (isNewRetireStatus && !wasRetireStatus) {
       const confirmed = window.confirm(
         '退社にした場合、情報変更ができなくなります。変更後、イベント一覧から退社イベントの承認のみ行ってください。',
@@ -865,7 +864,7 @@ export class EmployeeDetail {
     this.setupInsuranceDetailControls('healthInsurance');
     this.setupInsuranceDetailControls('nursingCareInsurance');
     this.setupInsuranceDetailControls('employeePensionInsurance');
-    this.insuranceForm.setValidators(this.healthInsuranceDependencyValidator);
+    this.insuranceForm.setValidators(this.insuranceFormService.healthInsuranceDependencyValidator);
 
     this.insuranceForm.controls.healthInsurance.controls.joined.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -897,74 +896,19 @@ export class EmployeeDetail {
   }
 
   private updateInsuranceDetailControls(status: InsuranceStatus, insuranceName: InsuranceName) {
-    const insuranceGroup = this.insuranceForm.controls[insuranceName];
-    const needsInsuranceDetail = status === 'joined' || status === 'lost';
-    const needsLostDate = status === 'lost';
-
-    const numberControl = insuranceGroup.controls.number;
-    const acquiredDateControl = insuranceGroup.controls.acquiredDate;
-    const lostDateControl = insuranceGroup.controls.lostDate;
-    const companyBurdenRateControl = insuranceGroup.controls.companyBurdenRate;
-
-    numberControl.setValidators(
-      needsInsuranceDetail
-        ? [Validators.required, Validators.pattern('^[a-zA-Z0-9]+$')]
-        : [Validators.pattern('^[a-zA-Z0-9]+$')],
+    this.insuranceFormService.updateInsuranceDetailControls(
+      this.insuranceForm.controls[insuranceName],
+      status,
     );
-    acquiredDateControl.setValidators(needsInsuranceDetail ? [Validators.required] : null);
-    lostDateControl.setValidators(
-      needsInsuranceDetail
-        ? [needsLostDate ? Validators.required : null, this.lostDateAfterAcquiredDateValidator].filter(v => v !== null)
-        : null,
-    );
-    companyBurdenRateControl.setValidators(
-      needsInsuranceDetail
-        ? [Validators.required, Validators.min(0), Validators.max(100)]
-        : [Validators.min(0), Validators.max(100)],
-    );
-
-    for (const control of [numberControl, acquiredDateControl, lostDateControl, companyBurdenRateControl]) {
-      if (needsInsuranceDetail) {
-        control.enable({ emitEvent: false });
-      } else {
-        control.disable({ emitEvent: false });
-      }
-      control.updateValueAndValidity({ emitEvent: false });
-    }
     this.insuranceForm.updateValueAndValidity({ emitEvent: false });
   }
 
-  private lostDateAfterAcquiredDateValidator = (control: AbstractControl): ValidationErrors | null => {
-    const lostDate = control.value;
-    const acquiredDate = control.parent?.get('acquiredDate')?.value;
-    if (!lostDate || !acquiredDate) return null;
-    return lostDate > acquiredDate ? null : { lostDateBeforeAcquiredDate: true };
-  };
-
-  private healthInsuranceDependencyValidator = (control: AbstractControl): ValidationErrors | null => {
-    const healthStatus = control.get('healthInsurance.joined')?.value as InsuranceStatus | undefined;
-    const nursingStatus = control.get('nursingCareInsurance.joined')?.value as InsuranceStatus | undefined;
-    const pensionStatus = control.get('employeePensionInsurance.joined')?.value as InsuranceStatus | undefined;
-    if (healthStatus === 'joined') return null;
-    if (nursingStatus === 'joined' || pensionStatus === 'joined') {
-      return { healthInsuranceDependency: true };
-    }
-    return null;
-  };
+  getInsuranceControlError(controlPath: string, label: string): string | null {
+    return this.insuranceFormService.getControlErrorMessage(this.insuranceForm.get(controlPath), label);
+  }
 
   private syncSubInsuranceStatusesWithHealth(healthStatus: InsuranceStatus) {
-    if (healthStatus === 'joined') {
-      this.insuranceForm.updateValueAndValidity({ emitEvent: false });
-      return;
-    }
-
-    for (const name of ['nursingCareInsurance', 'employeePensionInsurance'] as const) {
-      const control = this.insuranceForm.controls[name].controls.joined;
-      if (control.value === 'joined') {
-        control.setValue(healthStatus, { emitEvent: true });
-      }
-    }
-    this.insuranceForm.updateValueAndValidity({ emitEvent: false });
+    this.insuranceFormService.syncSubInsuranceStatusesWithHealth(this.insuranceForm, healthStatus);
     this.applyCurrentGradeRule();
   }
 
@@ -1100,34 +1044,17 @@ export class EmployeeDetail {
   }
 
   private createInsuranceDetailFromForm(insuranceName: InsuranceName): InsuranceDetail {
-    const value = this.insuranceForm.controls[insuranceName].getRawValue();
-    if (value.joined === 'notJoined') {
-      return { joined: false };
-    }
-
-    return {
-      joined: value.joined === 'joined',
-      number: value.number,
-      acquiredDate: value.acquiredDate ? Timestamp.fromDate(new Date(value.acquiredDate)) : undefined,
-      ...(value.lostDate ? { lostDate: Timestamp.fromDate(new Date(value.lostDate)) } : {}),
-      companyBurdenRate: value.companyBurdenRate,
-    };
+    return this.insuranceFormService.createDetailFromForm(
+      this.insuranceForm.controls[insuranceName].getRawValue(),
+    );
   }
 
   private patchInsuranceGroup(detail?: InsuranceDetail) {
-    return {
-      joined: this.getInsuranceStatusValue(detail),
-      number: detail?.number ?? '',
-      acquiredDate: this.formatDateForInput(detail?.acquiredDate),
-      lostDate: this.formatDateForInput(detail?.lostDate),
-      companyBurdenRate: detail?.companyBurdenRate ?? 50,
-    };
+    return this.insuranceFormService.toFormValue(detail);
   }
 
   private getInsuranceStatusValue(detail?: InsuranceDetail): InsuranceStatus {
-    if (!detail) return 'notJoined';
-    if (detail.lostDate) return 'lost';
-    return detail.joined ? 'joined' : 'notJoined';
+    return this.insuranceFormService.getStatusValue(detail);
   }
 
   getDependentStatusLabel(isDependent?: boolean): string {

@@ -31,6 +31,7 @@ import { RetroactiveCorrection } from './componect/correction/retroactive-correc
 import { SalaryCorrection } from './componect/correction/salary-correction/salary-correction';
 import { BonusCorrection } from './componect/correction/bonus-correction/bonus-correction';
 import { CorrectionList } from './componect/correction/correction-list/correction-list';
+import { authGuard, companyGuard, initialSettingGuard } from './service/common/guard/auth-guard';
 
 export const routes: Routes = [
     { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -39,48 +40,86 @@ export const routes: Routes = [
     { path: 'forgot-password', component: ForgotPW, title: 'パスワードリセット ｜ 社会保険管理システム' },
 
     //ログイン後のみ
-    { path: 'initial-setting/user-form', component: UserForm , title: 'ユーザ情報初期登録 ｜ 社会保険管理システム'},
-    { path: 'initial-setting/company-form', component: CompanyForm , title: '会社情報初期登録 ｜ 社会保険管理システム'},
+    { path: 'initial-setting/user-form', component: UserForm, title: 'ユーザ情報初期登録 ｜ 社会保険管理システム', canActivate: [authGuard] },
+    { path: 'initial-setting/company-form', component: CompanyForm, title: '会社情報初期登録 ｜ 社会保険管理システム', canActivate: [authGuard] },
 
-    { path: 'top-for-employee', component: TopForEmployee , title: 'トップ ｜ 社会保険管理システム'},
-    { path: 'company-detail', component: CompanyDetail , title: '会社情報 ｜ 社会保険管理システム'},
-    { path: 'lifeevent-application', component: LifeeventApplication , title: 'ライフイベント申請 ｜ 社会保険管理システム'},
-    { path: 'my-insurance-detail', component: MyInsuranceDetail , title: '登録情報 ｜ 社会保険管理システム'},
-    { path: 'my-application', component: MyApplication , title: '申請内容一覧 ｜ 社会保険管理システム'},
+    { path: 'top-for-employee', component: TopForEmployee, title: 'トップ ｜ 社会保険管理システム', canActivate: [authGuard] },
+    { path: 'company-detail', component: CompanyDetail, title: '会社情報 ｜ 社会保険管理システム', canActivate: [authGuard] },
+    { path: 'lifeevent-application', component: LifeeventApplication, title: 'ライフイベント申請 ｜ 社会保険管理システム', canActivate: [authGuard] },
+    { path: 'my-insurance-detail', component: MyInsuranceDetail, title: '登録情報 ｜ 社会保険管理システム', canActivate: [authGuard] },
+    { path: 'my-application', component: MyApplication, title: '申請内容一覧 ｜ 社会保険管理システム', canActivate: [authGuard] },
 
     //会社情報初期登録後 セッションにUIDがあるかとトップ権限か確認して遷移
-    { path: 'initial-setting/:companyId/company-confirm', component: CompanyConfirm, title: '会社情報登録内容確認 ｜ 社会保険管理システム' },
-    { path: 'initial-setting/:companyId/office-form', component: OfficeForm, title: '事業所情報初期登録 ｜ 社会保険管理システム' },
-    { path: 'initial-setting/:companyId/employee-form', component: EmployeeForm, title: '社員情報初期登録 ｜ 社会保険管理システム' },
+    {
+        path: 'initial-setting/:companyId/company-confirm', component: CompanyConfirm, title: '会社情報登録内容確認 ｜ 社会保険管理システム',
+        canActivate: [initialSettingGuard, companyGuard], data: { permission: '管理' }
+    },
+    {
+        path: 'initial-setting/:companyId/office-form', component: OfficeForm, title: '事業所情報初期登録 ｜ 社会保険管理システム',
+        canActivate: [initialSettingGuard, companyGuard], data: { permission: '管理' }
+    },
+    {
+        path: 'initial-setting/:companyId/employee-form', component: EmployeeForm, title: '社員情報初期登録 ｜ 社会保険管理システム',
+        canActivate: [initialSettingGuard, companyGuard], data: { permission: '管理' }
+    },
 
     //メイン機能 (権限：管理、承認)
-    { path: 'top-for-manage', component: TopForManage , title: 'トップ ｜ 社会保険管理システム'},
-    { path: 'monthly-salary/:workingYear/:workingMonth', component: MonthlySalary , title: '給与・勤務実績登録 ｜ 社会保険管理システム'},
-    { path: 'bonus/:payrollId', component: Bonus , title: '賞与登録 ｜ 社会保険管理システム'},
-
-    { path: 'office-detail', component: OfficeDetail , title: '事業所情報 ｜ 社会保険管理システム'},
+    {
+        path: 'top-for-manage', component: TopForManage, title: 'トップ ｜ 社会保険管理システム',
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    {
+        path: 'monthly-salary/:workingYear/:workingMonth', component: MonthlySalary, title: '給与・勤務実績登録 ｜ 社会保険管理システム',
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    {
+        path: 'bonus/:payrollId', component: Bonus, title: '賞与登録 ｜ 社会保険管理システム',
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    {
+        path: 'office-detail', component: OfficeDetail, title: '事業所情報 ｜ 社会保険管理システム',
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
 
     //権限：管理のみ
-    { path: 'company-setting', component: Setting, title: '会社設定 ｜ 社会保険管理システム' },
-    { path: 'permission-setting', component: PermissionSetting, title: '従業員権限設定 ｜ 社会保険管理システム' },
+    { path: 'company-setting', component: Setting, title: '会社設定 ｜ 社会保険管理システム',
+        canActivate: [authGuard, companyGuard], data: { permission: '管理' }
+     },
+    { path: 'permission-setting', component: PermissionSetting, title: '従業員権限設定 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '管理' }
+    },
 
     //権限：承認と管理のみ
-    { path: 'employee-detail', component: EmployeeDetail, title: '社員情報詳細 ｜ 社会保険管理システム' },
-    { path: 'employee-addInsurance', component: AddInsuranceInfo, title: '社員保険情報追加 ｜ 社会保険管理システム' },
-    { path: 'employee-hire-entry', component: HireEntry, title: '入社処理 ｜ 社会保険管理システム' },
-    { path: 'employee-retire-entry', component: RetireEntry, title: '退社処理 ｜ 社会保険管理システム' },
-    { path: 'insurance-confirm/:workingYear/:workingMonth', component: InsuranceConfirm, title: '作業月保険料確認 ｜ 社会保険管理システム' },
-    { path: 'insurance-for-bonus/:payrollId', component: InsuranceForBonus, title: '賞与保険料確認 ｜ 社会保険管理システム' },
-    { path: 'calculation-base-pending-list', component: CalculationBasePendingList, title: '算定基礎反映待ち一覧 ｜ 社会保険管理システム' },
-    { path: 'reach-age', component: ReachAge, title: '年齢到達一括検索 ｜ 社会保険管理システム' },
-    { path: 'system-application-list', component: SystemApplicationList, title: '今月の申請一覧（システム） ｜ 社会保険管理システム' },
-    { path: 'retroactive-correction', component: RetroactiveCorrection, title: '遡及修正 ｜ 社会保険管理システム' },
-    { path: 'salary-correction', component: SalaryCorrection, title: '月額給与修正 ｜ 社会保険管理システム' },
-    { path: 'leave-correction', redirectTo: 'retroactive-correction', pathMatch: 'full' },
-    { path: 'fix-salary-correction', redirectTo: 'retroactive-correction', pathMatch: 'full' },
-    { path: 'insurance-correction', redirectTo: 'retroactive-correction', pathMatch: 'full' },
-    { path: 'bonus-correction', component: BonusCorrection, title: '賞与修正 ｜ 社会保険管理システム' },
-    { path: 'correction-list', component: CorrectionList, title: '差額調整一覧 ｜ 社会保険管理システム' },
+    { path: 'employee-detail', component: EmployeeDetail, title: '社員情報詳細 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'employee-addInsurance', component: AddInsuranceInfo, title: '社員保険情報追加 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'employee-hire-entry', component: HireEntry, title: '入社処理 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'employee-retire-entry', component: RetireEntry, title: '退社処理 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'insurance-confirm/:workingYear/:workingMonth', component: InsuranceConfirm, title: '作業月保険料確認 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'insurance-for-bonus/:payrollId', component: InsuranceForBonus, title: '賞与保険料確認 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'calculation-base-pending-list', component: CalculationBasePendingList, title: '算定基礎反映待ち一覧 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'reach-age', component: ReachAge, title: '年齢到達一括検索 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'system-application-list', component: SystemApplicationList, title: '今月の申請一覧（システム） ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'retroactive-correction', component: RetroactiveCorrection, title: '遡及修正 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
 
     { path: '**', redirectTo: '/login' }
 ];

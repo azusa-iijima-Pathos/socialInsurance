@@ -62,6 +62,11 @@ export function buildFixedSalarySystemEventId(working?: YearMonth): string {
   return `固定給変更_${formatYearMonth(future.year, future.month)}`;
 }
 
+/** 随時改定 calculationRun ID（例: 随時改定_2025_12） */
+export function buildAdHocRevisionRunId(revisionMonth: YearMonth): string {
+  return `随時改定_${formatYearMonth(revisionMonth.year, revisionMonth.month)}`;
+}
+
 /** 入社・年齢到達など従来ルール */
 export function buildEventId(
   eventType: EmployeeEventType,

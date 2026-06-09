@@ -6,7 +6,7 @@ import { EmployeeService } from './employee-service';
 import { EmployeeLogicService } from '../logic/employee-logic-service';
 import { EmployeeEventType } from '../../constants/model-constants';
 import { Event } from '../../model/event';
-import { getWorkingYearMonth, isEventAtOrBeforeWorkingMonth } from '../logic/event-id-service';
+import { getWorkingYearMonth, isEventAtOrBeforeWorkingMonth, buildAdHocRevisionRunId, YearMonth } from '../logic/event-id-service';
 import { MonthlyInsuranceDiff, MonthlyInsuranceComparisonRow } from '../logic/correction-logic.service';
 
 export type SystemCalculationRunItem = CalculationRun & {
@@ -193,6 +193,34 @@ export class CalculationRunService {
     return true;
   }
 
+  /** 随時改定の計算結果を作成（固定給変更等） */
+  async createAdHocRevisionRun(
+    employeeId: string,
+    revisionMonth: YearMonth,
+    payload: Record<string, unknown>,
+    occurredDate?: Timestamp,
+  ): Promise<string | null> {
+    const baseRunId = buildAdHocRevisionRunId(revisionMonth);
+    const runId = await this.allocateSequentialRunId(baseRunId);
+    const run: Partial<CalculationRun> = {
+      runId,
+      targetEmployeeIds: employeeId,
+      detectedDate: Timestamp.now(),
+      type: '随時改定',
+      approval: { approvalStatus: '申請中' },
+      payload: {
+        eventType: '固定給変更',
+        applicantType: 'システム',
+        employeeId,
+        occurredDate,
+        ...payload,
+      },
+    };
+
+    const created = await this.crudService.create<CalculationRun>(`${this.path}/${runId}`, run);
+    return created ? runId : null;
+  }
+
   /** システムイベント相当の計算結果を作成（旧システムイベント） */
   async createSystemEventRun(
     employeeId: string,
@@ -336,14 +364,17 @@ export class CalculationRunService {
     return await this.crudService.update<CalculationRun>(`${this.path}/${runId}`, data);
   }
 
-  /** 申請中のシステム計算結果（作業月以前・type=イベント） */
+  /** 申請中のシステム計算結果（作業月以前・type=イベント/随時改定） */
   async getPendingSystemRunsUpToWorkingMonth(): Promise<SystemCalculationRunItem[]> {
     const { year, month } = getWorkingYearMonth();
     if (!year || !month) return [];
 
     const runs = await this.getAllCalculationRuns();
     return runs
-      .filter(run => run.type === 'イベント' && run.approval?.approvalStatus === '申請中')
+      .filter(run =>
+        (run.type === 'イベント' || run.type === '随時改定')
+        && run.approval?.approvalStatus === '申請中',
+      )
       .filter(run => run.runId && isEventAtOrBeforeWorkingMonth(run.runId, year, month))
       .map(run => this.toSystemItem(run))
       .filter((item): item is SystemCalculationRunItem => item !== null)
@@ -358,7 +389,7 @@ export class CalculationRunService {
     const runs = await this.getAllCalculationRuns();
     return runs
       .filter(run =>
-        run.type === 'イベント'
+        (run.type === 'イベント' || run.type === '随時改定')
         && run.approval?.approvalStatus === '申請中'
         && run.targetEmployeeIds === employeeId,
       )
@@ -435,7 +466,8 @@ export class CalculationRunService {
 
   private toSystemItem(run: CalculationRun): SystemCalculationRunItem | null {
     const employeeId = String(run.targetEmployeeIds ?? run.payload?.['employeeId'] ?? '');
-    const eventType = run.payload?.['eventType'] as EmployeeEventType | undefined;
+    const eventType = (run.payload?.['eventType'] as EmployeeEventType | undefined)
+      ?? (run.type === '随時改定' ? '固定給変更' : undefined);
     if (!employeeId || !eventType || !run.runId) return null;
 
     return {
