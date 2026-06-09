@@ -37,7 +37,7 @@ export const EMPLOYEE_CSV_COLUMNS: EmployeeCsvColumn[] = [
     { key: 'birthDate', label: '生年月日（yyyy-mm-dd）', example: '1990-01-01' },
     { key: 'hireDate', label: '入社日（yyyy-mm-dd）', example: '2024-04-01' },
     { key: 'workStatus', label: '勤務状況（通常勤務/休職中/退社済み）', example: '通常勤務' },
-    { key: 'leaveTypes', label: '休暇種別（産前産後/育児/療養/その他（有給）/その他（無給））', example: '' },
+    { key: 'leaveTypes', label: '休暇種別（なし/産前産後/育児/療養/その他（有給）/その他（無給））', example: 'なし' },
     { key: 'employmentCategory', label: '雇用区分（正社員/契約社員/パート）', example: '正社員' },
     { key: 'workStyle', label: '勤務形態（フルタイム/時短/パート）', example: 'フルタイム' },
     { key: 'officeId', label: '事業所名', example: '本社' },

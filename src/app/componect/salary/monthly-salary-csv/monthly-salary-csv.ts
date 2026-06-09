@@ -40,6 +40,7 @@ export class MonthlySalaryCSV {
   onCsvFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
+    input.value = '';
     this.csvPreviewRows = [];
     this.csvPreviewModalOpen = false;
 
@@ -61,6 +62,8 @@ export class MonthlySalaryCSV {
       return;
     }
 
+    this.csvPreviewRows = [];
+    this.csvPreviewModalOpen = false;
     this.setCsvImportStatus('CSV内容を確認中です');
     try {
       const result = await this.addMonthlySalaryByCSVService.previewCsv(this.selectedCsvFile, this.inputFormat, this.payrollId);

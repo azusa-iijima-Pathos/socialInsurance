@@ -99,17 +99,6 @@ export class AddMonthlySalaryByCSVService {
         };
       }
 
-      const nonHalfWidthRow = importRowInfos.find(rowInfo =>
-        Object.values(rowInfo.row).some(value => /[^\x00-\x7F]/.test(String(value ?? '')))
-      );
-      if (nonHalfWidthRow) {
-        return {
-          message: '半角で入力してください',
-          errors: [`${nonHalfWidthRow.rowNumber}行目：半角で入力してください`],
-          rows: [],
-        };
-      }
-
       await this.employeeService.getAllEmployees();
       const employeeNameMap = this.employeeService.allEmployeeNameMap();
       const csvEmployeeIds = new Set<string>();
@@ -120,6 +109,9 @@ export class AddMonthlySalaryByCSVService {
         let payroll: Partial<Payroll> | null = null;
 
         try {
+          if (Object.values(row).some(value => /[^\x00-\x7F]/.test(String(value ?? '')))) {
+            rowErrors.push(`${rowNumber}行目：半角で入力してください`);
+          }
           // CSVの1行をPayroll登録用の形に変換する。
           // ここで作るpayrollには会社IDも入れる。社員IDとpayrollIdは登録時にPayrollService側で付与される。
           payroll = this.toPayrollFromCsvRow(row, rowNumber, rowErrors, inputFormat, payrollId);
@@ -529,8 +521,18 @@ export class AddMonthlySalaryByCSVService {
   private toTimestamp(value: string): Timestamp | null {
     if (!value) return null;
 
-    const date = new Date(`${value.replace(/\//g, '-')}T00:00:00`);
-    return Number.isNaN(date.getTime()) ? null : Timestamp.fromDate(date);
+    const normalizedValue = value.replace(/\//g, '-');
+    const match = normalizedValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return null;
+    }
+    return Timestamp.fromDate(date);
   }
 
   private toNumber(value: string): number | null {

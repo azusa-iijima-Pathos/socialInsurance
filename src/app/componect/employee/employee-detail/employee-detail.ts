@@ -409,11 +409,12 @@ export class EmployeeDetail {
   async submitInsuranceModal() {
     if (this.insuranceForm.invalid) {
       this.insuranceForm.markAllAsTouched();
+      this.showMessage('保険情報の入力内容を確認してください');
       return;
     }
 
     const insuranceInfo: Partial<EmployeeInsurance> = {
-      currentGrade: this.insuranceForm.controls.currentGrade.value,
+      currentGrade: this.getCurrentGradeForSave(),
       healthInsurance: this.createInsuranceDetailFromForm('healthInsurance'),
       nursingCareInsurance: this.createInsuranceDetailFromForm('nursingCareInsurance'),
       employeePensionInsurance: this.createInsuranceDetailFromForm('employeePensionInsurance'),
@@ -423,6 +424,14 @@ export class EmployeeDetail {
     if (!result) {
       this.showMessage(UPDATE_MESSAGES.FAILED);
       return;
+    }
+
+    if (!insuranceInfo.healthInsurance?.joined) {
+      const dependentsUpdated = await this.updateDependentsToNotDependent();
+      if (!dependentsUpdated) {
+        this.showMessage('扶養情報の更新に失敗しました');
+        return;
+      }
     }
 
     this.showMessage(`保険情報を${UPDATE_MESSAGES.SUCCESS}`);
@@ -442,7 +451,9 @@ export class EmployeeDetail {
     this.dependents.forEach(dependent => {
       this.dependentsArray.push(this.createExistingDependentForm(dependent));
     });
-    this.addNewDependentRow();
+    if (this.canRegisterDependent()) {
+      this.addNewDependentRow();
+    }
     this.dependentModalOpen = true;
   }
 
@@ -454,6 +465,10 @@ export class EmployeeDetail {
   }
 
   addNewDependentRow() {
+    if (!this.canRegisterDependent()) {
+      this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+      return;
+    }
     this.dependentsArray.push(this.createNewDependentForm());
   }
 
@@ -470,6 +485,7 @@ export class EmployeeDetail {
   async submitDependentModal() {
     if (this.dependentForm.invalid) {
       this.dependentForm.markAllAsTouched();
+      this.showMessage('扶養情報の入力内容を確認してください');
       return;
     }
 
@@ -493,6 +509,11 @@ export class EmployeeDetail {
 
       if (!value.name && !value.birthDate && !value.relationship) continue;
 
+      if (!this.canRegisterDependent()) {
+        this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+        return;
+      }
+
       newDependents.push({
         dependentId: `${nextId++}`,
         name: value.name,
@@ -500,6 +521,11 @@ export class EmployeeDetail {
         relationship: value.relationship as Relationship,
         isDependent: true,
       });
+    }
+
+    if (!this.canRegisterDependent() && existingUpdates.some(dependent => dependent.isDependent === true)) {
+      this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+      return;
     }
 
     if (existingUpdates.length > 0) {
@@ -843,7 +869,16 @@ export class EmployeeDetail {
 
     this.insuranceForm.controls.healthInsurance.controls.joined.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(status => this.syncSubInsuranceStatusesWithHealth(status));
+      .subscribe(status => {
+        this.syncSubInsuranceStatusesWithHealth(status);
+        this.applyCurrentGradeRule();
+      });
+
+    for (const name of ['nursingCareInsurance', 'employeePensionInsurance'] as const) {
+      this.insuranceForm.controls[name].controls.joined.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.applyCurrentGradeRule());
+    }
 
     this.insuranceForm.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -930,10 +965,46 @@ export class EmployeeDetail {
       }
     }
     this.insuranceForm.updateValueAndValidity({ emitEvent: false });
+    this.applyCurrentGradeRule();
   }
 
   isSubInsuranceJoinedDisabled(): boolean {
     return this.insuranceForm.controls.healthInsurance.controls.joined.value !== 'joined';
+  }
+
+  private applyCurrentGradeRule() {
+    if (this.areAllInsuranceStatusesNotJoined()) {
+      this.insuranceForm.controls.currentGrade.setValue(0, { emitEvent: false });
+    }
+  }
+
+  private getCurrentGradeForSave(): number {
+    return this.areAllInsuranceStatusesNotJoined() ? 0 : Number(this.insuranceForm.controls.currentGrade.value ?? 0);
+  }
+
+  private areAllInsuranceStatusesNotJoined(): boolean {
+    return this.insuranceForm.controls.healthInsurance.controls.joined.value === 'notJoined'
+      && this.insuranceForm.controls.nursingCareInsurance.controls.joined.value === 'notJoined'
+      && this.insuranceForm.controls.employeePensionInsurance.controls.joined.value === 'notJoined';
+  }
+
+  canRegisterDependent(): boolean {
+    return this.selectedEmployee?.insurance?.healthInsurance?.joined === true;
+  }
+
+  private async updateDependentsToNotDependent(): Promise<boolean> {
+    const activeDependents = this.dependents.filter(dependent => dependent.isDependent !== false);
+    if (activeDependents.length === 0) return true;
+
+    const updates: Partial<Dependent>[] = activeDependents.map(dependent => ({
+      ...dependent,
+      isDependent: false,
+    }));
+    const result = await this.dependentService.updateDependents(this.selectedEmployeeId, updates);
+    if (result) {
+      this.dependents = await this.dependentService.getDependents(this.selectedEmployeeId);
+    }
+    return result;
   }
 
   private dependentBirthDateNotFutureValidator = (control: AbstractControl): ValidationErrors | null => {

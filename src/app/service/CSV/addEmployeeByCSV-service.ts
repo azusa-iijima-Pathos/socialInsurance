@@ -363,7 +363,8 @@ export class AddEmployeeByCSVService {
     const birthDate = this.toTimestamp(birthDateText);
     const hireDate = this.toTimestamp(hireDateText);
     const workStatus = this.getEmployeeCsvValueSafely(row, 'workStatus');
-    const leaveTypes = this.getEmployeeCsvValueSafely(row, 'leaveTypes');
+    const leaveTypesRaw = this.getEmployeeCsvValueSafely(row, 'leaveTypes');
+    const leaveTypes = leaveTypesRaw === 'なし' ? '' : leaveTypesRaw;
     const employmentCategory = this.getEmployeeCsvValueSafely(row, 'employmentCategory');
     const workStyle = this.getEmployeeCsvValueSafely(row, 'workStyle');
     const officeName = this.getEmployeeCsvValueSafely(row, 'officeId');
@@ -443,7 +444,7 @@ export class AddEmployeeByCSVService {
     if (workStatus) {
       this.validateCsvChoice(rowNumber, '勤務状況', workStatus, WORK_STATUSES, errors);
     }
-    if (leaveTypes) {
+    if (leaveTypesRaw && leaveTypesRaw !== 'なし') {
       this.validateCsvChoice(rowNumber, '休職種別', leaveTypes, LEAVE_TYPES, errors);
     }
     const isEmploymentCategoryValid = employmentCategory
@@ -591,8 +592,18 @@ export class AddEmployeeByCSVService {
   private toTimestamp(value: string): Timestamp | null {
     if (!value) return null;
 
-    const date = new Date(`${value.replace(/\//g, '-')}T00:00:00`);
-    return Number.isNaN(date.getTime()) ? null : Timestamp.fromDate(date);
+    const normalizedValue = value.replace(/\//g, '-');
+    const match = normalizedValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return null;
+    }
+    return Timestamp.fromDate(date);
   }
 
   private toNumber(value: string): number | null {

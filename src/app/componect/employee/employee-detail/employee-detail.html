@@ -904,7 +904,8 @@
                                 <div class="im-radio-group">
                                     <label class="im-radio-option" [for]="'detailDependentStatus1_' + i">
                                         <input type="radio" [id]="'detailDependentStatus1_' + i"
-                                            formControlName="isDependentStatus" value="dependent">
+                                            formControlName="isDependentStatus" value="dependent"
+                                            [disabled]="!canRegisterDependent()">
                                         <span>扶養対象</span>
                                     </label>
                                     <label class="im-radio-option" [for]="'detailDependentStatus2_' + i">

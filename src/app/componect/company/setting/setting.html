@@ -6,8 +6,9 @@
         <p>必ず正確に設定を行ってください。</p>
     </div>
 
-<div *ngIf="mode === 'initial'">
-    <button type="button" class="im-btn-primary" (click)="toEmployeePermissionSetting()">従業員権限設定へ</button>
+<div *ngIf="mode === 'initial'" style="text-align: right;">
+    <button type="button" class="im-btn-primary" (click)="toEmployeePermissionSetting()">
+        従業員権限設定へ▶</button>
 </div>
 
     <form class="im-fields-grid im-surface-panel setting-card" [formGroup]="form" (ngSubmit)="register()">

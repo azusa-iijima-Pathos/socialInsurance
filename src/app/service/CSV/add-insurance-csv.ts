@@ -4,6 +4,8 @@ import Papa from 'papaparse';
 import { EmployeeInsurance, InsuranceDetail } from '../../model/employee';
 import { EmployeeService } from '../Firestore/employee-service';
 import { UPDATE_MESSAGES } from '../../constants/constants';
+import { DependentService } from '../Firestore/dependent-service';
+import { Dependent } from '../../model/dependent';
 
 type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
 type InsuranceCsvStatus = 'joined' | 'notJoined' | 'lost';
@@ -48,6 +50,7 @@ export type CsvInsuranceImportResult = {
 export class AddInsuranceCsv {
 
   private employeeService = inject(EmployeeService);
+  private dependentService = inject(DependentService);
 
   private readonly headers: Record<InsuranceCsvKey, string> = {
     employeeId: '社員ID（半角英数字）',
@@ -108,17 +111,6 @@ export class AddInsuranceCsv {
       };
     }
 
-    const nonHalfWidthRow = importRowInfos.find(rowInfo =>
-      this.getRowValues(rowInfo.row).some(value => /[^\x00-\x7F]/.test(String(value ?? '')))
-    );
-    if (nonHalfWidthRow) {
-      return {
-        message: '半角で入力してください',
-        errors: [`${nonHalfWidthRow.rowNumber}行目：半角で入力してください`],
-        rows: [],
-      };
-    }
-
     let employeeNameMap: Record<string, string> = {};
     try {
       await this.employeeService.getAllEmployees();
@@ -139,12 +131,18 @@ export class AddInsuranceCsv {
       let employeePensionInsuranceJoined = '';
 
       try {
+        if (this.getRowValues(row).some(value => /[^\x00-\x7F]/.test(String(value ?? '')))) {
+          errors.push(`${rowNumber}行目：半角で入力してください`);
+        }
         employeeId = this.getCsvValue(row, 'employeeId');
         const currentGradeText = this.getCsvValue(row, 'currentGrade');
         healthInsuranceJoined = this.getCsvValue(row, 'healthInsuranceJoined');
         nursingCareInsuranceJoined = this.getCsvValue(row, 'nursingCareInsuranceJoined');
         employeePensionInsuranceJoined = this.getCsvValue(row, 'employeePensionInsuranceJoined');
         currentGrade = this.toNumber(currentGradeText);
+        const healthStatus = this.toInsuranceStatus(healthInsuranceJoined);
+        const nursingStatus = this.toInsuranceStatus(nursingCareInsuranceJoined);
+        const pensionStatus = this.toInsuranceStatus(employeePensionInsuranceJoined);
 
         if (!employeeId) errors.push(`${rowNumber}行目：社員IDが未入力です`);
         if (employeeId && !/^[a-zA-Z0-9]+$/.test(employeeId)) errors.push(`${rowNumber}行目：社員IDは半角英数字で入力してください`);
@@ -155,8 +153,13 @@ export class AddInsuranceCsv {
         if (!currentGradeText) errors.push(`${rowNumber}行目：標準報酬等級が未入力です`);
         if (currentGradeText && currentGrade === null) errors.push(`${rowNumber}行目：標準報酬等級は数値で入力してください`);
         if (currentGrade !== null && (currentGrade < 0 || currentGrade > 50)) errors.push(`${rowNumber}行目：標準報酬等級は0以上50以下で入力してください`);
+        if (healthStatus !== 'joined' && (nursingStatus === 'joined' || pensionStatus === 'joined')) {
+          errors.push(`${rowNumber}行目：健康保険が未加入または喪失の場合、介護保険と厚生年金は加入にできません`);
+        }
 
-        insurance = currentGrade === null ? undefined : this.toInsuranceFromCsvRow(row, rowNumber, currentGrade, errors);
+        insurance = currentGrade === null
+          ? undefined
+          : this.toInsuranceFromCsvRow(row, rowNumber, this.getCurrentGradeForSave(currentGrade, healthStatus, nursingStatus, pensionStatus), errors);
       } catch (error) {
         console.error(error);
         errors.push(`${rowNumber}行目：CSV内容の確認に失敗しました`);
@@ -196,6 +199,13 @@ export class AddInsuranceCsv {
       try {
         const result = await this.employeeService.updateEmployeeInsurance(row.employeeId, row.insurance!);
         if (result) {
+          if (!row.insurance!.healthInsurance?.joined) {
+            const dependentsUpdated = await this.updateDependentsToNotDependent(row.employeeId);
+            if (!dependentsUpdated) {
+              errors.push(`${row.rowNumber}行目：社員ID ${row.employeeId} の扶養情報更新に失敗しました`);
+              continue;
+            }
+          }
           successCount++;
         } else {
           errors.push(`${row.rowNumber}行目：社員ID ${row.employeeId} の保険情報登録に失敗しました`);
@@ -271,6 +281,29 @@ export class AddInsuranceCsv {
       ...(lostDate ? { lostDate } : {}),
       companyBurdenRate: companyBurdenRate ?? 50,
     };
+  }
+
+  private getCurrentGradeForSave(
+    currentGrade: number,
+    healthStatus: InsuranceCsvStatus | null,
+    nursingStatus: InsuranceCsvStatus | null,
+    pensionStatus: InsuranceCsvStatus | null,
+  ): number {
+    return healthStatus === 'notJoined' && nursingStatus === 'notJoined' && pensionStatus === 'notJoined'
+      ? 0
+      : currentGrade;
+  }
+
+  private async updateDependentsToNotDependent(employeeId: string): Promise<boolean> {
+    const dependents = await this.dependentService.getDependents(employeeId);
+    const activeDependents = dependents.filter(dependent => dependent.isDependent !== false);
+    if (activeDependents.length === 0) return true;
+
+    const updates: Partial<Dependent>[] = activeDependents.map(dependent => ({
+      ...dependent,
+      isDependent: false,
+    }));
+    return await this.dependentService.updateDependents(employeeId, updates);
   }
 
   private parseCsv(file: File): Promise<Papa.ParseResult<CsvRow>> {

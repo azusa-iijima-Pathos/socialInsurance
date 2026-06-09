@@ -35,6 +35,7 @@ export class AddInsuranceCsv {
   onCsvFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
+    input.value = '';
     this.csvPreviewRows = [];
     this.csvPreviewModalOpen = false;
 
@@ -56,6 +57,8 @@ export class AddInsuranceCsv {
       return;
     }
 
+    this.csvPreviewRows = [];
+    this.csvPreviewModalOpen = false;
     this.setCsvImportStatus('CSV内容を確認中です');
     try {
       const result = await this.addInsuranceCsvService.previewCsv(this.selectedCsvFile);

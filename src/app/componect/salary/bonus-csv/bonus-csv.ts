@@ -74,6 +74,7 @@ export class BonusCsv {
     }
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
+    input.value = '';
     this.csvPreviewRows = [];
     this.csvPreviewModalOpen = false;
     this.selectedCsvFile = file;
@@ -96,6 +97,8 @@ export class BonusCsv {
       return;
     }
 
+    this.csvPreviewRows = [];
+    this.csvPreviewModalOpen = false;
     this.setCsvImportStatus('CSV内容を確認中です');
     try {
       const result = await this.previewCsv(this.selectedCsvFile);
@@ -175,16 +178,6 @@ export class BonusCsv {
       };
     }
 
-    const nonHalfWidthRow = rows.find(rowInfo =>
-      Object.values(rowInfo.row).some(value => /[^\x00-\x7F]/.test(String(value ?? '')))
-    );
-    if (nonHalfWidthRow) {
-      return {
-        message: '半角で入力してください',
-        rows: [],
-      };
-    }
-
     let employeeIds: string[] = [];
     let employeeCheckFailed = false;
     try {
@@ -210,6 +203,9 @@ export class BonusCsv {
       let payroll: Partial<Payroll> | undefined = undefined;
 
       try {
+        if (Object.values(row).some(value => /[^\x00-\x7F]/.test(String(value ?? '')))) {
+          errors.push(`${rowNumber}行目：半角で入力してください`);
+        }
         employeeId = this.getCsvValue(row, 'employeeId');
         targetPeriodStartText = this.getCsvValue(row, 'targetPeriodStart');
         targetPeriodEndText = this.getCsvValue(row, 'targetPeriodEnd');

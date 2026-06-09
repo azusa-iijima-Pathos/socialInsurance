@@ -7,10 +7,32 @@
         <p>※休職ではない場合、保険料の会社負担率は一律50%です。</p>
     </div>
 
-    <div *ngIf="mode === 'initial'">
-        <button type="button" class="im-btn-primary" (click)="toPermissionSetting()">◀従業員権限設定に戻る</button>
-        <button type="button" class="im-btn-primary" (click)="toStartStart()">トップ画面へ▶</button>
+    <div *ngIf="mode === 'initial'" style="display: flex; justify-content: space-between;">
+        <button type="button" class="im-btn-soft" (click)="toPermissionSetting()">◀従業員権限設定に戻る</button>
+        <button type="button" class="im-btn-primary" (click)="toStartStart()">
+            {{ hasWorkingMonth() ? 'トップ画面へ▶' : '作業月を設定してトップ画面へ▶' }}
+        </button>
     </div>
+
+    <section *ngIf="showWorkingMonthSetting" class="information-area">
+        <h3>作業月設定</h3>
+        <p>初期設定完了後にトップ画面へ進むには、作業月の設定が必要です。</p>
+        <form [formGroup]="workingMonthForm" (ngSubmit)="setWorkingMonthAndGoTop()">
+            <label for="initialWorkingYear">作業年</label>
+            <input type="number" id="initialWorkingYear" formControlName="workingYear" min="1900" max="9999">
+            <label for="initialWorkingMonth">作業月</label>
+            <input type="number" id="initialWorkingMonth" formControlName="workingMonth" min="1" max="12">
+            <button type="submit" class="im-btn-primary">設定してトップ画面へ</button>
+            <div class="error">
+                <p *ngIf="workingMonthForm.get('workingYear')?.invalid && workingMonthForm.get('workingYear')?.touched">
+                    作業年は1900年から9999年の範囲で入力してください
+                </p>
+                <p *ngIf="workingMonthForm.get('workingMonth')?.invalid && workingMonthForm.get('workingMonth')?.touched">
+                    作業月は1月から12月の範囲で入力してください
+                </p>
+            </div>
+        </form>
+    </section>
 
     <div class="add-insurance-info-registration-layout">
         <app-add-insurance-csv></app-add-insurance-csv>
@@ -131,7 +153,7 @@
                     <div class="im-radio-group">
                         <label class="im-radio-option" for="nursingCareInsuranceJoined1">
                             <input type="radio" id="nursingCareInsuranceJoined1" formControlName="joined"
-                                value="joined">
+                                value="joined" [disabled]="isSubInsuranceJoinedDisabled()">
                             <span>加入</span>
                         </label>
                         <label class="im-radio-option" for="nursingCareInsuranceJoined2">
@@ -203,7 +225,7 @@
                     <div class="im-radio-group">
                         <label class="im-radio-option" for="employeePensionInsuranceJoined1">
                             <input type="radio" id="employeePensionInsuranceJoined1" formControlName="joined"
-                                value="joined">
+                                value="joined" [disabled]="isSubInsuranceJoinedDisabled()">
                             <span>加入</span>
                         </label>
                         <label class="im-radio-option" for="employeePensionInsuranceJoined2">
@@ -270,6 +292,9 @@
                             </div>
                         </div>
                     </div>
+                </div>
+                <div class="error" *ngIf="form.hasError('healthInsuranceDependency')">
+                    <p>健康保険が未加入または喪失の場合、介護保険と厚生年金は加入にできません</p>
                 </div>
                 <button type="submit" class="im-btn-primary add-insurance-info-submit">登録</button>
             </form>

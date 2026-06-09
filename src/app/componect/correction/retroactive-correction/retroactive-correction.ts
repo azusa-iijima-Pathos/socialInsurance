@@ -14,6 +14,8 @@ import { addMonths, buildCurrentWorkMonthEventId, getFixedSalarySystemOccurredDa
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { Timestamp } from '@angular/fire/firestore';
 import { Router } from '@angular/router';
+import { DependentService } from '../../../service/Firestore/dependent-service';
+import { Dependent } from '../../../model/dependent';
 
 type RetroactiveTab = 'insurance' | 'fixedSalary' | 'leave';
 type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
@@ -38,6 +40,7 @@ export class RetroactiveCorrection {
   private correctionLogicService = inject(CorrectionLogicService);
   private calculationRunService = inject(CalculationRunService);
   private eventService = inject(EventService);
+  private dependentService = inject(DependentService);
   commonService = inject(CommonService);
   private router = inject(Router);
 
@@ -88,6 +91,23 @@ export class RetroactiveCorrection {
     this.setupInsuranceDetailControls('healthInsurance');
     this.setupInsuranceDetailControls('nursingCareInsurance');
     this.setupInsuranceDetailControls('employeePensionInsurance');
+    this.setupInsuranceDependencyRules();
+  }
+
+  private setupInsuranceDependencyRules() {
+    this.form.setValidators(control => this.healthInsuranceDependencyValidator(control));
+    this.form.controls.healthInsurance.controls.joined.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(status => {
+        this.syncSubInsuranceStatusesWithHealth(status);
+        this.applyCurrentGradeRule();
+      });
+
+    for (const name of ['nursingCareInsurance', 'employeePensionInsurance'] as const) {
+      this.form.controls[name].controls.joined.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.applyCurrentGradeRule());
+    }
   }
 
   get employees() {
@@ -204,6 +224,7 @@ export class RetroactiveCorrection {
       for (const name of ['healthInsurance', 'nursingCareInsurance', 'employeePensionInsurance'] as const) {
         if (this.form.controls[name].invalid) return false;
       }
+      if (this.form.hasError('healthInsuranceDependency')) return false;
     }
 
     if (this.activeTab === 'fixedSalary') {
@@ -369,6 +390,14 @@ export class RetroactiveCorrection {
       return;
     }
 
+    if (this.activeTab === 'insurance' && !afterEmployee.insurance?.healthInsurance?.joined) {
+      const dependentsUpdated = await this.updateDependentsToNotDependent(employeeId);
+      if (!dependentsUpdated) {
+        this.showMessage('扶養情報の更新に失敗しました');
+        return;
+      }
+    }
+
     await this.calculationRunService.createMonthlyDifferenceAdjustmentRuns(
       employeeId,
       sourceType,
@@ -404,7 +433,7 @@ export class RetroactiveCorrection {
     }
 
     const insurance: EmployeeInsurance = {
-      currentGrade: Number(v.currentGrade),
+      currentGrade: this.getCurrentGradeForSave(),
       healthInsurance: this.createInsuranceDetailFromForm('healthInsurance'),
       nursingCareInsurance: this.createInsuranceDetailFromForm('nursingCareInsurance'),
       employeePensionInsurance: this.createInsuranceDetailFromForm('employeePensionInsurance'),
@@ -458,7 +487,10 @@ export class RetroactiveCorrection {
     this.updateInsuranceDetailControls(insuranceGroup.controls.joined.value, insuranceName);
     insuranceGroup.controls.joined.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(status => this.updateInsuranceDetailControls(status, insuranceName));
+      .subscribe(status => {
+        this.updateInsuranceDetailControls(status, insuranceName);
+        this.applyCurrentGradeRule();
+      });
     insuranceGroup.controls.acquiredDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => insuranceGroup.controls.lostDate.updateValueAndValidity());
@@ -500,6 +532,63 @@ export class RetroactiveCorrection {
       control.updateValueAndValidity({ emitEvent: false });
     }
     this.form.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private healthInsuranceDependencyValidator = (control: AbstractControl): ValidationErrors | null => {
+    const healthStatus = control.get('healthInsurance.joined')?.value as InsuranceStatus | undefined;
+    const nursingStatus = control.get('nursingCareInsurance.joined')?.value as InsuranceStatus | undefined;
+    const pensionStatus = control.get('employeePensionInsurance.joined')?.value as InsuranceStatus | undefined;
+    if (healthStatus === 'joined') return null;
+    return nursingStatus === 'joined' || pensionStatus === 'joined'
+      ? { healthInsuranceDependency: true }
+      : null;
+  };
+
+  private syncSubInsuranceStatusesWithHealth(healthStatus: InsuranceStatus) {
+    if (healthStatus === 'joined') {
+      this.form.updateValueAndValidity({ emitEvent: false });
+      return;
+    }
+
+    for (const name of ['nursingCareInsurance', 'employeePensionInsurance'] as const) {
+      const control = this.form.controls[name].controls.joined;
+      if (control.value === 'joined') {
+        control.setValue(healthStatus, { emitEvent: true });
+      }
+    }
+    this.form.updateValueAndValidity({ emitEvent: false });
+  }
+
+  isSubInsuranceJoinedDisabled(): boolean {
+    return this.form.controls.healthInsurance.controls.joined.value !== 'joined';
+  }
+
+  private applyCurrentGradeRule() {
+    if (this.areAllInsuranceStatusesNotJoined()) {
+      this.form.controls.currentGrade.setValue(0, { emitEvent: false });
+    }
+  }
+
+  private getCurrentGradeForSave(): number {
+    return this.areAllInsuranceStatusesNotJoined() ? 0 : Number(this.form.controls.currentGrade.value ?? 0);
+  }
+
+  private areAllInsuranceStatusesNotJoined(): boolean {
+    return this.form.controls.healthInsurance.controls.joined.value === 'notJoined'
+      && this.form.controls.nursingCareInsurance.controls.joined.value === 'notJoined'
+      && this.form.controls.employeePensionInsurance.controls.joined.value === 'notJoined';
+  }
+
+  private async updateDependentsToNotDependent(employeeId: string): Promise<boolean> {
+    const dependents = await this.dependentService.getDependents(employeeId);
+    const activeDependents = dependents.filter(dependent => dependent.isDependent !== false);
+    if (activeDependents.length === 0) return true;
+
+    const updates: Partial<Dependent>[] = activeDependents.map(dependent => ({
+      ...dependent,
+      isDependent: false,
+    }));
+    return await this.dependentService.updateDependents(employeeId, updates);
   }
 
   private lostDateAfterAcquiredDateValidator = (control: AbstractControl): ValidationErrors | null => {

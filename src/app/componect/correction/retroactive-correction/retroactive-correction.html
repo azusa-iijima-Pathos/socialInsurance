@@ -207,7 +207,7 @@
             <label>介護保険</label>
             <div class="im-radio-group">
               <label class="im-radio-option"><input type="radio" formControlName="joined"
-                  value="joined"><span>加入</span></label>
+                  value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入</span></label>
               <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="notJoined"><span>未加入</span></label>
               <label class="im-radio-option"><input type="radio" formControlName="joined"
@@ -230,7 +230,7 @@
             <label>厚生年金</label>
             <div class="im-radio-group">
               <label class="im-radio-option"><input type="radio" formControlName="joined"
-                  value="joined"><span>加入</span></label>
+                  value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入</span></label>
               <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="notJoined"><span>未加入</span></label>
               <label class="im-radio-option"><input type="radio" formControlName="joined"
@@ -247,6 +247,9 @@
               <div class="add-insurance-info-form-group"><label>会社負担率 <input type="number"
                     formControlName="companyBurdenRate"> ％</label></div>
             </div>
+          </div>
+          <div class="error" *ngIf="form.hasError('healthInsuranceDependency')">
+            <p>健康保険が未加入または喪失の場合、介護保険と厚生年金は加入にできません</p>
           </div>
         </div>
 

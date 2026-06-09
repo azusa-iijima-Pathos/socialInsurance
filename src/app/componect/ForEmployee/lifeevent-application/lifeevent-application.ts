@@ -121,6 +121,10 @@ export class LifeeventApplication {
     const lifeEventType = this.marriageForm.get('type')!.value as LifeEventType;
     const nameChanged = this.marriageForm.get('name')!.value !== (this.employee?.firstName ?? '');
     const changedDependents = this.collectChangedDependents(this.marriageDependents);
+    if (this.hasBlockedDependentRegistration(changedDependents)) {
+      this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+      return;
+    }
 
     if (!nameChanged && changedDependents.length === 0) {
       this.showMessage('変更内容がありません');
@@ -219,6 +223,10 @@ export class LifeeventApplication {
     }
 
     const changedDependents = this.collectChangedDependents(this.birthDependents);
+    if (this.hasBlockedDependentRegistration(changedDependents)) {
+      this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+      return;
+    }
     const occurredDate = this.birthForm.get('childBirthDate')!.value;
     const dependentResult = await this.createDependentEvents(changedDependents, occurredDate, lifeEventType);
     created += dependentResult.success;
@@ -276,6 +284,10 @@ export class LifeeventApplication {
     }
 
     const changedDependents = this.collectChangedDependents(this.dependentChangeDependents);
+    if (this.hasBlockedDependentRegistration(changedDependents)) {
+      this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+      return;
+    }
     if (changedDependents.length === 0) {
       this.showMessage('変更内容がありません');
       return;
@@ -295,6 +307,10 @@ export class LifeeventApplication {
   }
 
   addDependent(type: 1 | 2 | 3) {
+    if (!this.canRegisterDependent()) {
+      this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+      return;
+    }
     const form = this.createDependentForm();
     switch (type) {
       case 1: this.marriageDependents.push(form); break;
@@ -400,6 +416,15 @@ export class LifeeventApplication {
     }
 
     return results;
+  }
+
+  private hasBlockedDependentRegistration(items: { before: Dependent | null; after: DependentFormPayload }[]): boolean {
+    if (this.canRegisterDependent()) return false;
+    return items.some(item => !item.before || item.after.isDependent);
+  }
+
+  canRegisterDependent(): boolean {
+    return this.employee?.insurance?.healthInsurance?.joined === true;
   }
 
   private async createDependentEvents(

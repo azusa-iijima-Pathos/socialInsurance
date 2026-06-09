@@ -87,6 +87,7 @@ export class MonthlySalary {
 
     this.applySalaryInputValidators();
     this.setAutoSalaryCalculation();
+    this.updateCalculatedSalaryAmounts();
 
     //権限問題ないか
 
@@ -170,44 +171,37 @@ export class MonthlySalary {
         .subscribe(() => {
           if (this.inputFormat !== 1) return;
 
-          const fixedSalary = this.calculateFixedSalary();
-          const actualPaymentAmount = this.calculateActualPaymentAmount();
-
-          console.log('patch', fixedSalary, actualPaymentAmount);
-          console.log('inputFormat', this.inputFormat);
-
-          this.form.patchValue(
-            {
-              fixedSalary,
-              actualPaymentAmount,
-            },
-            { emitEvent: false },
-          );
+          this.updateCalculatedSalaryAmounts();
         });
     }
   }
 
+  private updateCalculatedSalaryAmounts() {
+    if (this.inputFormat !== 1) return;
+
+    const fixedSalary = this.calculateFixedSalary();
+    const actualPaymentAmount = this.calculateActualPaymentAmount(fixedSalary);
+
+    this.form.patchValue(
+      {
+        fixedSalary,
+        actualPaymentAmount,
+      },
+      { emitEvent: false },
+    );
+  }
+
   /** 固定給を計算 */
   private calculateFixedSalary() {
-
-    console.log(
-      'basic',
-      this.form.value.basicSalary,
-      'fixed',
-      this.form.value.fixedAllowance,
-      'transport',
-      this.form.value.transportAllowance,
-    );
-    const fixedSalary = Number(this.form.value.basicSalary ?? 0) + Number(this.form.value.fixedAllowance ?? 0) + Number(this.form.value.transportAllowance ?? 0);
-    
-    console.log('fixedSalary=', fixedSalary);
-    
+    const fixedSalary = Number(this.form.controls.basicSalary.value ?? 0)
+      + Number(this.form.controls.fixedAllowance.value ?? 0)
+      + Number(this.form.controls.transportAllowance.value ?? 0);
     return fixedSalary;
   }
 
   /** 総支給額を計算 */
-  private calculateActualPaymentAmount() {
-    const actualPaymentAmount = Number(this.form.value.fixedSalary ?? 0) + Number(this.form.value.variableAllowance ?? 0);
+  private calculateActualPaymentAmount(fixedSalary = this.calculateFixedSalary()) {
+    const actualPaymentAmount = fixedSalary + Number(this.form.controls.variableAllowance.value ?? 0);
     return actualPaymentAmount;
   }
 
@@ -270,6 +264,7 @@ export class MonthlySalary {
   resetForm() {
     this.form.reset();
     this.applySalaryInputValidators();
+    this.updateCalculatedSalaryAmounts();
   }
 
   /** 今月の申請一覧へ遷移 */

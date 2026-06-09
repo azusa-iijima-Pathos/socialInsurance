@@ -6,8 +6,8 @@
         <p>※アカウント連携が完了していないユーザーは権限設定できません。</p>
     </div>
 
-    <div *ngIf="mode === 'initial'">
-        <button type="button" class="im-btn-primary" (click)="toSetting()">◀給与設定に戻る</button>
+    <div *ngIf="mode === 'initial'" style="display: flex; justify-content: space-between;">
+        <button type="button" class="im-btn-soft" (click)="toSetting()">◀給与設定に戻る</button>
         <button type="button" class="im-btn-primary" (click)="toAddEmployee()">従業員保険情報を追加へ▶</button>
     </div>
 
