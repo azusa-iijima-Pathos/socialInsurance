@@ -120,6 +120,18 @@ export const routes: Routes = [
     { path: 'retroactive-correction', component: RetroactiveCorrection, title: '遡及修正 ｜ 社会保険管理システム' ,
         canActivate: [authGuard, companyGuard], data: { permission: '承認' }
     },
+    { path: 'salary-correction', component: SalaryCorrection, title: '月額給与修正 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'leave-correction', redirectTo: 'retroactive-correction', pathMatch: 'full' },
+    { path: 'fix-salary-correction', redirectTo: 'retroactive-correction', pathMatch: 'full' },
+    { path: 'insurance-correction', redirectTo: 'retroactive-correction', pathMatch: 'full' },
+    { path: 'bonus-correction', component: BonusCorrection, title: '賞与修正 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'correction-list', component: CorrectionList, title: '差額調整一覧 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
 
     { path: '**', redirectTo: '/login' }
 ];

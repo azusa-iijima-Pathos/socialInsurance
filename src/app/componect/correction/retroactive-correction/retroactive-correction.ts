@@ -10,7 +10,7 @@ import { CalculationRunService } from '../../../service/Firestore/calculation-ru
 import { EventService } from '../../../service/Firestore/event-service';
 import { Employee, EmployeeInsurance, InsuranceDetail } from '../../../model/employee';
 import { LeaveType, WorkStatus } from '../../../constants/model-constants';
-import { addMonths, buildCurrentWorkMonthEventId, getFixedSalarySystemOccurredDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { addMonths, buildCurrentWorkMonthEventId, getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { InsuranceFormService, InsuranceName, InsuranceStatus } from '../../../service/logic/insurance-form.service';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { Timestamp } from '@angular/fire/firestore';
@@ -100,9 +100,8 @@ export class RetroactiveCorrection {
   }
 
   private refreshInsuranceValidatorsForApplyDate() {
-    const applyDate = this.form.controls.applyDate.value;
     for (const name of ['healthInsurance', 'nursingCareInsurance', 'employeePensionInsurance'] as const) {
-      this.updateInsuranceDetailControls(this.form.controls[name].controls.joined.value, name, applyDate || undefined);
+      this.updateInsuranceDetailControls(this.form.controls[name].controls.joined.value, name);
     }
   }
 
@@ -240,10 +239,12 @@ export class RetroactiveCorrection {
     this.form.markAllAsTouched();
 
     if (this.form.controls.employeeId.invalid) return false;
-    if (this.form.controls.applyDate.invalid) return false;
+    if (this.activeTab !== 'leave') {
+      if (this.form.controls.applyDate.invalid) return false;
 
-    if (!(await this.validateApplyDateControl())) {
-      return false;
+      if (!(await this.validateApplyDateControl())) {
+        return false;
+      }
     }
 
     if (this.activeTab === 'insurance') {
@@ -252,6 +253,7 @@ export class RetroactiveCorrection {
         if (this.form.controls[name].invalid) return false;
       }
       if (this.form.hasError('healthInsuranceDependency')) return false;
+      if (!this.validateInsuranceDateMatchesApplyDate()) return false;
     }
 
     if (this.activeTab === 'fixedSalary') {
@@ -261,9 +263,14 @@ export class RetroactiveCorrection {
     if (this.activeTab === 'leave') {
       const leaveStartDate = this.form.controls.leaveStartDate.value?.trim();
       const leaveEndDate = this.form.controls.leaveEndDate.value?.trim();
-      if (!leaveStartDate && !leaveEndDate) {
+      if (!this.isCurrentlyOnLeave() && !leaveStartDate) {
         this.form.controls.leaveStartDate.setErrors({ required: true });
         this.form.controls.leaveStartDate.markAsTouched();
+        return false;
+      }
+      if (this.isCurrentlyOnLeave() && !leaveEndDate) {
+        this.form.controls.leaveEndDate.setErrors({ required: true });
+        this.form.controls.leaveEndDate.markAsTouched();
         return false;
       }
       if (leaveStartDate && leaveEndDate && leaveEndDate <= leaveStartDate) {
@@ -288,16 +295,59 @@ export class RetroactiveCorrection {
     return this.insuranceFormService.getControlErrorMessage(this.form.get(controlPath), label);
   }
 
-  areSubInsuranceOptionsLimited(): boolean {
-    return this.insuranceFormService.areSubInsuranceOptionsLimited(
-      this.form.controls.healthInsurance.controls.joined.value,
-    );
+  isCurrentlyOnLeave(): boolean {
+    return this.selectedEmployee?.workStatus === '休職中';
   }
 
   isSubInsuranceJoinedDisabled(): boolean {
     return this.insuranceFormService.isSubInsuranceJoinedDisabled(
       this.form.controls.healthInsurance.controls.joined.value,
     );
+  }
+
+  private validateInsuranceDateMatchesApplyDate(): boolean {
+    const applyDate = this.form.controls.applyDate.value;
+    if (!applyDate || !this.selectedEmployee) return true;
+
+    let isValid = true;
+    for (const name of ['healthInsurance', 'nursingCareInsurance', 'employeePensionInsurance'] as const) {
+      const group = this.form.controls[name];
+      const currentDetail = this.selectedEmployee.insurance?.[name];
+      const currentAcquiredDate = this.formatDateInput(currentDetail?.acquiredDate?.toDate());
+      const currentLostDate = this.formatDateInput(currentDetail?.lostDate?.toDate());
+
+      if (group.controls.acquiredDate.value && group.controls.acquiredDate.value !== currentAcquiredDate) {
+        isValid = this.applyDateMatchError(group.controls.acquiredDate, applyDate) && isValid;
+      } else {
+        this.clearControlError(group.controls.acquiredDate, 'applyDateMismatch');
+      }
+
+      if (group.controls.lostDate.value && group.controls.lostDate.value !== currentLostDate) {
+        isValid = this.applyDateMatchError(group.controls.lostDate, applyDate) && isValid;
+      } else {
+        this.clearControlError(group.controls.lostDate, 'applyDateMismatch');
+      }
+    }
+
+    return isValid;
+  }
+
+  private applyDateMatchError(control: { value: string; errors: Record<string, unknown> | null; setErrors: (errors: Record<string, unknown> | null) => void; markAsTouched: () => void }, applyDate: string): boolean {
+    if (control.value === applyDate) {
+      this.clearControlError(control, 'applyDateMismatch');
+      return true;
+    }
+
+    control.setErrors({ ...(control.errors ?? {}), applyDateMismatch: true });
+    control.markAsTouched();
+    return false;
+  }
+
+  private clearControlError(control: { errors: Record<string, unknown> | null; setErrors: (errors: Record<string, unknown> | null) => void }, errorKey: string) {
+    if (!control.errors?.[errorKey]) return;
+
+    const { [errorKey]: _, ...rest } = control.errors;
+    control.setErrors(Object.keys(rest).length ? rest : null);
   }
 
   async submit() {
@@ -326,11 +376,10 @@ export class RetroactiveCorrection {
     }
 
     const employeeId = selectedEmployee.employeeId;
-    const loginEmployeeId = sessionStorage.getItem('employeeId') ?? '';
+    const loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? sessionStorage.getItem('employeeId') ?? '';
     const applyDate = new Date(this.form.value.applyDate!);
     const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(applyDate);
     const revisionMonth = addMonths(applyMonth.year, applyMonth.month, 3);
-    const working = getWorkingYearMonth();
     const before = { ...selectedEmployee };
     const after: Employee = {
       ...before,
@@ -367,19 +416,17 @@ export class RetroactiveCorrection {
       },
     );
 
-    const revisionKey = revisionMonth.year * 12 + revisionMonth.month;
-    const workingKey = working.year * 12 + working.month;
-    if (revisionKey <= workingKey) {
-      await this.calculationRunService.createAdHocRevisionRun(
-        employeeId,
-        revisionMonth,
-        { before, after },
-        Timestamp.fromDate(getFixedSalarySystemOccurredDate(revisionMonth)),
-      );
-      this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。適用日から3か月後の随時改定を確認してください。`);
-    } else {
-      this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定は${revisionMonth.year}年${revisionMonth.month}月以降に反映されます。`);
+    const runId = await this.calculationRunService.createAdHocRevisionRun(
+      employeeId,
+      revisionMonth,
+      { before, after, fixedSalaryChangeDate: Timestamp.fromDate(applyDate) },
+      Timestamp.fromDate(applyDate),
+    );
+    if (!runId) {
+      this.showMessage('随時改定の作成に失敗しました');
+      return;
     }
+    this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定を確認してください。`);
 
     await this.employeeService.getAllEmployees(true);
     await this.refreshSelectedEmployee();
@@ -400,8 +447,7 @@ export class RetroactiveCorrection {
       return;
     }
 
-    const applyDate = new Date(this.form.value.applyDate!);
-    const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(applyDate);
+    const applyMonth = await this.getCorrectionStartMonth();
     const working = getWorkingYearMonth();
     const afterEmployee = this.buildAfterEmployee();
 
@@ -428,8 +474,7 @@ export class RetroactiveCorrection {
     const working = getWorkingYearMonth();
     const sourceType = this.getSourceTypeLabel();
     const loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? sessionStorage.getItem('employeeId') ?? '';
-    const applyDate = new Date(this.form.value.applyDate!);
-    const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(applyDate);
+    const applyMonth = await this.getCorrectionStartMonth();
 
     let updated = false;
     if (this.activeTab === 'insurance') {
@@ -491,16 +536,34 @@ export class RetroactiveCorrection {
     this.previewModalOpen = false;
   }
 
+  private async getCorrectionStartMonth(): Promise<{ year: number; month: number }> {
+    if (this.activeTab !== 'leave') {
+      return await this.correctionLogicService.getWorkMonthForInputDate(new Date(this.form.value.applyDate!));
+    }
+
+    const leaveDate = this.getLeaveCorrectionDate();
+    const leaveWorkMonth = await this.correctionLogicService.getWorkMonthForInputDate(leaveDate);
+    return this.isCurrentlyOnLeave()
+      ? addMonths(leaveWorkMonth.year, leaveWorkMonth.month, 1)
+      : leaveWorkMonth;
+  }
+
+  private getLeaveCorrectionDate(): Date {
+    const value = this.isCurrentlyOnLeave()
+      ? this.form.controls.leaveEndDate.value
+      : this.form.controls.leaveStartDate.value;
+    return new Date(value);
+  }
+
   private buildAfterEmployee(): Employee {
     const base = { ...this.selectedEmployee! };
     const v = this.form.getRawValue();
 
     if (this.activeTab === 'leave') {
-      const applyDate = new Date(this.form.value.applyDate!);
       const leaveEnd = v.leaveEndDate ? new Date(v.leaveEndDate) : null;
       const leaveStart = v.leaveStartDate ? new Date(v.leaveStartDate) : null;
 
-      if (leaveEnd && leaveEnd <= applyDate) {
+      if (leaveEnd) {
         return {
           ...base,
           workStatus: '通常勤務' as WorkStatus,
@@ -625,11 +688,10 @@ export class RetroactiveCorrection {
       .subscribe(() => insuranceGroup.controls.lostDate.updateValueAndValidity());
   }
 
-  private updateInsuranceDetailControls(status: InsuranceStatus, insuranceName: InsuranceName, applyDate?: string) {
+  private updateInsuranceDetailControls(status: InsuranceStatus, insuranceName: InsuranceName) {
     this.insuranceFormService.updateInsuranceDetailControls(
       this.form.controls[insuranceName],
       status,
-      applyDate ?? this.form.controls.applyDate.value ?? undefined,
     );
     this.form.updateValueAndValidity({ emitEvent: false });
   }

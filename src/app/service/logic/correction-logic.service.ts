@@ -265,14 +265,14 @@ export class CorrectionLogicService {
   async calculateBonusInsuranceComparison(
     employee: Employee,
     payrollId: string,
+    currentAmount: number,
     newAmount: number,
   ): Promise<BonusInsuranceComparison | null> {
     const snapshot = await this.insuranceSnapshotService.getSnapshot(employee.employeeId, payrollId);
     if (!snapshot) return null;
 
-    const adjustmentRuns = await this.getDifferenceAdjustmentRuns();
-    const current = this.getAdjustedSnapshotTotals(snapshot, adjustmentRuns, employee.employeeId, payrollId);
-    const calculated = await this.calculateBonusInsuranceTotals(employee, payrollId, newAmount);
+    const current = await this.calculateBonusInsuranceTotals(employee, snapshot, payrollId, currentAmount);
+    const calculated = await this.calculateBonusInsuranceTotals(employee, snapshot, payrollId, newAmount);
 
     return {
       payrollId,
@@ -427,7 +427,7 @@ export class CorrectionLogicService {
     };
   }
 
-  private async calculateBonusInsuranceTotals(employee: Employee, payrollId: string, amount: number) {
+  private async calculateBonusInsuranceTotals(employee: Employee, snapshot: InsuranceSnapshot, payrollId: string, amount: number) {
     const targetYearMonth = payrollId.replace('_bonus', '');
     const standardBonusAmount = Math.floor((Number(amount) || 0) / 1000) * 1000;
     const previousHealthStandardBonus = await this.getPreviousHealthStandardBonusTotal(employee.employeeId, payrollId, targetYearMonth);
@@ -441,19 +441,15 @@ export class CorrectionLogicService {
     let nursing = this.normalizeBonusAmount(healthStandardBonusAmount * ((rate?.nursingCareRate ?? 0) / 100));
     let pension = this.normalizeBonusAmount(pensionStandardBonusAmount * ((rate?.pensionRate ?? 0) / 100));
 
-    if (!employee.insurance?.healthInsurance?.joined || employee.insurance?.healthInsurance?.lostDate) {
+    const confirmed = this.insuranceDisplayService.getSnapshotTotals(snapshot);
+    if (confirmed.health <= 0) {
       health = 0;
       nursing = 0;
     }
-    if (!employee.insurance?.nursingCareInsurance?.joined || employee.insurance?.nursingCareInsurance?.lostDate) {
+    if (confirmed.nursing <= 0) {
       nursing = 0;
     }
-    if (!employee.insurance?.employeePensionInsurance?.joined || employee.insurance?.employeePensionInsurance?.lostDate) {
-      pension = 0;
-    }
-    if (employee.workStatus === '休職中' && (employee.leaveTypes === '産前産後' || employee.leaveTypes === '育児')) {
-      health = 0;
-      nursing = 0;
+    if (confirmed.pension <= 0) {
       pension = 0;
     }
 
@@ -478,6 +474,7 @@ export class CorrectionLogicService {
     const fiscalEndYearMonth = `${fiscalStartYear + 1}-03`;
 
     const payrollList = await this.payrollService.getPayrollListForEmployee(employeeId);
+    const adjustmentRuns = await this.getDifferenceAdjustmentRuns();
     return payrollList
       .filter(payroll => payroll.type === '賞与')
       .filter(payroll => payroll.payrollId !== payrollId)
@@ -485,7 +482,26 @@ export class CorrectionLogicService {
         const payrollYearMonth = payroll.payrollId?.slice(0, 7) ?? '';
         return fiscalStartYearMonth <= payrollYearMonth && payrollYearMonth <= fiscalEndYearMonth;
       })
-      .reduce((total, payroll) => total + Math.floor((payroll.actualPaymentAmount ?? 0) / 1000) * 1000, 0);
+      .reduce((total, payroll) => {
+        const amount = this.getAdjustedBonusAmount(adjustmentRuns, employeeId, payroll.payrollId ?? '', payroll.actualPaymentAmount ?? 0);
+        return total + Math.floor(amount / 1000) * 1000;
+      }, 0);
+  }
+
+  private getAdjustedBonusAmount(
+    runs: CalculationRun[],
+    employeeId: string,
+    payrollId: string,
+    originalAmount: number,
+  ): number {
+    const latestRun = runs
+      .filter(run => run.type === '差額調整')
+      .filter(run => String(run.payload?.['employeeId'] ?? run.targetEmployeeIds ?? '') === employeeId)
+      .filter(run => String(run.payload?.['payrollId'] ?? '') === payrollId)
+      .filter(run => run.payload?.['afterAmount'] !== undefined)
+      .sort((left, right) => String(right.runId ?? '').localeCompare(String(left.runId ?? '')))[0];
+
+    return latestRun ? Number(latestRun.payload?.['afterAmount'] ?? originalAmount) : originalAmount;
   }
 
   private normalizeBonusAmount(amount: number) {

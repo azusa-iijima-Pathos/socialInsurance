@@ -41,6 +41,7 @@
         <th>名前</th>
         <th>対象月</th>
         <th *ngIf="listType !== 'bonus'">等級</th>
+        <th *ngIf="listType === 'bonus'">賞与額</th>
         <th>健康保険<br>
           <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
         </th>
@@ -62,6 +63,10 @@
         <td>{{ getEmployeeName(run) }}</td>
         <td>{{ getAdjustMonth(run) }}</td>
         <td *ngIf="listType !== 'bonus'">{{ getGrade(run) }}</td>
+        <td *ngIf="listType === 'bonus'">
+          <span>{{ getBeforeAmount(run) | number }}→<strong>{{ getAfterAmount(run) | number }}</strong>円</span>
+          <small class="correction-list-diff">{{ (getAfterAmount(run) - getBeforeAmount(run)) | number }}円</small>
+        </td>
         <td>
           <span>{{ getCurrentHealth(run) | number }}→{{ getNewHealth(run) | number }}円</span>
           <small class="correction-list-diff"> {{ getHealthDiff(run) | number }}円</small>

@@ -138,6 +138,14 @@ export class CorrectionList {
     return Number(run.payload?.['totalDiff'] ?? 0);
   }
 
+  getBeforeAmount(run: CalculationRun): number {
+    return Number(run.payload?.['beforeAmount'] ?? 0);
+  }
+
+  getAfterAmount(run: CalculationRun): number {
+    return Number(run.payload?.['afterAmount'] ?? 0);
+  }
+
   getInsuranceCell(current: number, next: number, diff: number): string {
     return `${current.toLocaleString()}→${next.toLocaleString()}円（差額 ${diff.toLocaleString()}円）`;
   }
@@ -156,6 +164,8 @@ export class CorrectionList {
       'employee_name',
       'target_month',
       'adjust_month',
+      'before_bonus_amount',
+      'after_bonus_amount',
       'health_diff',
       'nursing_diff',
       'pension_diff',
@@ -188,7 +198,7 @@ export class CorrectionList {
         this.escapeCsv(this.getRemark(run)),
       ];
       return this.listType === 'bonus'
-        ? [...common, ...diffs].join(',')
+        ? [...common, this.getBeforeAmount(run), this.getAfterAmount(run), ...diffs].join(',')
         : [...common, this.getGrade(run), ...diffs].join(',');
     });
     const csv = [header, ...body].join('\n');

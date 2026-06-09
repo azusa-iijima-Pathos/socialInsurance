@@ -7,7 +7,7 @@ import { CorrectionLogicService } from '../../../service/logic/correction-logic.
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { Employee } from '../../../model/employee';
 import { Timestamp } from '@angular/fire/firestore';
-import { addMonths, getFixedSalarySystemOccurredDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { addMonths } from '../../../service/logic/event-id-service';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 
 @Component({
@@ -57,7 +57,6 @@ export class FixSalaryCorrection {
     const applyDate = new Date(this.form.value.applyDate!);
     const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(applyDate);
     const revisionMonth = addMonths(applyMonth.year, applyMonth.month, 3);
-    const working = getWorkingYearMonth();
     const before = { ...employee };
     const after: Employee = {
       ...employee,
@@ -76,20 +75,13 @@ export class FixSalaryCorrection {
       return;
     }
 
-    const revisionKey = revisionMonth.year * 12 + revisionMonth.month;
-    const workingKey = working.year * 12 + working.month;
-
-    if (revisionKey <= workingKey) {
-      await this.calculationRunService.createAdHocRevisionRun(
-        employeeId,
-        revisionMonth,
-        { before, after },
-        Timestamp.fromDate(getFixedSalarySystemOccurredDate(revisionMonth)),
-      );
-      this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定のシステム計算結果を作成しました。`);
-    } else {
-      this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定は${revisionMonth.year}年${revisionMonth.month}月以降に反映されます。`);
-    }
+    await this.calculationRunService.createAdHocRevisionRun(
+      employeeId,
+      revisionMonth,
+      { before, after, fixedSalaryChangeDate: Timestamp.fromDate(applyDate) },
+      Timestamp.fromDate(applyDate),
+    );
+    this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定は${revisionMonth.year}年${revisionMonth.month}月以降に確認してください。`);
   }
 
   private showMessage(message: string) {

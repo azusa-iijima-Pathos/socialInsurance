@@ -162,17 +162,6 @@
 
         <div class="retroactive-inline-grid retroactive-inline-grid--leave" *ngIf="activeTab === 'leave'">
           <div class="im-field-block im-field-row employee-edit-field">
-            <div class="im-field-row__label"><label for="retroApplyDateLeave">適用日</label></div>
-            <div class="im-field-row__control">
-              <input type="date" id="retroApplyDateLeave" formControlName="applyDate">
-              <div class="error">
-                <p *ngIf="form.get('applyDate')?.errors?.['required'] && form.get('applyDate')?.touched">適用日は必須です</p>
-                <p *ngIf="form.get('applyDate')?.errors?.['retroactiveApplyDate'] && form.get('applyDate')?.touched">
-                  適用日は現在の作業月より前で、確定済み対象月がある日付を指定してください</p>
-              </div>
-            </div>
-          </div>
-          <div class="im-field-block im-field-row employee-edit-field">
             <div class="im-field-row__label"><label for="retroLeaveTypes">休職種別</label></div>
             <div class="im-field-row__control">
               <select id="retroLeaveTypes" formControlName="leaveTypes">
@@ -182,20 +171,17 @@
             </div>
           </div>
           <div class="im-field-block im-field-row employee-edit-field">
-            <div class="im-field-row__label"><label for="retroLeaveStartDate">休職開始日</label></div>
+            <div class="im-field-row__label">
+              <label>{{ isCurrentlyOnLeave() ? '休職終了日' : '休職開始日' }}</label>
+            </div>
             <div class="im-field-row__control">
-              <input type="date" id="retroLeaveStartDate" formControlName="leaveStartDate">
+              <input *ngIf="!isCurrentlyOnLeave()" type="date" id="retroLeaveStartDate" formControlName="leaveStartDate">
+              <input *ngIf="isCurrentlyOnLeave()" type="date" id="retroLeaveEndDate" formControlName="leaveEndDate">
               <div class="error">
                 <p *ngIf="form.get('leaveStartDate')?.errors?.['required'] && form.get('leaveStartDate')?.touched">
-                  休職開始日または休職終了日のいずれかを入力してください</p>
-              </div>
-            </div>
-          </div>
-          <div class="im-field-block im-field-row employee-edit-field">
-            <div class="im-field-row__label"><label for="retroLeaveEndDate">休職終了日</label></div>
-            <div class="im-field-row__control">
-              <input type="date" id="retroLeaveEndDate" formControlName="leaveEndDate">
-              <div class="error">
+                  休職開始日は必須です</p>
+                <p *ngIf="form.get('leaveEndDate')?.errors?.['required'] && form.get('leaveEndDate')?.touched">
+                  休職終了日は必須です</p>
                 <p *ngIf="form.get('leaveEndDate')?.errors?.['leaveEndBeforeStart'] && form.get('leaveEndDate')?.touched">
                   休職終了日は休職開始日より後の日付で入力してください</p>
               </div>
@@ -244,7 +230,7 @@
             <div class="im-radio-group">
               <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入</span></label>
-              <label class="im-radio-option" *ngIf="!areSubInsuranceOptionsLimited()"><input type="radio" formControlName="joined"
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="notJoined"><span>未加入</span></label>
               <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="lost"><span>喪失</span></label>
@@ -279,7 +265,7 @@
             <div class="im-radio-group">
               <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入</span></label>
-              <label class="im-radio-option" *ngIf="!areSubInsuranceOptionsLimited()"><input type="radio" formControlName="joined"
+              <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="notJoined"><span>未加入</span></label>
               <label class="im-radio-option"><input type="radio" formControlName="joined"
                   value="lost"><span>喪失</span></label>

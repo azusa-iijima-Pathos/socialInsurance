@@ -458,6 +458,7 @@ export class CalculationRunService {
       applicantType: 'システム',
       approval: run.approval,
       payload: {
+        ...run.payload,
         before: run.payload?.['before'],
         after: run.payload?.['after'],
       },

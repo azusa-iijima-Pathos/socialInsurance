@@ -9,10 +9,8 @@ import { CompanyService } from '../Firestore/company-service';
 import { EmployeeLogicService } from './employee-logic-service';
 import {
   addMonths,
-  buildAdHocRevisionRunId,
   buildCurrentWorkMonthEventId,
   buildRetireSystemEventId,
-  getFixedSalarySystemOccurredDate,
   getWorkingYearMonth,
   isEventAtOrBeforeWorkingMonth,
 } from './event-id-service';
@@ -193,8 +191,8 @@ export class EmployeeDetailEventService {
     const systemId = await this.calculationRunService.createAdHocRevisionRun(
       employeeId,
       revisionMonth,
-      { before, after },
-      Timestamp.fromDate(getFixedSalarySystemOccurredDate()),
+      { before, after, fixedSalaryChangeDate: Timestamp.now() },
+      Timestamp.now(),
     );
     if (systemId) createdIds.push(systemId);
 

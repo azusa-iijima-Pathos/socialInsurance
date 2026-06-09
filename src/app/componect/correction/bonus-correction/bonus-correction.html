@@ -44,7 +44,7 @@
           <td>{{ row.payroll.employeeId }}</td>
           <td>{{ row.employeeName }}</td>
           <td>{{ displayBonusPayrollId(selectedPayrollId) }}</td>
-          <td> <span *ngIf="!row.editing" style="font-weight: bold;">{{ row.payroll.actualPaymentAmount | number }}円</span>
+          <td> <span *ngIf="!row.editing" style="font-weight: bold;">{{ row.adjustedAmount | number }}円</span>
             <input *ngIf="row.editing" type="number" min="0" [(ngModel)]="row.editAmount">
           </td>
           <td>{{ row.health | number }}円</td>
@@ -73,6 +73,8 @@
     </div>
     <div class="employee-approval-modal__body">
       <p>社員ID：{{ pendingEmployee?.employeeId }}　{{ displayBonusPayrollId(selectedPayrollId) }}</p>
+      <p>賞与額：{{ pendingCurrentAmount | number }}円 → <strong>{{
+          pendingPayroll?.actualPaymentAmount | number }}円</strong></p>
       <table class="im-table">
         <thead>
           <tr>

@@ -1,7 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
 import { CorrectionLogicService, BonusInsuranceComparison, MonthlyInsuranceComparisonRow } from '../../../service/logic/correction-logic.service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { PayrollService } from '../../../service/Firestore/payroll-service';
@@ -19,6 +18,7 @@ import { Router } from '@angular/router';
 
 type BonusCorrectionRow = {
   payroll: Payroll;
+  adjustedAmount: number;
   employeeName: string;
   grade: number;
   health: number;
@@ -31,7 +31,7 @@ type BonusCorrectionRow = {
 
 @Component({
   selector: 'app-bonus-correction',
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule],
   templateUrl: './bonus-correction.html',
   styleUrl: './bonus-correction.css',
 })
@@ -54,6 +54,7 @@ export class BonusCorrection {
   previewComparison: BonusInsuranceComparison | null = null;
   pendingPayroll: Partial<Payroll> | null = null;
   pendingOriginalPayroll: Payroll | null = null;
+  pendingCurrentAmount = 0;
   pendingEmployee: Employee | null = null;
   rows: BonusCorrectionRow[] = [];
 
@@ -85,8 +86,10 @@ export class BonusCorrection {
       const totals = snapshot
         ? this.insuranceDisplayService.getAdjustedSnapshotTotals(snapshot, adjustmentRuns, employeeId, this.selectedPayrollId)
         : { health: 0, nursing: 0, pension: 0 };
+      const adjustedAmount = this.getAdjustedBonusAmount(adjustmentRuns, employeeId, this.selectedPayrollId, payroll.actualPaymentAmount ?? 0);
       this.rows.push({
         payroll,
+        adjustedAmount,
         employeeName: employeeId ? this.commonService.getEmployeeName(employeeId) ?? employeeId : '',
         grade: Number(snapshot?.grade ?? employee?.insurance?.currentGrade ?? 0),
         health: totals.health,
@@ -94,19 +97,19 @@ export class BonusCorrection {
         pension: totals.pension,
         total: totals.health + totals.nursing + totals.pension,
         editing: false,
-        editAmount: payroll.actualPaymentAmount ?? 0,
+        editAmount: adjustedAmount,
       });
     }
   }
 
   startEdit(row: BonusCorrectionRow) {
     row.editing = true;
-    row.editAmount = row.payroll.actualPaymentAmount ?? 0;
+    row.editAmount = row.adjustedAmount;
   }
 
   cancelEdit(row: BonusCorrectionRow) {
     row.editing = false;
-    row.editAmount = row.payroll.actualPaymentAmount ?? 0;
+    row.editAmount = row.adjustedAmount;
   }
 
   async confirmInsurance(row: BonusCorrectionRow) {
@@ -123,6 +126,7 @@ export class BonusCorrection {
     const comparison = await this.correctionLogicService.calculateBonusInsuranceComparison(
       employee,
       this.selectedPayrollId,
+      row.adjustedAmount,
       newAmount,
     );
 
@@ -135,7 +139,10 @@ export class BonusCorrection {
       ...row.payroll,
       actualPaymentAmount: newAmount,
     };
-    this.pendingOriginalPayroll = row.payroll;
+    this.pendingOriginalPayroll = {
+      ...row.payroll,
+    };
+    this.pendingCurrentAmount = row.adjustedAmount;
     this.pendingEmployee = employee;
     this.previewComparison = comparison;
     this.previewOpen = true;
@@ -144,13 +151,8 @@ export class BonusCorrection {
   async approvePreview() {
     if (!this.pendingPayroll || !this.pendingOriginalPayroll || !this.pendingEmployee || !this.previewComparison) return;
 
-    const updated = await this.payrollService.updatePayrollForCorrection(this.pendingPayroll);
-    if (!updated) {
-      this.showMessage(UPDATE_MESSAGES.FAILED);
-      return;
-    }
-
-    if (this.previewComparison.totalDiff !== 0) {
+    const amountChanged = this.pendingCurrentAmount !== (this.pendingPayroll.actualPaymentAmount ?? 0);
+    if (this.previewComparison.totalDiff !== 0 || amountChanged) {
       const working = getWorkingYearMonth();
       const row: MonthlyInsuranceComparisonRow = {
         payrollId: this.previewComparison.payrollId,
@@ -176,7 +178,8 @@ export class BonusCorrection {
         working,
         [row],
         {
-          beforeAmount: this.pendingOriginalPayroll.actualPaymentAmount ?? 0,
+          originalAmount: this.pendingOriginalPayroll.actualPaymentAmount ?? 0,
+          beforeAmount: this.pendingCurrentAmount,
           afterAmount: this.pendingPayroll.actualPaymentAmount ?? 0,
           payrollId: this.selectedPayrollId,
         },
@@ -186,6 +189,7 @@ export class BonusCorrection {
     this.previewOpen = false;
     this.pendingPayroll = null;
     this.pendingOriginalPayroll = null;
+    this.pendingCurrentAmount = 0;
     this.pendingEmployee = null;
     this.previewComparison = null;
     this.showMessage(`賞与修正を${UPDATE_MESSAGES.SUCCESS}`);
@@ -196,6 +200,7 @@ export class BonusCorrection {
     this.previewOpen = false;
     this.pendingPayroll = null;
     this.pendingOriginalPayroll = null;
+    this.pendingCurrentAmount = 0;
     this.pendingEmployee = null;
     this.previewComparison = null;
   }
@@ -215,6 +220,22 @@ export class BonusCorrection {
       nursing: sum('介護保険'),
       pension: sum('厚生年金'),
     };
+  }
+
+  private getAdjustedBonusAmount(
+    runs: { type?: string; payload?: Record<string, unknown>; targetEmployeeIds?: string }[],
+    employeeId: string,
+    payrollId: string,
+    originalAmount: number,
+  ): number {
+    const latestRun = runs
+      .filter(run => run.type === '差額調整')
+      .filter(run => String(run.payload?.['employeeId'] ?? run.targetEmployeeIds ?? '') === employeeId)
+      .filter(run => String(run.payload?.['payrollId'] ?? '') === payrollId)
+      .filter(run => run.payload?.['afterAmount'] !== undefined)
+      .sort((left, right) => String((right as { runId?: string }).runId ?? '').localeCompare(String((left as { runId?: string }).runId ?? '')))[0];
+
+    return latestRun ? Number(latestRun.payload?.['afterAmount'] ?? originalAmount) : originalAmount;
   }
 
   private showMessage(message: string) {

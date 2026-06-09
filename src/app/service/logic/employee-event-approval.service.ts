@@ -11,7 +11,6 @@ import { Dependent } from '../../model/dependent';
 import { Relationship } from '../../constants/model-constants';
 import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { SystemCalculationRunItem } from '../Firestore/calculation-run-service';
-import { addMonths } from './event-id-service';
 
 type InsuranceStatusKind = 'joined' | 'notJoined' | 'lost';
 
@@ -65,7 +64,7 @@ export class EmployeeEventApprovalService {
       return {
         currentGrade,
         occurredDate: event.occurredDate!,
-        revisionLabel: '判定不可のため等級変更なし',
+        revisionLabel: `判定不可のため等級変更なし${revision.reason ? `（${revision.reason}）` : ''}`,
         approvedGrade: currentGrade,
         canRevise: false,
       };
@@ -358,8 +357,10 @@ export class EmployeeEventApprovalService {
   }
 
   private getFixedSalaryChangeMonth(event: Event) {
-    const occurred = event.occurredDate?.toDate() ?? new Date();
-    return addMonths(occurred.getFullYear(), occurred.getMonth() + 1, -3);
+    const changeDate = (event.payload?.['fixedSalaryChangeDate'] as Timestamp | undefined)?.toDate()
+      ?? event.occurredDate?.toDate()
+      ?? new Date();
+    return { year: changeDate.getFullYear(), month: changeDate.getMonth() + 1 };
   }
 
   private buildLostInsuranceDetail(existing: InsuranceDetail | undefined, lostDate: Timestamp): InsuranceDetail {

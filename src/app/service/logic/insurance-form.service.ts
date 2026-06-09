@@ -81,10 +81,6 @@ export class InsuranceFormService {
     return healthStatus !== 'joined';
   }
 
-  areSubInsuranceOptionsLimited(healthStatus: InsuranceStatus): boolean {
-    return healthStatus === 'notJoined' || healthStatus === 'lost';
-  }
-
   healthInsuranceDependencyValidator = (control: AbstractControl): ValidationErrors | null => {
     const healthStatus = control.get('healthInsurance.joined')?.value as InsuranceStatus | undefined;
     const nursingStatus = control.get('nursingCareInsurance.joined')?.value as InsuranceStatus | undefined;
@@ -118,7 +114,6 @@ export class InsuranceFormService {
   updateInsuranceDetailControls(
     insuranceGroup: AbstractControl,
     status: InsuranceStatus,
-    applyDate?: string,
   ) {
     const needsInsuranceDetail = status === 'joined' || status === 'lost';
     const needsLostDate = status === 'lost';
@@ -137,7 +132,7 @@ export class InsuranceFormService {
     );
     acquiredDateControl.setValidators(
       needsInsuranceDetail
-        ? [Validators.required, ...(applyDate ? [this.matchApplyDateValidator(applyDate, 'acquiredDate')] : [])]
+        ? [Validators.required]
         : null,
     );
     lostDateControl.setValidators(
@@ -146,7 +141,6 @@ export class InsuranceFormService {
           needsLostDate ? Validators.required : null,
           forbidsLostDate ? this.forbidLostDateValidator : null,
           this.lostDateAfterAcquiredDateValidator,
-          ...(applyDate && needsLostDate ? [this.matchApplyDateValidator(applyDate, 'lostDate')] : []),
         ].filter(validator => validator !== null)
         : null,
     );
@@ -195,13 +189,6 @@ export class InsuranceFormService {
   private forbidLostDateValidator = (control: AbstractControl): ValidationErrors | null => {
     return control.value ? { lostDateNotAllowed: true } : null;
   };
-
-  private matchApplyDateValidator(applyDate: string, field: 'acquiredDate' | 'lostDate') {
-    return (control: AbstractControl): ValidationErrors | null => {
-      if (!control.value) return null;
-      return control.value === applyDate ? null : { applyDateMismatch: true };
-    };
-  }
 
   private formatDateInput(date?: Date): string {
     if (!date) return '';
