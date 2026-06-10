@@ -6,6 +6,7 @@ import { CommonService, MessageTimer } from '../../../service/common/common-serv
 import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { Employee } from '../../../model/employee';
+import { parseDateInputValue } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
 import { addMonths } from '../../../service/logic/event-id-service';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
@@ -54,7 +55,7 @@ export class FixSalaryCorrection {
       return;
     }
 
-    const applyDate = new Date(this.form.value.applyDate!);
+    const applyDate = parseDateInputValue(this.form.value.applyDate!);
     const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(applyDate);
     const revisionMonth = addMonths(applyMonth.year, applyMonth.month, 3);
     const before = { ...employee };

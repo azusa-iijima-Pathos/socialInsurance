@@ -1,22 +1,24 @@
-<h1>月額給与修正</h1>
-<div class="information-area">
-  <p>作業月以前の確定済み給与・勤務実績を修正します。</p>
-  <p>修正したい月を下のプルダウンから選択してください。</p>
-</div>
+<div class="im-page-shell">
+  <h1 class="page-title">月額給与修正</h1>
+  <div class="information-area">
+    <p>作業月以前の確定済み給与・勤務実績を修正します。</p>
+    <p>修正したい月を下のプルダウンから選択してください。</p>
+  </div>
 
-<div class="salary-correction-toolbar">
-  <label>対象月
-    <select [(ngModel)]="selectedPayrollId" (change)="onMonthChange()">
-      <option *ngFor="let option of monthOptions" [value]="option.payrollId">{{ option.label }}</option>
-    </select>
-  </label>
-</div>
+  <div class="im-correction-toolbar salary-correction-toolbar">
+    <label>対象月
+      <select [(ngModel)]="selectedPayrollId" (change)="onMonthChange()">
+        <option *ngFor="let option of monthOptions" [value]="option.payrollId">{{ option.label }}</option>
+      </select>
+    </label>
+  </div>
 
-<section class="salary-correction-list">
-  <h3>{{ selectedPayrollId }}月 給与・勤務実績一覧</h3>
-  <app-salary-list
-    *ngIf="selectedPayrollId"
-    [payrollId]="selectedPayrollId"
-    [correctionMode]="true">
-  </app-salary-list>
-</section>
+  <section class="im-surface-panel salary-correction-list">
+    <h3 class="section-title">{{ selectedPayrollId }}月 給与・勤務実績一覧</h3>
+    <app-salary-list
+      *ngIf="selectedPayrollId"
+      [payrollId]="selectedPayrollId"
+      [correctionMode]="true">
+    </app-salary-list>
+  </section>
+</div>

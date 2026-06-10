@@ -5,6 +5,7 @@ import { AuthService } from '../../../service/Firestore/auth-service';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { SessionCacheService } from '../../../service/common/session-cache.service';
 
 @Component({
   selector: 'app-header',
@@ -17,6 +18,7 @@ export class Header {
   private location = inject(Location);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private sessionCacheService = inject(SessionCacheService);
 
   private hasSession = signal(false);
 
@@ -73,9 +75,10 @@ export class Header {
     sessionStorage.removeItem('permission');
     sessionStorage.removeItem('workingYear');
     sessionStorage.removeItem('workingMonth');
-    this.hasSession.set(false);
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    this.sessionCacheService.clearAllCaches();
+    this.syncSession();
+    void this.authService.logout();
+    void this.router.navigate(['/login']);
   }
 
   //従業員トップに（管理と承認の場合のみ）

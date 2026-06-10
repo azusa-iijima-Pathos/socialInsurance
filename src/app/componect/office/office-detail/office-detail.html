@@ -1,32 +1,34 @@
-<h2>事業所情報</h2>
+<div class="im-page-shell">
+  <h2 class="page-title">事業所情報</h2>
 
-<div>
-    <h3>事業所一覧</h3>
+  <section class="im-surface-panel im-section-block">
+    <h3 class="section-title">事業所一覧</h3>
     <app-office-list></app-office-list>
-</div>
+  </section>
 
-<div *ngIf="permission === '管理'">
-    <h3>事業所新規登録</h3>
-    <form [formGroup]="form" (ngSubmit)="registerOffice()">
-        <div>
-            <label for="name">事業所名</label>
-            <input type="text" id="name" formControlName="name">
-            <div class="error">
-                <p *ngIf="form.get('name')?.errors?.['required'] && form.get('name')?.touched">事業所名は必須です</p>
-            </div>
+  <section class="im-surface-panel im-section-block" *ngIf="permission === '管理'">
+    <h3 class="section-title">事業所新規登録</h3>
+    <form class="im-fields-grid" [formGroup]="form" (ngSubmit)="registerOffice()">
+      <div class="im-field-block">
+        <label for="name">事業所名</label>
+        <input type="text" id="name" formControlName="name">
+        <div class="error">
+          <p *ngIf="form.get('name')?.errors?.['required'] && form.get('name')?.touched">事業所名は必須です</p>
         </div>
-        <div>
-            <label for="prefecture">所在地</label>
-            <select id="prefecture" formControlName="prefecture">
-                <option [value]=""></option>
-                <option *ngFor="let prefecture of PREFECTURES" [value]="prefecture">{{ prefecture }}</option>
-            </select>
-            <div class="error">
-                <p *ngIf="form.get('prefecture')?.errors?.['required'] && form.get('prefecture')?.touched">所在地は必須です</p>
-            </div>
+      </div>
+      <div class="im-field-block">
+        <label for="prefecture">所在地</label>
+        <select id="prefecture" formControlName="prefecture">
+          <option [value]=""></option>
+          <option *ngFor="let prefecture of PREFECTURES" [value]="prefecture">{{ prefecture }}</option>
+        </select>
+        <div class="error">
+          <p *ngIf="form.get('prefecture')?.errors?.['required'] && form.get('prefecture')?.touched">所在地は必須です</p>
         </div>
-        <div>
-            <button type="submit" class="im-btn-primary" (ngSubmit)="registerOffice()">保存</button>
-        </div>
+      </div>
+      <div class="form-footer-actions">
+        <button type="submit" class="im-btn-primary">保存</button>
+      </div>
     </form>
+  </section>
 </div>

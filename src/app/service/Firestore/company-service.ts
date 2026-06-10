@@ -22,11 +22,26 @@ export class CompanyService {
   /**　ログイン中の会社情報を取得 */
   company = signal<Company | null>(null);
   isCompanyLoaded = false;
+  private cachedCompanyId = '';
+
+  resetCache(): void {
+    this.company.set(null);
+    this.isCompanyLoaded = false;
+    this.cachedCompanyId = '';
+  }
+
   async getCompany(forceReload: boolean = false) {
+    const companyId = this.companyId ?? '';
+    if (this.cachedCompanyId !== companyId) {
+      forceReload = true;
+    }
     if (this.isCompanyLoaded && !forceReload) return;
-    const company = await this.crudService.getById<Company>(`companies/${this.companyId}`, 'companyId');
+    const company = companyId
+      ? await this.crudService.getById<Company>(`companies/${companyId}`, 'companyId')
+      : null;
     this.company.set(company);
     this.isCompanyLoaded = true;
+    this.cachedCompanyId = companyId;
   }
 
   /** 全会社IDの取得 */

@@ -115,3 +115,204 @@
   /* 狭いときは折り返し */
   flex-wrap: wrap;
 }
+
+/* =============================================================================
+   大型モーダル（従業員編集・承認・CSV確認・会社/事業所編集等）
+   既存クラス名は互換のため維持し、見た目をここで統一する
+   ============================================================================= */
+
+.employee-edit-modal,
+.salary-edit-modal,
+.company-edit-modal,
+.office-edit-modal,
+.add-insurance-csv-preview-modal,
+.employee-csv-preview-modal,
+.monthly-salary-csv-preview-modal,
+.bonus-csv-modal,
+.bonus-correction-preview-modal,
+.retroactive-preview-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: var(--im-size-24);
+  background: var(--im-color-black-40);
+  box-sizing: border-box;
+}
+
+.employee-edit-modal__panel,
+.salary-edit-modal__panel,
+.company-edit-modal__panel,
+.office-edit-modal__panel,
+.add-insurance-csv-preview-modal__panel,
+.employee-csv-preview-modal__panel,
+.monthly-salary-csv-preview-modal__panel,
+.bonus-csv-modal__panel {
+  width: min(720px, 100%);
+  max-height: 85vh;
+  padding: var(--im-size-20);
+  overflow: auto;
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-12);
+  background: var(--im-color-white);
+  box-shadow: var(--im-shadow-2);
+  box-sizing: border-box;
+}
+
+.employee-edit-modal__panel--wide,
+.employee-csv-preview-modal__panel,
+.add-insurance-csv-preview-modal__panel,
+.monthly-salary-csv-preview-modal__panel,
+.bonus-csv-modal__panel {
+  width: min(1200px, 100%);
+}
+
+.employee-edit-modal__header,
+.salary-edit-modal__header,
+.company-edit-modal__header,
+.office-edit-modal__header,
+.add-insurance-csv-preview-modal__header,
+.employee-csv-preview-modal__header,
+.monthly-salary-csv-preview-modal__header,
+.bonus-csv-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--im-size-12);
+  margin-bottom: var(--im-size-12);
+  padding-bottom: var(--im-size-12);
+  border-bottom: 1px solid var(--im-color-gray-150);
+}
+
+.employee-edit-modal__header h2,
+.employee-edit-modal__header h3,
+.salary-edit-modal__header h2,
+.company-edit-modal__header h2,
+.company-edit-modal__header h3,
+.office-edit-modal__header h3,
+.add-insurance-csv-preview-modal__header h3,
+.employee-csv-preview-modal__header h3,
+.monthly-salary-csv-preview-modal__header h3,
+.bonus-csv-modal__header h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--im-size-12);
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--im-color-slate-900);
+}
+
+.employee-edit-modal__employee-id,
+.salary-edit-modal__payroll-id {
+  color: var(--im-color-slate-600);
+  font-size: var(--im-font-14);
+  font-weight: 600;
+}
+
+.add-insurance-csv-preview-modal__panel,
+.bonus-csv-modal__panel,
+.employee-csv-preview-modal__panel,
+.monthly-salary-csv-preview-modal__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--im-size-16);
+}
+
+.employee-edit-modal__panel--wide {
+  width: min(960px, 100%);
+}
+
+.employee-approval-modal {
+  max-width: 480px;
+}
+
+.employee-approval-modal--wide {
+  max-width: 640px;
+}
+
+.employee-approval-modal__body {
+  display: grid;
+  gap: var(--im-size-12);
+  margin-bottom: var(--im-size-16);
+}
+
+.employee-edit-actions,
+.salary-edit-actions,
+.company-edit-modal__actions,
+.office-edit-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--im-size-8);
+  margin-top: var(--im-size-16);
+  padding-top: var(--im-size-12);
+  border-top: 1px solid var(--im-color-gray-150);
+}
+
+.employee-edit-actions--split {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--im-size-8);
+}
+
+.employee-edit-actions--split button,
+.salary-edit-actions button {
+  width: 100%;
+}
+
+.employee-edit-modal .error,
+.salary-edit-modal .error,
+.company-edit-modal .error,
+.office-edit-modal .error {
+  width: 100%;
+  min-height: 16px;
+  margin-top: 0;
+  font-size: var(--im-font-13);
+}
+
+.employee-edit-modal .error p,
+.salary-edit-modal .error p,
+.company-edit-modal .error p,
+.office-edit-modal .error p {
+  overflow: hidden;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.bonus-csv-modal__actions {
+  padding: var(--im-size-12);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-gray-50);
+}
+
+.add-insurance-csv-preview-actions,
+.employee-csv-preview-actions,
+.monthly-salary-csv-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-12);
+  align-items: center;
+  padding: var(--im-size-12);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-gray-50);
+}
+
+@media (max-width: 720px) {
+  .employee-edit-modal,
+  .salary-edit-modal,
+  .company-edit-modal,
+  .office-edit-modal,
+  .add-insurance-csv-preview-modal,
+  .employee-csv-preview-modal,
+  .monthly-salary-csv-preview-modal,
+  .bonus-csv-modal {
+    padding: var(--im-size-12);
+  }
+
+  .employee-edit-actions--split {
+    grid-template-columns: 1fr;
+  }
+}

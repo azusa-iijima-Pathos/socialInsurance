@@ -7,6 +7,7 @@ import { CorrectionLogicService } from '../../../service/logic/correction-logic.
 import { getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { LeaveType } from '../../../constants/model-constants';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
+import { parseDateInputValue } from '../../../service/common/date-input.util';
 
 @Component({
   selector: 'app-leave-correction',
@@ -51,7 +52,7 @@ export class LeaveCorrection {
       return;
     }
 
-    const actualStart = new Date(this.form.value.actualStartDate!);
+    const actualStart = parseDateInputValue(this.form.value.actualStartDate!);
     const actualMonth = await this.correctionLogicService.getWorkMonthForInputDate(actualStart);
     const working = getWorkingYearMonth();
     const leaveTypes = this.form.value.leaveTypes as LeaveType;

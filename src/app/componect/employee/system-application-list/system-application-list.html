@@ -1,4 +1,5 @@
-<h1>今月の申請一覧（システム）</h1>
+<div class="im-page-shell">
+<h1 class="page-title">今月の申請一覧（システム）</h1>
 
 <div class="information-area">
     <p>{{ workingYear }}年{{ workingMonth }}月作業分以前の、申請中イベントを一覧表示します。</p>
@@ -8,7 +9,7 @@
 </div>
 
 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-    <button class="im-btn-soft" style="margin-right: 10px;" (click)="toMonthlySalary()">◀給与入力へ</button>
+    <button class="im-btn-soft" (click)="toMonthlySalary()">◀給与入力へ</button>
     <button class="im-btn-primary" style="margin-left: auto;"
         (click)="toInsuranceConfirm()">保険料確認へ▶</button>
 </div>
@@ -256,10 +257,10 @@
     </div>
 </section>
 
-<div style="display: flex; gap: 10px; margin-top: 10px;">
-    <button class="im-btn-soft" style="margin-right: 10px;" (click)="toMonthlySalary()">◀給与入力へ</button>
-    <button class="im-btn-primary" style="margin-left: auto;"
-        (click)="toInsuranceConfirm()">保険料確認へ▶</button>
+<div class="form-footer-actions">
+    <button class="im-btn-soft" (click)="toMonthlySalary()">◀給与入力へ</button>
+    <button class="im-btn-primary" (click)="toInsuranceConfirm()">保険料確認へ▶</button>
+</div>
 </div>
 
 <!-- 従業員申請 確認モーダル -->
@@ -291,14 +292,32 @@
         <div class="employee-approval-modal__body">
             <dl class="employee-detail-info-grid">
                 <div class="employee-detail-info-grid__item">
-                    <dt>現在の等級</dt>
+                    <dt>固定給変更時の等級</dt>
                     <dd>{{ fixedSalaryDraft.currentGrade }}</dd>
                 </div>
                 <div class="employee-detail-info-grid__item">
-                    <dt>変更後（自動計算）</dt>
+                    <dt>随時改定後の等級（または理由）</dt>
                     <dd>{{ fixedSalaryDraft.revisionLabel }}</dd>
                 </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>平均額</dt>
+                    <dd>{{ fixedSalaryDraft.averageSalary !== undefined ? ((fixedSalaryDraft.averageSalary | number) + '円') : '—' }}</dd>
+                </div>
             </dl>
+            <table class="employee-detail-events-table" *ngIf="fixedSalaryDraft.targetPayrolls?.length">
+                <thead>
+                    <tr>
+                        <th>対象月</th>
+                        <th>総支給額</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let payroll of fixedSalaryDraft.targetPayrolls">
+                        <td>{{ payroll.payrollId }}</td>
+                        <td>{{ payroll.actualPaymentAmount !== undefined ? ((payroll.actualPaymentAmount | number) + '円') : '未入力' }}</td>
+                    </tr>
+                </tbody>
+            </table>
             <div class="im-field-block im-field-row employee-edit-field" *ngIf="fixedSalaryDraft.canRevise">
                 <div class="im-field-row__label"><label for="sysApprovalGrade">承認等級</label></div>
                 <div class="im-field-row__control">
@@ -335,9 +354,12 @@
                 <div class="im-field-row__label"><label for="sysInsuranceGrade">承認等級</label></div>
                 <div class="im-field-row__control">
                     <input id="sysInsuranceGrade" type="number" min="0" max="50"
-                        [(ngModel)]="insuranceDraft.approvedGrade">
+                        [(ngModel)]="insuranceDraft.approvedGrade" [readonly]="!isInsuranceGradeEditable()">
+                    <p *ngIf="insuranceDraft.healthStatus === 'notJoined'" class="error">健康保険未加入のため等級は0です</p>
+                    <p *ngIf="insuranceDraft.healthStatus === 'lost'" class="error">健康保険喪失のため等級は変更されません</p>
                 </div>
             </div>
+            <p *ngIf="insuranceApprovalValidationError" class="error">{{ insuranceApprovalValidationError }}</p>
             <div class="employee-approval-insurance-block">
                 <h3>健康保険</h3>
                 <p class="employee-approval-insurance-compare">現在：{{
@@ -346,7 +368,8 @@
                 <div class="im-field-block im-field-row employee-edit-field">
                     <div class="im-field-row__label"><span>変更後</span></div>
                     <div class="im-field-row__control">
-                        <select [(ngModel)]="insuranceDraft.healthStatus">
+                        <select [(ngModel)]="insuranceDraft.healthStatus"
+                            (ngModelChange)="onInsuranceDraftStatusChange('health')">
                             <option value="joined">加入</option>
                             <option value="notJoined">未加入</option>
                             <option value="lost">喪失</option>
@@ -356,13 +379,17 @@
                 <div class="im-field-block im-field-row employee-edit-field"
                     *ngIf="insuranceDraft.healthStatus === 'joined'">
                     <div class="im-field-row__label"><label>取得日</label></div>
-                    <div class="im-field-row__control"><input type="date"
-                            [(ngModel)]="insuranceDraft.healthAcquiredDate"></div>
+                    <div class="im-field-row__control">
+                        <input type="date" [(ngModel)]="insuranceDraft.healthAcquiredDate" required>
+                        <p *ngIf="!insuranceDraft.healthAcquiredDate" class="error">取得日は必須です</p>
+                    </div>
                 </div>
                 <div class="im-field-block im-field-row employee-edit-field"
                     *ngIf="insuranceDraft.healthStatus === 'lost'">
                     <div class="im-field-row__label"><label>喪失日</label></div>
-                    <div class="im-field-row__control"><input type="date" [(ngModel)]="insuranceDraft.healthLostDate">
+                    <div class="im-field-row__control">
+                        <input type="date" [(ngModel)]="insuranceDraft.healthLostDate" required>
+                        <p *ngIf="!insuranceDraft.healthLostDate" class="error">喪失日は必須です</p>
                     </div>
                 </div>
             </div>
@@ -374,7 +401,8 @@
                 <div class="im-field-block im-field-row employee-edit-field">
                     <div class="im-field-row__label"><span>変更後</span></div>
                     <div class="im-field-row__control">
-                        <select [(ngModel)]="insuranceDraft.nursingStatus">
+                        <select [(ngModel)]="insuranceDraft.nursingStatus"
+                            (ngModelChange)="onInsuranceDraftStatusChange('nursing')">
                             <option value="joined">加入</option>
                             <option value="notJoined">未加入</option>
                             <option value="lost">喪失</option>
@@ -384,13 +412,17 @@
                 <div class="im-field-block im-field-row employee-edit-field"
                     *ngIf="insuranceDraft.nursingStatus === 'joined'">
                     <div class="im-field-row__label"><label>取得日</label></div>
-                    <div class="im-field-row__control"><input type="date"
-                            [(ngModel)]="insuranceDraft.nursingAcquiredDate"></div>
+                    <div class="im-field-row__control">
+                        <input type="date" [(ngModel)]="insuranceDraft.nursingAcquiredDate" required>
+                        <p *ngIf="!insuranceDraft.nursingAcquiredDate" class="error">取得日は必須です</p>
+                    </div>
                 </div>
                 <div class="im-field-block im-field-row employee-edit-field"
                     *ngIf="insuranceDraft.nursingStatus === 'lost'">
                     <div class="im-field-row__label"><label>喪失日</label></div>
-                    <div class="im-field-row__control"><input type="date" [(ngModel)]="insuranceDraft.nursingLostDate">
+                    <div class="im-field-row__control">
+                        <input type="date" [(ngModel)]="insuranceDraft.nursingLostDate" required>
+                        <p *ngIf="!insuranceDraft.nursingLostDate" class="error">喪失日は必須です</p>
                     </div>
                 </div>
             </div>
@@ -402,7 +434,8 @@
                 <div class="im-field-block im-field-row employee-edit-field">
                     <div class="im-field-row__label"><span>変更後</span></div>
                     <div class="im-field-row__control">
-                        <select [(ngModel)]="insuranceDraft.pensionStatus">
+                        <select [(ngModel)]="insuranceDraft.pensionStatus"
+                            (ngModelChange)="onInsuranceDraftStatusChange('pension')">
                             <option value="joined">加入</option>
                             <option value="notJoined">未加入</option>
                             <option value="lost">喪失</option>
@@ -412,13 +445,17 @@
                 <div class="im-field-block im-field-row employee-edit-field"
                     *ngIf="insuranceDraft.pensionStatus === 'joined'">
                     <div class="im-field-row__label"><label>取得日</label></div>
-                    <div class="im-field-row__control"><input type="date"
-                            [(ngModel)]="insuranceDraft.pensionAcquiredDate"></div>
+                    <div class="im-field-row__control">
+                        <input type="date" [(ngModel)]="insuranceDraft.pensionAcquiredDate" required>
+                        <p *ngIf="!insuranceDraft.pensionAcquiredDate" class="error">取得日は必須です</p>
+                    </div>
                 </div>
                 <div class="im-field-block im-field-row employee-edit-field"
                     *ngIf="insuranceDraft.pensionStatus === 'lost'">
                     <div class="im-field-row__label"><label>喪失日</label></div>
-                    <div class="im-field-row__control"><input type="date" [(ngModel)]="insuranceDraft.pensionLostDate">
+                    <div class="im-field-row__control">
+                        <input type="date" [(ngModel)]="insuranceDraft.pensionLostDate" required>
+                        <p *ngIf="!insuranceDraft.pensionLostDate" class="error">喪失日は必須です</p>
                     </div>
                 </div>
             </div>
@@ -432,7 +469,7 @@
 </div>
 
 <!-- 年齢到達時の保険適用方法説明 モーダル -->
-<div class="information-area employee-edit-modal" *ngIf="reachAgeInfoModalOpen">
+<div class="employee-edit-modal" *ngIf="reachAgeInfoModalOpen">
     <div class="employee-edit-modal__panel employee-approval-modal">
         <div class="employee-edit-modal__header">
             <h2>年齢到達時の保険適用方法</h2>
@@ -478,7 +515,9 @@
                         <td>×</td>
                     </tr>
             </table>
+            <div class="employee-edit-actions">
             <button type="button" class="im-btn-soft" (click)="reachAgeInfoModalOpen = false">閉じる</button>
+            </div>
         </div>
     </div>
 </div>

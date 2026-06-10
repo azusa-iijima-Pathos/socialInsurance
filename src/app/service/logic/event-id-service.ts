@@ -143,10 +143,34 @@ export function isEventAtOrBeforeWorkingMonth(
   eventId: string,
   workingYear: number,
   workingMonth: number,
+  appliedDate?: { toDate?: () => Date; seconds?: number } | null,
 ): boolean {
   const parsed = parseEventYearMonth(eventId, workingYear, workingMonth);
-  if (!parsed) return false;
-  return parsed.year * 12 + parsed.month <= workingYear * 12 + workingMonth;
+  if (parsed) {
+    return parsed.year * 12 + parsed.month <= workingYear * 12 + workingMonth;
+  }
+
+  const applied = getAppliedDateYearMonth(appliedDate);
+  if (applied) {
+    return applied.year * 12 + applied.month <= workingYear * 12 + workingMonth;
+  }
+
+  return true;
+}
+
+function getAppliedDateYearMonth(
+  appliedDate?: { toDate?: () => Date; seconds?: number } | null,
+): YearMonth | null {
+  if (!appliedDate) return null;
+  if (typeof appliedDate.toDate === 'function') {
+    const date = appliedDate.toDate();
+    return { year: date.getFullYear(), month: date.getMonth() + 1 };
+  }
+  if (typeof appliedDate.seconds === 'number') {
+    const date = new Date(appliedDate.seconds * 1000);
+    return { year: date.getFullYear(), month: date.getMonth() + 1 };
+  }
+  return null;
 }
 
 export function getFixedSalarySystemOccurredDate(working?: YearMonth): Date {

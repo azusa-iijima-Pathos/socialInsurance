@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
 import { AbstractControl, FormGroup, ValidationErrors, Validators } from '@angular/forms';
-import { Timestamp } from '@angular/fire/firestore';
 import { InsuranceDetail } from '../../model/employee';
+import { Timestamp } from '@angular/fire/firestore';
+import { timestampFromDateInput } from '../common/date-input.util';
 
 export type InsuranceStatus = 'joined' | 'notJoined' | 'lost';
 export type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
@@ -52,7 +53,7 @@ export class InsuranceFormService {
       return {
         joined: true,
         number: value.number,
-        acquiredDate: Timestamp.fromDate(new Date(value.acquiredDate)),
+        acquiredDate: timestampFromDateInput(value.acquiredDate),
         companyBurdenRate: value.companyBurdenRate,
       };
     }
@@ -60,8 +61,8 @@ export class InsuranceFormService {
     return {
       joined: false,
       number: value.number,
-      acquiredDate: Timestamp.fromDate(new Date(value.acquiredDate)),
-      lostDate: Timestamp.fromDate(new Date(value.lostDate)),
+      acquiredDate: timestampFromDateInput(value.acquiredDate),
+      lostDate: timestampFromDateInput(value.lostDate),
       companyBurdenRate: value.companyBurdenRate,
     };
   }
@@ -154,12 +155,16 @@ export class InsuranceFormService {
       lostDateControl.setValue('', { emitEvent: false });
     }
 
-    for (const control of [numberControl, acquiredDateControl, lostDateControl, companyBurdenRateControl]) {
-      if (needsInsuranceDetail) {
-        control.enable({ emitEvent: false });
-      } else {
-        control.disable({ emitEvent: false });
+    if (!needsInsuranceDetail) {
+      numberControl.setValue('', { emitEvent: false });
+      acquiredDateControl.setValue('', { emitEvent: false });
+      if (!needsLostDate) {
+        lostDateControl.setValue('', { emitEvent: false });
       }
+    }
+
+    for (const control of [numberControl, acquiredDateControl, lostDateControl, companyBurdenRateControl]) {
+      control.enable({ emitEvent: false });
       control.updateValueAndValidity({ emitEvent: false });
     }
   }

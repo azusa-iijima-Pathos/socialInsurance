@@ -76,6 +76,11 @@ export class ReachAgeService {
 
   //対象者を配列に格納
   private async searchTargetEmployees() {
+    this.foutyYearOldEmployees = [];
+    this.sixtyFiveYearOldEmployees = [];
+    this.seventyYearOldEmployees = [];
+    this.seventyFiveYearOldEmployees = [];
+
     await this.employeeService.getAllEmployees();
     const allEmployees: Employee[] = this.employeeService.allActiveEmployees();
 

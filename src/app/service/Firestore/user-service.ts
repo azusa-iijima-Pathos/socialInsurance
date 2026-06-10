@@ -26,4 +26,9 @@ export class UserService {
     return this.crudService.getByField(`users`, 'companyId', companyId, 'uid');
   }
 
+  async getUserByEmployeeId(companyId: string, employeeId: string): Promise<User | null> {
+    const users = await this.getUsersByCompanyId(companyId);
+    return users.find(user => user.employeeId === employeeId) ?? null;
+  }
+
 }

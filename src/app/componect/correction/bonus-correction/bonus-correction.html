@@ -1,4 +1,5 @@
-<h1>賞与修正（遡及）</h1>
+<div class="im-page-shell">
+<h1 class="page-title">賞与修正（遡及）</h1>
 <div class="information-area">
   <p>確定済み賞与の金額を変更し、保険料差額調整を作成します。</p>
   <p>下のプルダウンから変更する賞与を選択してください。</p>
@@ -6,7 +7,7 @@
 
 <p *ngIf="message" class="im-action-message">{{ message }}</p>
 
-<div class="bonus-correction-toolbar">
+<div class="im-correction-toolbar bonus-correction-toolbar">
   <label>対象賞与
     <select [(ngModel)]="selectedPayrollId" (change)="onBonusPayrollIdChange()">
       <option value="">選択</option>
@@ -66,6 +67,7 @@
     </table>
   </div>
 </section>
+</div>
 
 <div class="employee-edit-modal bonus-correction-preview-modal" *ngIf="previewOpen && previewComparison"
   (click)="cancelPreview()">

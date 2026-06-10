@@ -2,6 +2,7 @@ import { Component, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { debounceTime } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
@@ -12,11 +13,12 @@ import { Employee, EmployeeInsurance, InsuranceDetail } from '../../../model/emp
 import { LeaveType, WorkStatus } from '../../../constants/model-constants';
 import { addMonths, buildCurrentWorkMonthEventId, getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { InsuranceFormService, InsuranceName, InsuranceStatus } from '../../../service/logic/insurance-form.service';
-import { UPDATE_MESSAGES } from '../../../constants/constants';
+import { parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
 import { Router } from '@angular/router';
 import { DependentService } from '../../../service/Firestore/dependent-service';
 import { Dependent } from '../../../model/dependent';
+import { UPDATE_MESSAGES } from '../../../constants/constants';
 
 type RetroactiveTab = 'insurance' | 'fixedSalary' | 'leave';
 
@@ -95,8 +97,11 @@ export class RetroactiveCorrection {
     this.setupInsuranceDetailControls('employeePensionInsurance');
     this.setupInsuranceDependencyRules();
     this.form.controls.applyDate.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(debounceTime(200), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.refreshInsuranceValidatorsForApplyDate());
+    this.form.controls.employeeId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => void this.onEmployeeChange());
   }
 
   private refreshInsuranceValidatorsForApplyDate() {
@@ -216,7 +221,7 @@ export class RetroactiveCorrection {
     const requireConfirmed = this.activeTab !== 'fixedSalary';
     const error = await this.correctionLogicService.validateRetroactiveApplyDate(
       this.selectedEmployee.employeeId,
-      new Date(applyDateValue),
+      parseDateInputValue(applyDateValue),
       requireConfirmed,
     );
 
@@ -377,7 +382,7 @@ export class RetroactiveCorrection {
 
     const employeeId = selectedEmployee.employeeId;
     const loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? sessionStorage.getItem('employeeId') ?? '';
-    const applyDate = new Date(this.form.value.applyDate!);
+    const applyDate = parseDateInputValue(this.form.value.applyDate!);
     const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(applyDate);
     const revisionMonth = addMonths(applyMonth.year, applyMonth.month, 3);
     const before = { ...selectedEmployee };
@@ -538,7 +543,7 @@ export class RetroactiveCorrection {
 
   private async getCorrectionStartMonth(): Promise<{ year: number; month: number }> {
     if (this.activeTab !== 'leave') {
-      return await this.correctionLogicService.getWorkMonthForInputDate(new Date(this.form.value.applyDate!));
+      return await this.correctionLogicService.getWorkMonthForInputDate(parseDateInputValue(this.form.value.applyDate!));
     }
 
     const leaveDate = this.getLeaveCorrectionDate();
@@ -552,7 +557,7 @@ export class RetroactiveCorrection {
     const value = this.isCurrentlyOnLeave()
       ? this.form.controls.leaveEndDate.value
       : this.form.controls.leaveStartDate.value;
-    return new Date(value);
+    return parseDateInputValue(value);
   }
 
   private buildAfterEmployee(): Employee {
@@ -560,8 +565,8 @@ export class RetroactiveCorrection {
     const v = this.form.getRawValue();
 
     if (this.activeTab === 'leave') {
-      const leaveEnd = v.leaveEndDate ? new Date(v.leaveEndDate) : null;
-      const leaveStart = v.leaveStartDate ? new Date(v.leaveStartDate) : null;
+      const leaveEnd = v.leaveEndDate ? parseDateInputValue(v.leaveEndDate) : null;
+      const leaveStart = v.leaveStartDate ? parseDateInputValue(v.leaveStartDate) : null;
 
       if (leaveEnd) {
         return {
@@ -625,7 +630,7 @@ export class RetroactiveCorrection {
         employeeId,
         buildCurrentWorkMonthEventId('勤務状況変更', applyMonth),
         {
-          occurredDate: Timestamp.fromDate(new Date(leaveStartDate)),
+          occurredDate: timestampFromDateInput(leaveStartDate),
           eventType: '勤務状況変更',
           appliedDate: Timestamp.now(),
           applicantType: '管理者',
@@ -655,7 +660,7 @@ export class RetroactiveCorrection {
         employeeId,
         buildCurrentWorkMonthEventId('勤務状況変更', applyMonth),
         {
-          occurredDate: Timestamp.fromDate(new Date(leaveEndDate)),
+          occurredDate: timestampFromDateInput(leaveEndDate),
           eventType: '勤務状況変更',
           appliedDate: Timestamp.now(),
           applicantType: '管理者',

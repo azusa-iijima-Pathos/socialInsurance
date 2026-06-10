@@ -55,48 +55,6 @@
   font-size: var(--im-font-14);
 }
 
-.add-insurance-csv-preview-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  place-items: center;
-  padding: var(--im-size-24);
-  background: var(--im-color-black-40);
-}
-
-.add-insurance-csv-preview-modal__panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--im-size-16);
-  width: min(1200px, 100%);
-  max-height: 85vh;
-  padding: var(--im-size-24);
-  overflow: auto;
-  border-radius: var(--im-radius-12);
-  background: var(--im-color-white);
-  box-shadow: var(--im-shadow-2);
-}
-
-.add-insurance-csv-preview-modal__header {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--im-size-16);
-  align-items: flex-start;
-  padding-bottom: var(--im-size-12);
-  border-bottom: 1px solid var(--im-color-gray-150);
-}
-
-.add-insurance-csv-preview-modal__header h3 {
-  margin: 0;
-}
-
-.add-insurance-csv-preview-modal__header p {
-  margin: var(--im-size-8) 0 0;
-  color: var(--im-color-slate-600);
-  font-size: var(--im-font-14);
-}
-
 .add-insurance-csv-preview-actions {
   display: flex;
   flex-wrap: wrap;

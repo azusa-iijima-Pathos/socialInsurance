@@ -1,105 +1,116 @@
-<h1>ライフイベント申請一覧</h1>
-<div style="display: flex; justify-content: flex-end;">
-    <button class="im-btn-soft" (click)="toLifeeventApplication()">ライフイベント申請へ▶</button>
-</div>
-<div *ngIf="events.length === 0">
+<div class="im-page-shell">
+  <div class="im-page-header-row">
+    <h1 class="page-title">ライフイベント申請一覧</h1>
+    <div class="im-page-header-trailing">
+      <button class="im-btn-soft" (click)="toLifeeventApplication()">ライフイベント申請へ▶</button>
+    </div>
+  </div>
+
+  <div *ngIf="events.length === 0" class="im-empty-hint">
     <p>申請はありません</p>
-</div>
+  </div>
 
-<div *ngIf="unapprovedEvents.length > 0">
-    <h3>未承認の申請一覧</h3>
-    <table>
+  <section class="im-section-block" *ngIf="unapprovedEvents.length > 0">
+    <h3 class="section-title">未承認の申請一覧</h3>
+    <div class="im-data-table-wrap">
+      <table class="im-data-table">
         <thead>
-            <tr>
-                <th>申請日</th>
-                <th>変更項目</th>
-                <th>理由</th>
-                <th>内容詳細</th>
-                <th>承認状況</th>
-            </tr>
+          <tr>
+            <th>申請日</th>
+            <th>変更項目</th>
+            <th>理由</th>
+            <th>内容詳細</th>
+            <th>承認状況</th>
+          </tr>
         </thead>
         <tbody>
-            <tr *ngFor="let event of unapprovedEvents">
-                <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
-                <td>{{ event.eventType }}</td>
-                <td>{{ event.lifeEventType }}</td>
-                <td><button type="button" class="im-btn-soft" (click)="openReview(event)">詳細</button></td>
-                <td>{{ event.approval?.approvalStatus }}</td>
-            </tr>
+          <tr *ngFor="let event of unapprovedEvents">
+            <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+            <td>{{ event.eventType }}</td>
+            <td>{{ event.lifeEventType }}</td>
+            <td><button type="button" class="im-btn-soft" (click)="openReview(event)">詳細</button></td>
+            <td>{{ event.approval?.approvalStatus }}</td>
+          </tr>
         </tbody>
-    </table>
-</div>
+      </table>
+    </div>
+  </section>
 
-<div *ngIf="approvedEvents.length > 0">
-    <h3>承認済みの申請一覧</h3>
-    <table>
+  <section class="im-section-block" *ngIf="approvedEvents.length > 0">
+    <h3 class="section-title">承認済みの申請一覧</h3>
+    <div class="im-data-table-wrap">
+      <table class="im-data-table">
         <thead>
-            <tr>
-                <th>申請日</th>
-                <th>変更項目</th>
-                <th>理由</th>
-                <th>内容詳細</th>
-                <th>承認状況</th>
-                <th>承認日</th>
-                <th>承認者</th>
-            </tr>
+          <tr>
+            <th>申請日</th>
+            <th>変更項目</th>
+            <th>理由</th>
+            <th>内容詳細</th>
+            <th>承認状況</th>
+            <th>承認日</th>
+            <th>承認者</th>
+          </tr>
         </thead>
         <tbody>
-            <tr *ngFor="let event of approvedEvents">
-                <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
-                <td>{{ event.eventType }}</td>
-                <td>{{ event.lifeEventType }}</td>
-                <td><button type="button" class="im-btn-soft" (click)="openReview(event)">詳細</button></td>
-                <td>{{ event.approval?.approvalStatus }}</td>
-                <td>{{ commonService.formatDate(event.approval?.approvedDate) }}</td>
-                <td>{{ commonService.getEmployeeName(event.approval?.approvedBy ?? '') }}</td>
-            </tr>
+          <tr *ngFor="let event of approvedEvents">
+            <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+            <td>{{ event.eventType }}</td>
+            <td>{{ event.lifeEventType }}</td>
+            <td><button type="button" class="im-btn-soft" (click)="openReview(event)">詳細</button></td>
+            <td>{{ event.approval?.approvalStatus }}</td>
+            <td>{{ commonService.formatDate(event.approval?.approvedDate) }}</td>
+            <td>{{ commonService.getEmployeeName(event.approval?.approvedBy ?? '') }}</td>
+          </tr>
         </tbody>
-    </table>
-</div>
+      </table>
+    </div>
+  </section>
 
-<div *ngIf="rejectedEvents.length > 0">
-    <h3>却下された申請一覧</h3>
-    <table>
+  <section class="im-section-block" *ngIf="rejectedEvents.length > 0">
+    <h3 class="section-title">却下された申請一覧</h3>
+    <div class="im-data-table-wrap">
+      <table class="im-data-table">
         <thead>
-            <tr>
-                <th>申請日</th>
-                <th>変更項目</th>
-                <th>理由</th>
-                <th>内容詳細</th>
-                <th>承認状況</th>
-                <th>承認日</th>
-                <th>承認者</th>
-            </tr>
+          <tr>
+            <th>申請日</th>
+            <th>変更項目</th>
+            <th>理由</th>
+            <th>内容詳細</th>
+            <th>承認状況</th>
+            <th>承認日</th>
+            <th>承認者</th>
+          </tr>
         </thead>
         <tbody>
-            <tr *ngFor="let event of rejectedEvents">
-                <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
-                <td>{{ event.eventType }}</td>
-                <td>{{ event.lifeEventType }}</td>
-                <td><button type="button" class="im-btn-soft" (click)="openReview(event)">詳細</button></td>
-                <td>{{ event.approval?.approvalStatus }}</td>
-                <td>{{ commonService.formatDate(event.approval?.approvedDate) }}</td>
-                <td>{{ commonService.getEmployeeName(event.approval?.approvedBy ?? '') }}</td>
-            </tr>
+          <tr *ngFor="let event of rejectedEvents">
+            <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+            <td>{{ event.eventType }}</td>
+            <td>{{ event.lifeEventType }}</td>
+            <td><button type="button" class="im-btn-soft" (click)="openReview(event)">詳細</button></td>
+            <td>{{ event.approval?.approvalStatus }}</td>
+            <td>{{ commonService.formatDate(event.approval?.approvedDate) }}</td>
+            <td>{{ commonService.getEmployeeName(event.approval?.approvedBy ?? '') }}</td>
+          </tr>
         </tbody>
-    </table>
+      </table>
+    </div>
+  </section>
 </div>
 
 <!-- 従業員申請 確認モーダル -->
 <div class="employee-edit-modal" *ngIf="reviewModalOpen && reviewingEvent">
-    <div class="employee-edit-modal__panel employee-approval-modal">
-        <div class="employee-edit-modal__header">
-            <h2>申請の確認</h2>
-        </div>
-        <div class="employee-approval-modal__body">
-            <p>{{ reviewingEvent.eventType }}</p>
-            <ul>
-                <li *ngFor="let line of getEmployeeEventChangeLines(reviewingEvent)">{{ line }}</li>
-            </ul>
-        </div>
-        <div class="employee-edit-actions">
-            <button type="button" class="im-btn-soft" (click)="closeReview()">閉じる</button>
-        </div>
+  <div class="employee-edit-modal__panel employee-approval-modal">
+    <div class="employee-edit-modal__header">
+      <h2>申請の確認</h2>
     </div>
+    <div class="employee-approval-modal__body">
+      <p>{{ reviewingEvent.eventType }}</p>
+      <ul>
+        <li *ngFor="let line of getEmployeeEventChangeLines(reviewingEvent)">{{ line }}</li>
+      </ul>
+    </div>
+    <div class="employee-edit-actions">
+      <button type="button" class="im-btn-soft" (click)="closeReview()">閉じる</button>
+    </div>
+  </div>
 </div>

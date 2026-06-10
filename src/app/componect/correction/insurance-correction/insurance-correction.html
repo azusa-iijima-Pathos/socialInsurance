@@ -1,27 +1,37 @@
-<h1>保険情報修正（遡及）</h1>
-<p>適用日から確定済み月までの保険料差額を算出し、保険情報を更新します。</p>
-<p *ngIf="message">{{ message }}</p>
+<div class="im-page-shell">
+  <h1 class="page-title">保険情報修正（遡及）</h1>
+  <p class="page-lead">適用日から確定済み月までの保険料差額を算出し、保険情報を更新します。</p>
+  <p *ngIf="message" class="im-action-message">{{ message }}</p>
 
-<form [formGroup]="form" (ngSubmit)="submit()">
-  <label>社員
-    <select formControlName="employeeId">
-      <option value="">選択</option>
-      <option *ngFor="let employee of employees" [value]="employee.employeeId">
-        {{ employee.employeeId }}：{{ employee.firstName }} {{ employee.lastName }}
-      </option>
-    </select>
-  </label>
-  <label>適用日 <input type="date" formControlName="applyDate"></label>
-  <label>等級 <input type="number" min="0" max="50" formControlName="currentGrade"></label>
-  <button type="submit">反映・差額算出</button>
-</form>
+  <section class="im-surface-panel im-correction-form">
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <label>社員
+        <select formControlName="employeeId">
+          <option value="">選択</option>
+          <option *ngFor="let employee of employees" [value]="employee.employeeId">
+            {{ employee.employeeId }}：{{ employee.firstName }} {{ employee.lastName }}
+          </option>
+        </select>
+      </label>
+      <label>適用日 <input type="date" formControlName="applyDate"></label>
+      <label>等級 <input type="number" min="0" max="50" formControlName="currentGrade"></label>
+      <div class="form-footer-actions">
+        <button type="submit" class="im-btn-primary">反映・差額算出</button>
+      </div>
+    </form>
+  </section>
 
-<table *ngIf="monthlyDiffs.length > 0" class="im-table">
-  <thead><tr><th>対象月</th><th>差額</th></tr></thead>
-  <tbody>
-    <tr *ngFor="let diff of monthlyDiffs">
-      <td>{{ diff.payrollId }}</td>
-      <td>{{ diff.totalDiff | number }}円</td>
-    </tr>
-  </tbody>
-</table>
+  <section class="im-section-block" *ngIf="monthlyDiffs.length > 0">
+    <div class="im-data-table-wrap">
+      <table class="im-table">
+        <thead><tr><th>対象月</th><th>差額</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let diff of monthlyDiffs">
+            <td>{{ diff.payrollId }}</td>
+            <td>{{ diff.totalDiff | number }}円</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

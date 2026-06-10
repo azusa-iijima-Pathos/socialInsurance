@@ -16,11 +16,21 @@ import { InsuranceFormService } from '../../../service/logic/insurance-form.serv
 import { EmployeeEventApprovalService, FixedSalaryApprovalDraft, InsuranceApprovalDraft } from '../../../service/logic/employee-event-approval.service';
 import { EventService } from '../../../service/Firestore/event-service';
 import { CalculationRunService, SystemCalculationRunItem } from '../../../service/Firestore/calculation-run-service';
+import { InsuranceDisplayService } from '../../../service/logic/insurance-display.service';
 import { Event as EmployeeEvent } from '../../../model/event';
 import { ValidationService } from '../../../service/common/validation-service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Timestamp } from '@angular/fire/firestore';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
+import { InsuranceSnapshotService } from '../../../service/Firestore/insurance-snapshot-service';
+import { PayrollService } from '../../../service/Firestore/payroll-service';
+import { Payroll } from '../../../model/payroll';
+import { InsuranceSnapshot } from '../../../model/insurance-snapshot';
+import { InsuranceDraftService } from '../../../service/Firestore/insurance-draft-service';
+import { InsuranceDraft } from '../../../model/insurance-draft';
+import { CalculationRun } from '../../../model/calculation-run';
+import { getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { formatTimestampForDateInput, timestampFromDateInput } from '../../../service/common/date-input.util';
 import {
   EMPLOYMENT_CATEGORIES,
   EmploymentCategory,
@@ -42,6 +52,23 @@ type InsuranceJudgement = {
   isPensionInsuranceRequired?: boolean;
 };
 type DependentCoverageStatus = 'dependent' | 'notDependent';
+type InsuranceHistoryRow = {
+  payrollId: string;
+  targetMonth: string;
+  paymentDate: string;
+  grade: string;
+  healthStatus: string;
+  nursingStatus: string;
+  pensionStatus: string;
+  healthEmployee: number;
+  healthTotal: number;
+  nursingEmployee: number;
+  nursingTotal: number;
+  pensionEmployee: number;
+  pensionTotal: number;
+  allEmployee: number;
+  allTotal: number;
+};
 
 @Component({
   selector: 'app-employee-detail',
@@ -65,6 +92,10 @@ export class EmployeeDetail {
   private employeeEventApprovalService = inject(EmployeeEventApprovalService);
   private eventService = inject(EventService);
   private calculationRunService = inject(CalculationRunService);
+  private insuranceSnapshotService = inject(InsuranceSnapshotService);
+  private payrollService = inject(PayrollService);
+  private insuranceDraftService = inject(InsuranceDraftService);
+  private insuranceDisplayService = inject(InsuranceDisplayService);
   private destroyRef = inject(DestroyRef);
 
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? '';
@@ -79,6 +110,8 @@ export class EmployeeDetail {
   approvingSystemRun: SystemCalculationRunItem | null = null;
   fixedSalaryDraft: FixedSalaryApprovalDraft | null = null;
   insuranceDraft: InsuranceApprovalDraft | null = null;
+  insuranceApprovalChangeDate = '';
+  insuranceApprovalValidationError = '';
 
   WORK_STATUSES = WORK_STATUSES;
   LEAVE_TYPES = LEAVE_TYPES;
@@ -95,6 +128,7 @@ export class EmployeeDetail {
   selectedEmployee: Employee | null = null;
 
   dependents: Dependent[] = [];
+  insuranceHistoryRows: InsuranceHistoryRow[] = [];
 
   message: string = '';
   private messageTimer: MessageTimer = null;
@@ -169,7 +203,7 @@ export class EmployeeDetail {
     const employeeId = this.route.snapshot.queryParamMap.get('employeeId');
     if (employeeId) {
       this.selectedEmployeeId = employeeId;
-      await this.selectEmployee();
+      await this.selectEmployee(false);
     }
   }
 
@@ -177,18 +211,35 @@ export class EmployeeDetail {
     return this.dependentForm.controls.dependents;
   }
 
-  async selectEmployee() {
-    this.message = '';
+  async onEmployeeIdChange(employeeId: string) {
+    this.selectedEmployeeId = employeeId;
+    if (!employeeId) {
+      this.selectedEmployee = null;
+      this.dependents = [];
+      this.employeeEvents = [];
+      this.insuranceHistoryRows = [];
+      this.pendingSystemRuns = [];
+      return;
+    }
+    await this.selectEmployee(false);
+  }
+
+  async selectEmployee(clearMessage = true) {
+    if (clearMessage) {
+      this.message = '';
+    }
     const employee = await this.employeeService.getEmployeeByEmployeeId(this.selectedEmployeeId);
     if (employee) {
       this.selectedEmployee = employee;
       this.dependents = await this.dependentService.getDependents(this.selectedEmployeeId);
       await this.getAutoCalculationResult();
       await this.loadEmployeeEvents();
+      await this.loadInsuranceHistory();
     } else {
       this.selectedEmployee = null;
       this.dependents = [];
       this.employeeEvents = [];
+      this.insuranceHistoryRows = [];
       // this.showEventNotice = false;
       this.resetAutoCalculationResult();
       this.message = '従業員情報が見つかりませんでした';
@@ -346,9 +397,9 @@ export class EmployeeDetail {
       workStatus: this.contractForm.controls.workStatus.value as WorkStatus,
       ...(this.contractForm.controls.workStatus.value === '休職中'
         ? { leaveTypes: this.contractForm.controls.leaveTypes.value as LeaveType }
-        : {}),
+        : { leaveTypes: null }),
       ...(this.showResignationDateField()
-        ? { resignationDate: Timestamp.fromDate(new Date(this.contractForm.controls.resignationDate.value)) }
+        ? { resignationDate: timestampFromDateInput(this.contractForm.controls.resignationDate.value) }
         : {}),
       employmentContract,
     };
@@ -376,8 +427,8 @@ export class EmployeeDetail {
     );
     await this.handleCreatedEvents(createdEventIds, `勤務状況・雇用契約情報を${UPDATE_MESSAGES.SUCCESS}`);
     await this.employeeService.getAllEmployees(true);
-    await this.selectEmployee();
     this.closeContractModal();
+    await this.selectEmployee(false);
   }
 
 
@@ -424,6 +475,10 @@ export class EmployeeDetail {
       employeePensionInsurance: this.createInsuranceDetailFromForm('employeePensionInsurance'),
     };
 
+    if (!window.confirm('保険情報を更新しますか？')) {
+      return;
+    }
+
     const result = await this.employeeService.updateEmployeeInsurance(this.selectedEmployeeId, insuranceInfo);
     if (!result) {
       this.showMessage(UPDATE_MESSAGES.FAILED);
@@ -438,10 +493,10 @@ export class EmployeeDetail {
       }
     }
 
+    this.closeInsuranceModal();
     this.showMessage(`保険情報を${UPDATE_MESSAGES.SUCCESS}`);
     await this.employeeService.getAllEmployees(true);
-    await this.selectEmployee();
-    this.closeInsuranceModal();
+    await this.selectEmployee(false);
   }
 
   editDependentInfo() {
@@ -504,7 +559,7 @@ export class EmployeeDetail {
         existingUpdates.push({
           dependentId: value.dependentId,
           name: value.name,
-          birthDate: Timestamp.fromDate(new Date(value.birthDate)),
+          birthDate: timestampFromDateInput(value.birthDate),
           relationship: value.relationship as Relationship,
           isDependent: value.isDependentStatus === 'dependent',
         });
@@ -521,7 +576,7 @@ export class EmployeeDetail {
       newDependents.push({
         dependentId: `${nextId++}`,
         name: value.name,
-        birthDate: Timestamp.fromDate(new Date(value.birthDate)),
+        birthDate: timestampFromDateInput(value.birthDate),
         relationship: value.relationship as Relationship,
         isDependent: true,
       });
@@ -566,9 +621,277 @@ export class EmployeeDetail {
       this.pendingSystemRuns = [];
       return;
     }
-    const events = await this.eventService.getEmployeeEventsUpToWorkingMonth(this.selectedEmployeeId);
-    this.employeeEvents = events.filter(event => event.applicantType !== 'システム');
-    this.pendingSystemRuns = await this.calculationRunService.getPendingSystemRunsForEmployee(this.selectedEmployeeId);
+    try {
+      this.employeeEvents = await this.eventService.getEmployeeEventsByAppliedDateDesc(this.selectedEmployeeId);
+      this.pendingSystemRuns = await this.calculationRunService.getPendingSystemRunsForEmployee(this.selectedEmployeeId);
+    } catch (error) {
+      console.error(error);
+      this.employeeEvents = [];
+      this.showMessage('イベント一覧の取得に失敗しました');
+    }
+  }
+
+  private async loadInsuranceHistory() {
+    if (!this.selectedEmployee) {
+      this.insuranceHistoryRows = [];
+      return;
+    }
+
+    const employeeId = this.selectedEmployee.employeeId ?? this.selectedEmployeeId;
+    let adjustmentRuns: CalculationRun[] = [];
+    try {
+      adjustmentRuns = (await this.calculationRunService.getAllCalculationRuns())
+        .filter(run => run.type === '差額調整');
+    } catch (error) {
+      console.error('差額調整の取得に失敗しました', error);
+    }
+
+    try {
+      const snapshots = await this.insuranceSnapshotService.getSnapshotsForEmployee(employeeId);
+      const snapshotMap = new Map(
+        snapshots
+          .filter(snapshot => this.getSnapshotPayrollId(snapshot) && snapshot.type !== '賞与')
+          .map(snapshot => [this.getSnapshotPayrollId(snapshot)!, snapshot]),
+      );
+      const payrolls = await this.payrollService.getPayrollListForEmployee(employeeId);
+      const payrollMap = new Map(payrolls.map(payroll => [payroll.payrollId, payroll]));
+
+      const payrollIds = this.buildInsuranceHistoryPayrollIds(
+        snapshots,
+        payrolls,
+        snapshotMap.size,
+      );
+
+      const rows: InsuranceHistoryRow[] = [];
+      for (const payrollId of payrollIds) {
+        const snapshot = snapshotMap.get(payrollId);
+        const payroll = payrollMap.get(payrollId);
+        if (snapshot) {
+          rows.push(this.toInsuranceHistoryRowFromSnapshot(
+            snapshot,
+            payroll,
+            adjustmentRuns,
+            employeeId,
+          ));
+          continue;
+        }
+
+        const draft = await this.insuranceDraftService.getDraft(payrollId, employeeId);
+        if (draft && (draft.grade || draft.healthInsurance || draft.nursingCareInsurance || draft.pensionInsurance)) {
+          rows.push(this.toInsuranceHistoryRowFromDraft(draft, payroll));
+        }
+      }
+
+      this.insuranceHistoryRows = rows;
+    } catch (error) {
+      console.error(error);
+      this.insuranceHistoryRows = [];
+    }
+  }
+
+  private buildInsuranceHistoryPayrollIds(
+    snapshots: InsuranceSnapshot[],
+    payrolls: Payroll[],
+    snapshotCount: number,
+  ): string[] {
+    const ids = new Set<string>();
+
+    for (const snapshot of snapshots) {
+      const payrollId = this.getSnapshotPayrollId(snapshot);
+      if (payrollId && snapshot.type !== '賞与') {
+        ids.add(payrollId);
+      }
+    }
+    for (const payroll of payrolls) {
+      if (payroll.payrollId && !payroll.payrollId.endsWith('_bonus')) {
+        ids.add(payroll.payrollId);
+      }
+    }
+    if (ids.size === 0 || snapshotCount === 0) {
+      for (const payrollId of this.getRecentMonthlyPayrollIds(12)) {
+        ids.add(payrollId);
+      }
+    }
+
+    return [...ids]
+      .sort((left, right) => right.localeCompare(left))
+      .slice(0, 12);
+  }
+
+  private getRecentMonthlyPayrollIds(count: number): string[] {
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return [];
+
+    const payrollIds: string[] = [];
+    let currentYear = year;
+    let currentMonth = month;
+    for (let index = 0; index < count; index++) {
+      payrollIds.push(`${currentYear}-${String(currentMonth).padStart(2, '0')}`);
+      currentMonth--;
+      if (currentMonth < 1) {
+        currentMonth = 12;
+        currentYear--;
+      }
+    }
+    return payrollIds;
+  }
+
+  private toInsuranceHistoryRowFromSnapshot(
+    snapshot: InsuranceSnapshot,
+    payroll: Payroll | undefined,
+    adjustmentRuns: CalculationRun[],
+    employeeId: string,
+  ): InsuranceHistoryRow {
+    const payrollId = this.getSnapshotPayrollId(snapshot) ?? '';
+    const confirmed = this.insuranceDisplayService.getSnapshotBreakdown(snapshot);
+    const payrollAdjustmentRuns = adjustmentRuns.filter(run =>
+      String(run.payload?.['employeeId'] ?? run.targetEmployeeIds ?? '') === employeeId
+      && String(run.payload?.['payrollId'] ?? '') === payrollId,
+    );
+
+    let breakdown = confirmed;
+    let grade = Number(snapshot.grade ?? 0);
+    if (payrollAdjustmentRuns.length > 0) {
+      breakdown = this.insuranceDisplayService.getAdjustedSnapshotBreakdown(
+        snapshot,
+        payrollAdjustmentRuns,
+        employeeId,
+        payrollId,
+      );
+      grade = this.insuranceDisplayService.getAdjustedGrade(
+        snapshot,
+        payrollAdjustmentRuns,
+        employeeId,
+        payrollId,
+      ) || grade;
+
+      const latestComparison = payrollAdjustmentRuns.at(-1)?.payload?.['comparison'] as {
+        newHealth?: number;
+      } | undefined;
+      if (confirmed.totalInsurance > 0 && breakdown.totalInsurance === 0 && latestComparison?.newHealth === undefined) {
+        breakdown = confirmed;
+      }
+    }
+
+    return this.buildInsuranceHistoryRow(
+      payrollId,
+      payroll,
+      String(grade || snapshot.grade || ''),
+      breakdown,
+    );
+  }
+
+  private toInsuranceHistoryRowFromDraft(
+    draft: InsuranceDraft,
+    payroll: Payroll | undefined,
+  ): InsuranceHistoryRow {
+    const payrollId = draft.payrollId;
+    const targetMonth = payrollId.replace('_bonus', '');
+    const allTotal = draft.healthInsurance + draft.nursingCareInsurance + draft.pensionInsurance;
+    const allEmployee = draft.healthInsuranceForEmployee + draft.nursingCareInsuranceForEmployee + draft.pensionInsuranceForEmployee;
+
+    return {
+      payrollId,
+      targetMonth,
+      paymentDate: payroll?.paymentDate ? this.commonService.formatDate(payroll.paymentDate) : '',
+      grade: String(draft.grade ?? ''),
+      healthStatus: this.getHistoryStatusFromAmount(draft.healthInsurance),
+      nursingStatus: this.getHistoryStatusFromAmount(draft.nursingCareInsurance),
+      pensionStatus: this.getHistoryStatusFromAmount(draft.pensionInsurance),
+      healthEmployee: draft.healthInsuranceForEmployee,
+      healthTotal: draft.healthInsurance,
+      nursingEmployee: draft.nursingCareInsuranceForEmployee,
+      nursingTotal: draft.nursingCareInsurance,
+      pensionEmployee: draft.pensionInsuranceForEmployee,
+      pensionTotal: draft.pensionInsurance,
+      allEmployee,
+      allTotal,
+    };
+  }
+
+  private buildInsuranceHistoryRow(
+    payrollId: string,
+    payroll: Payroll | undefined,
+    grade: string,
+    breakdown: ReturnType<InsuranceDisplayService['getSnapshotBreakdown']>,
+  ): InsuranceHistoryRow {
+    const targetMonth = payrollId.replace('_bonus', '');
+    return {
+      payrollId,
+      targetMonth,
+      paymentDate: payroll?.paymentDate ? this.commonService.formatDate(payroll.paymentDate) : '',
+      grade,
+      healthStatus: this.getHistoryStatusFromAmount(breakdown.healthInsurance),
+      nursingStatus: this.getHistoryStatusFromAmount(breakdown.nursingCareInsurance),
+      pensionStatus: this.getHistoryStatusFromAmount(breakdown.pensionInsurance),
+      healthEmployee: breakdown.healthInsuranceForEmployee,
+      healthTotal: breakdown.healthInsurance,
+      nursingEmployee: breakdown.nursingCareInsuranceForEmployee,
+      nursingTotal: breakdown.nursingCareInsurance,
+      pensionEmployee: breakdown.pensionInsuranceForEmployee,
+      pensionTotal: breakdown.pensionInsurance,
+      allEmployee: breakdown.totalInsuranceForEmployee,
+      allTotal: breakdown.totalInsurance,
+    };
+  }
+
+  private getHistoryStatusFromAmount(amount: number): string {
+    return amount > 0 ? '加入' : '未加入';
+  }
+
+  private getSnapshotPayrollId(snapshot: InsuranceSnapshot): string | undefined {
+    const payrollId = snapshot.payrollId ?? snapshot.snapshotId;
+    return payrollId || undefined;
+  }
+
+  exportInsuranceHistoryCsv() {
+    const headers = [
+      '対象月',
+      '支払日',
+      '等級',
+      '健康保険状態',
+      '健康保険個人負担額',
+      '健康保険総額',
+      '介護保険状態',
+      '介護保険個人負担額',
+      '介護保険総額',
+      '厚生年金状態',
+      '厚生年金個人負担額',
+      '厚生年金総額',
+      '全保険個人負担額',
+      '全保険総額',
+    ];
+    const rows = this.insuranceHistoryRows.map(row => [
+      row.targetMonth,
+      row.paymentDate,
+      row.grade,
+      row.healthStatus,
+      row.healthEmployee,
+      row.healthTotal,
+      row.nursingStatus,
+      row.nursingEmployee,
+      row.nursingTotal,
+      row.pensionStatus,
+      row.pensionEmployee,
+      row.pensionTotal,
+      row.allEmployee,
+      row.allTotal,
+    ]);
+    const csv = [headers, ...rows]
+      .map(row => row.map(value => this.escapeCsv(String(value ?? ''))).join(','))
+      .join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `insurance-history-${this.selectedEmployeeId}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private escapeCsv(value: string): string {
+    if (!/[",\n]/.test(value)) return value;
+    return `"${value.replace(/"/g, '""')}"`;
   }
 
   hasPendingSystemRuns(): boolean {
@@ -585,6 +908,9 @@ export class EmployeeDetail {
       } else {
         this.insuranceDraft = await this.employeeEventApprovalService.buildInsuranceApprovalDraft(eventView);
         this.approvalModalType = 'insurance';
+        this.insuranceApprovalChangeDate = this.formatDateForInput(eventView.occurredDate)
+          || this.formatDateForInput(Timestamp.fromDate(new Date()));
+        this.insuranceApprovalValidationError = '';
       }
       this.approvingSystemRun = run;
       this.approvalModalOpen = true;
@@ -592,13 +918,16 @@ export class EmployeeDetail {
     }
 
     if (run.eventType === '退社') {
+      if (!window.confirm('システム計算結果を承認しますか？\n退社処理を行うと保険情報の変更はできません。')) {
+        return;
+      }
       const approved = await this.employeeEventApprovalService.approveRetireEvent(
         this.selectedEmployeeId, eventView, this.loginEmployeeId, run.runId,
       );
       if (approved) {
         this.showMessage('システム計算結果を承認しました');
         await this.employeeService.getAllEmployees(true);
-        await this.selectEmployee();
+        await this.selectEmployee(false);
       } else {
         this.showMessage('承認に失敗しました');
       }
@@ -633,6 +962,9 @@ export class EmployeeDetail {
       } else {
         this.insuranceDraft = await this.employeeEventApprovalService.buildInsuranceApprovalDraft(event);
         this.approvalModalType = 'insurance';
+        this.insuranceApprovalChangeDate = this.formatDateForInput(event.occurredDate)
+          || this.formatDateForInput(Timestamp.fromDate(new Date()));
+        this.insuranceApprovalValidationError = '';
       }
       this.approvingEvent = event;
       this.approvalModalOpen = true;
@@ -653,7 +985,7 @@ export class EmployeeDetail {
     if (approved) {
       this.showMessage('イベントを承認しました');
       await this.employeeService.getAllEmployees(true);
-      await this.selectEmployee();
+      await this.selectEmployee(false);
     } else {
       this.showMessage('イベントの承認に失敗しました');
     }
@@ -680,7 +1012,7 @@ export class EmployeeDetail {
       this.showMessage('申請内容を承認し、反映しました');
       this.closeEmployeeReview();
       await this.employeeService.getAllEmployees(true);
-      await this.selectEmployee();
+      await this.selectEmployee(false);
     } else {
       this.showMessage('承認・反映に失敗しました');
     }
@@ -783,9 +1115,26 @@ export class EmployeeDetail {
     this.approvingSystemRun = null;
     this.fixedSalaryDraft = null;
     this.insuranceDraft = null;
+    this.insuranceApprovalChangeDate = '';
+    this.insuranceApprovalValidationError = '';
+  }
+
+  onInsuranceDraftStatusChange(insuranceKey: 'health' | 'nursing' | 'pension') {
+    if (!this.insuranceDraft) return;
+    this.employeeEventApprovalService.onInsuranceDraftStatusChange(
+      this.insuranceDraft,
+      insuranceKey,
+      this.insuranceApprovalChangeDate,
+    );
+    this.insuranceApprovalValidationError = '';
+  }
+
+  isInsuranceGradeEditable(): boolean {
+    return this.insuranceDraft?.healthStatus === 'joined';
   }
 
   async rejectApprovalModal() {
+    if (!window.confirm('システム計算結果を却下しますか？')) return;
     if (this.approvingSystemRun) {
       await this.employeeEventApprovalService.rejectSystemRun(this.approvingSystemRun.runId, this.loginEmployeeId);
       await this.loadEmployeeEvents();
@@ -797,6 +1146,9 @@ export class EmployeeDetail {
 
   async confirmApprovalModal() {
     if (!this.approvingSystemRun && !this.approvingEvent) return;
+    if (!window.confirm('システム計算結果を承認しますか？')) {
+      return;
+    }
 
     const eventView = this.approvingSystemRun
       ? this.employeeEventApprovalService.buildEventViewFromRun(this.approvingSystemRun)
@@ -809,6 +1161,12 @@ export class EmployeeDetail {
         this.selectedEmployeeId, eventView, this.fixedSalaryDraft, this.loginEmployeeId, runId,
       );
     } else if (this.approvalModalType === 'insurance' && this.insuranceDraft) {
+      const validationError = this.employeeEventApprovalService.validateInsuranceApprovalDraft(this.insuranceDraft);
+      if (validationError) {
+        this.insuranceApprovalValidationError = validationError;
+        this.showMessage(validationError);
+        return;
+      }
       approved = await this.employeeEventApprovalService.approveInsuranceEvent(
         this.selectedEmployeeId, eventView, this.insuranceDraft, this.loginEmployeeId, runId,
       );
@@ -817,7 +1175,7 @@ export class EmployeeDetail {
     if (approved) {
       this.showMessage('イベントを承認しました');
       await this.employeeService.getAllEmployees(true);
-      await this.selectEmployee();
+      await this.selectEmployee(false);
     } else {
       this.showMessage('イベントの承認に失敗しました');
     }
@@ -973,7 +1331,7 @@ export class EmployeeDetail {
     if (activeDependents.length === 0) return true;
 
     const updates: Partial<Dependent>[] = activeDependents.map(dependent => ({
-      ...dependent,
+      dependentId: dependent.dependentId,
       isDependent: false,
     }));
     const result = await this.dependentService.updateDependents(this.selectedEmployeeId, updates);
@@ -1133,12 +1491,7 @@ export class EmployeeDetail {
   }
 
   private formatDateForInput(date: Timestamp | null | undefined): string {
-    if (!date) return '';
-    const dateValue = date.toDate();
-    const year = dateValue.getFullYear();
-    const month = String(dateValue.getMonth() + 1).padStart(2, '0');
-    const day = String(dateValue.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return formatTimestampForDateInput(date);
   }
 
   private isTransportationExpensesRequired(employmentCategory: EmploymentCategory, workStyle: WorkStyle) {

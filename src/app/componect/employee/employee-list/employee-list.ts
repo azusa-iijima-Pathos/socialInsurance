@@ -8,6 +8,7 @@ import { EMPLOYMENT_CATEGORIES, EmploymentCategory, LEAVE_TYPES, LeaveType, WORK
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { WorkStatus, WorkStyle } from '../../../constants/model-constants';
 import { ValidationService } from '../../../service/common/validation-service';
+import { timestampFromDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
 import { OfficeService } from '../../../service/Firestore/office-service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -128,8 +129,8 @@ export class EmployeeList {
       employeeId: this.form.value.employeeId!,
       firstName: this.form.value.firstName!,
       lastName: this.form.value.lastName!,
-      birthDate: Timestamp.fromDate(new Date(this.form.value.birthDate!)),
-      hireDate: Timestamp.fromDate(new Date(this.form.value.hireDate!)),
+      birthDate: timestampFromDateInput(this.form.value.birthDate!),
+      hireDate: timestampFromDateInput(this.form.value.hireDate!),
       workStatus: this.form.value.workStatus! as WorkStatus,
       ...(this.form.value.workStatus === '休職中'
         ? { leaveTypes: this.form.value.leaveTypes! as LeaveType }

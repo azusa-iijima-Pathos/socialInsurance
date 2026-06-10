@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, computed, inject } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { timestampFromDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
 import { CREATE_MESSAGES } from '../../../constants/constants';
 import { EMPLOYMENT_CATEGORIES, EmploymentCategory, LEAVE_TYPES, LeaveType, RELATIONSHIPS, Relationship, WORK_STATUSES, WORK_STYLES, WorkStatus, WorkStyle } from '../../../constants/model-constants';
@@ -221,8 +222,8 @@ export class HireEntry {
       employeeId: this.form.value.employeeId!,
       firstName: this.form.value.firstName!,
       lastName: this.form.value.lastName!,
-      birthDate: Timestamp.fromDate(new Date(this.form.value.birthDate!)),
-      hireDate: Timestamp.fromDate(new Date(this.form.value.hireDate!)),
+      birthDate: timestampFromDateInput(this.form.value.birthDate!),
+      hireDate: timestampFromDateInput(this.form.value.hireDate!),
       workStatus: this.form.value.workStatus! as WorkStatus,
       ...(this.form.value.workStatus === '休職中'
         ? { leaveTypes: this.form.value.leaveTypes! as LeaveType }
@@ -274,7 +275,7 @@ export class HireEntry {
 
     return {
       joined: true,
-      acquiredDate: Timestamp.fromDate(new Date(value.acquiredDate)),
+      acquiredDate: timestampFromDateInput(value.acquiredDate),
       companyBurdenRate: value.companyBurdenRate,
     };
   }
@@ -290,7 +291,7 @@ export class HireEntry {
       dependents.push({
         dependentId: `${index + 1}`,
         name: value.name!,
-        birthDate: Timestamp.fromDate(new Date(value.birthDate!)),
+        birthDate: timestampFromDateInput(value.birthDate!),
         relationship: value.relationship! as Relationship,
         isDependent: true,
       });

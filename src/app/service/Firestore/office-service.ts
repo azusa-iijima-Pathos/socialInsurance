@@ -26,12 +26,29 @@ export class OfficeService {
   allOfficeWithDeleted = signal<Office[]>([]);
   allOffices = signal<Office[]>([]);
   isallOfficesLoaded = false;
+  private cachedCompanyId = '';
+
+  resetCache(): void {
+    this.allOfficeWithDeleted.set([]);
+    this.allOffices.set([]);
+    this.isallOfficesLoaded = false;
+    this.cachedCompanyId = '';
+  }
+
   async getAllOffice(forceReload: boolean = false) {
+    const companyId = sessionStorage.getItem('companyId') ?? '';
+    if (this.cachedCompanyId !== companyId) {
+      forceReload = true;
+    }
     if (this.isallOfficesLoaded && !forceReload) return;
-    const allOfficesWithDeleted = await this.crudService.getAll<Office>(`${this.path}`, 'officeId');
+
+    const allOfficesWithDeleted = companyId
+      ? await this.crudService.getAll<Office>(`${this.path}`, 'officeId')
+      : [];
     this.allOfficeWithDeleted.set(allOfficesWithDeleted);
     this.allOffices.set(allOfficesWithDeleted.filter(office => !office.isDeleted));
     this.isallOfficesLoaded = true;
+    this.cachedCompanyId = companyId;
     return;
   }
   /** 事業所名一覧のマップを作成（削除済みは含まない） */

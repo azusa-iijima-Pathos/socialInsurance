@@ -21,6 +21,13 @@ export class InsuranceDraftService {
     return await this.crudService.getAll<InsuranceDraft>(`${this.path}/${payrollId}/employees`, 'employeeId');
   }
 
+  async getDraft(payrollId: string, employeeId: string): Promise<InsuranceDraft | null> {
+    return await this.crudService.getById<InsuranceDraft>(
+      `${this.path}/${payrollId}/employees/${employeeId}`,
+      'employeeId',
+    );
+  }
+
   async saveDraft(payrollId: string, employeeId: string, draft: Partial<InsuranceDraft>): Promise<boolean> {
     return await this.crudService.create(
       `${this.path}/${payrollId}/employees/${employeeId}`,

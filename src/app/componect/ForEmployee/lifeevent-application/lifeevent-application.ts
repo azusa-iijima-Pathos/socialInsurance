@@ -8,6 +8,7 @@ import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { Employee } from '../../../model/employee';
 import { DependentService } from '../../../service/Firestore/dependent-service';
 import { EventService } from '../../../service/Firestore/event-service';
+import { parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
 import { Event } from '../../../model/event';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
@@ -165,7 +166,7 @@ export class LifeeventApplication {
 
     if (nameChanged) {
       const nameEvent: Partial<Event> = {
-        occurredDate: Timestamp.fromDate(new Date(occurredDate)),
+        occurredDate: timestampFromDateInput(occurredDate),
         eventType: '氏名変更',
         lifeEventType,
         appliedDate: Timestamp.now(),
@@ -242,9 +243,9 @@ export class LifeeventApplication {
       }
 
       const occurredDate = leaveStart || this.birthForm.get('childBirthDate')!.value;
-      const expectedBirthDate = new Date(this.birthForm.get('childBirthDate')!.value);
+      const expectedBirthDate = parseDateInputValue(this.birthForm.get('childBirthDate')!.value);
       const leaveEvent: Partial<Event> = {
-        occurredDate: Timestamp.fromDate(new Date(occurredDate)),
+        occurredDate: timestampFromDateInput(occurredDate),
         eventType: '勤務状況変更',
         lifeEventType,
         appliedDate: Timestamp.now(),
@@ -393,7 +394,7 @@ export class LifeeventApplication {
   private async isLeaveStartAllowed(leaveStart: string): Promise<boolean> {
     await this.companyService.getCompany();
     const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
-    const workMonth = getWorkMonthForDate(new Date(leaveStart), targetPeriodStart);
+    const workMonth = getWorkMonthForDate(parseDateInputValue(leaveStart), targetPeriodStart);
     const working = getWorkingYearMonth();
     return workMonth.year * 12 + workMonth.month >= working.year * 12 + working.month;
   }
@@ -489,12 +490,12 @@ export class LifeeventApplication {
         dependentId: item.after.dependentId || String(nextDependentId++),
         name: item.after.name,
         relationship: item.after.relationship as Relationship,
-        birthDate: Timestamp.fromDate(new Date(item.after.birthDate)),
+        birthDate: timestampFromDateInput(item.after.birthDate),
         isDependent: item.after.isDependent ?? true, //記載がない場合は扶養として登録
       };
 
       const dependentEvent: Partial<Event> = {
-        occurredDate: Timestamp.fromDate(new Date(occurredDate)),
+        occurredDate: timestampFromDateInput(occurredDate),
         eventType: '扶養情報変更',
         lifeEventType,
         appliedDate: Timestamp.now(),
@@ -617,8 +618,7 @@ export class LifeeventApplication {
     }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const targetDate = new Date(childBirthDate);
-    targetDate.setHours(0, 0, 0, 0);
+    const targetDate = parseDateInputValue(childBirthDate);
     // 出産予定日
     if (type === '出産' && targetDate < today) {
       return {
@@ -665,8 +665,8 @@ export class LifeeventApplication {
     if (!childBirthDate || !leaveStartDate) {
       return null;
     }
-    const birthDate = new Date(childBirthDate);
-    const startDate = new Date(leaveStartDate);
+    const birthDate = parseDateInputValue(childBirthDate);
+    const startDate = parseDateInputValue(leaveStartDate);
     // 育休
     if (
       leaveType === '育児' &&

@@ -6,7 +6,7 @@ import { CommonService, MessageTimer } from '../../../service/common/common-serv
 import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { Employee, EmployeeInsurance } from '../../../model/employee';
-import { Timestamp } from '@angular/fire/firestore';
+import { parseDateInputValue } from '../../../service/common/date-input.util';
 import { getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 
@@ -55,7 +55,7 @@ export class InsuranceCorrection {
       return;
     }
 
-    const applyDate = new Date(this.form.value.applyDate!);
+    const applyDate = parseDateInputValue(this.form.value.applyDate!);
     const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(applyDate);
     const working = getWorkingYearMonth();
 

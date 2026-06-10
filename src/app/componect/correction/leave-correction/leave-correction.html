@@ -1,22 +1,28 @@
-<h1>産休・育休修正</h1>
-<p>実際の休職開始日を登録し、休職種別を更新します。</p>
-<p *ngIf="message">{{ message }}</p>
+<div class="im-page-shell">
+  <h1 class="page-title">産休・育休修正</h1>
+  <p class="page-lead">実際の休職開始日を登録し、休職種別を更新します。</p>
+  <p *ngIf="message" class="im-action-message">{{ message }}</p>
 
-<form [formGroup]="form" (ngSubmit)="submit()">
-  <label>社員
-    <select formControlName="employeeId">
-      <option value="">選択</option>
-      <option *ngFor="let employee of employees" [value]="employee.employeeId">
-        {{ employee.employeeId }}：{{ employee.firstName }} {{ employee.lastName }}
-      </option>
-    </select>
-  </label>
-  <label>休職種別
-    <select formControlName="leaveTypes">
-      <option value="産前産後">産前産後</option>
-      <option value="育児">育児</option>
-    </select>
-  </label>
-  <label>実際の休職開始日 <input type="date" formControlName="actualStartDate"></label>
-  <button type="submit">反映</button>
-</form>
+  <section class="im-surface-panel im-correction-form">
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <label>社員
+        <select formControlName="employeeId">
+          <option value="">選択</option>
+          <option *ngFor="let employee of employees" [value]="employee.employeeId">
+            {{ employee.employeeId }}：{{ employee.firstName }} {{ employee.lastName }}
+          </option>
+        </select>
+      </label>
+      <label>休職種別
+        <select formControlName="leaveTypes">
+          <option value="産前産後">産前産後</option>
+          <option value="育児">育児</option>
+        </select>
+      </label>
+      <label>実際の休職開始日 <input type="date" formControlName="actualStartDate"></label>
+      <div class="form-footer-actions">
+        <button type="submit" class="im-btn-primary">反映</button>
+      </div>
+    </form>
+  </section>
+</div>

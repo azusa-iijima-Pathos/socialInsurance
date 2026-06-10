@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Payroll } from '../../../model/payroll';
 import { CompanyService } from '../../../service/Firestore/company-service';
-import { Timestamp } from '@angular/fire/firestore';
+import { parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
 import { PayrollService } from '../../../service/Firestore/payroll-service';
 import { CREATE_MESSAGES } from '../../../constants/constants';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
@@ -210,7 +210,7 @@ export class MonthlySalary {
     const targetPeriodStart = control.get('targetPeriodStart')?.value;
     if (!targetPeriodStart) return null;
 
-    const date = new Date(`${targetPeriodStart}T00:00:00`);
+    const date = parseDateInputValue(targetPeriodStart);
     if (Number.isNaN(date.getTime())) return null;
 
     const isExpectedMonth = date.getFullYear() === this.workingYear && date.getMonth() + 1 === this.workingMonth;
@@ -231,8 +231,11 @@ export class MonthlySalary {
       actualWorkingDays: this.form.value.actualWorkingDays!,
       //入力値は月単位、DBには週単位で登録する
       actualWorkingHours: Math.round(this.form.value.actualWorkingHours! * 12 / 52),
-      paymentDate: Timestamp.fromDate(new Date(this.form.value.paymentDate!)),
-      targetPeriod: [Timestamp.fromDate(new Date(this.form.value.targetPeriodStart!)), Timestamp.fromDate(new Date(this.form.value.targetPeriodEnd!))],
+      paymentDate: timestampFromDateInput(this.form.value.paymentDate!),
+      targetPeriod: [
+        timestampFromDateInput(this.form.value.targetPeriodStart!),
+        timestampFromDateInput(this.form.value.targetPeriodEnd!),
+      ],
       fixedSalary: this.form.value.fixedSalary!,
       actualPaymentAmount: this.form.value.actualPaymentAmount!,
     };

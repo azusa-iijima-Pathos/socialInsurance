@@ -1,94 +1,91 @@
-<h1>{{ listType === 'bonus' ? '賞与保険料差額一覧' : '差額調整一覧' }}</h1>
+<div class="im-page-shell">
+  <h1 class="page-title">{{ listType === 'bonus' ? '賞与保険料差額一覧' : '差額調整一覧' }}</h1>
 
-<div class="information-area">
-  <p>作業月ごとの差額調整を表示します。</p>
-  <p>下のプルダウンから作業月を選択してください。</p>
-</div>
+  <div class="information-area">
+    <p>作業月ごとの差額調整を表示します。</p>
+    <p>下のプルダウンから作業月を選択してください。</p>
+  </div>
 
-<div class="correction-list-toolbar">
+  <div class="im-correction-toolbar correction-list-toolbar">
+    <label *ngIf="listType !== 'bonus'">対象月
+      <select [(ngModel)]="selectedMonthKey" (change)="onFilterChange()">
+        <option *ngFor="let option of monthOptions" [value]="option.year + '-' + option.month">
+          {{ option.label }}
+        </option>
+      </select>
+    </label>
 
-  <label *ngIf="listType !== 'bonus'">対象月
-    <select [(ngModel)]="selectedMonthKey" (change)="onFilterChange()">
-      <option *ngFor="let option of monthOptions" [value]="option.year + '-' + option.month">
-        {{ option.label }}
-      </option>
-    </select>
-  </label>
+    <label *ngIf="listType === 'bonus'">対象賞与
+      <select [(ngModel)]="selectedBonusPayrollId" (change)="onFilterChange()">
+        <option value="">選択</option>
+        <option *ngFor="let id of bonusPayrollIds" [value]="id">{{ displayBonusPayrollId(id) }}</option>
+      </select>
+    </label>
+  </div>
 
-  <label *ngIf="listType === 'bonus'">対象賞与
-    <select [(ngModel)]="selectedBonusPayrollId" (change)="onFilterChange()">
-      <option value="">選択</option>
-      <option *ngFor="let id of bonusPayrollIds" [value]="id">{{ displayBonusPayrollId(id) }}</option>
-    </select>
-  </label>
+  <div *ngIf="runs.length === 0" class="correction-list-empty im-empty-hint">
+    選択中の月に行われた差額調整データはありません。
+  </div>
 
-</div>
-
-
-
-<div *ngIf="runs.length === 0" class="correction-list-empty"
-  style="text-align: center; margin-top: 16px; color: var(--im-color-black);">
-  選択中の月に行われた差額調整データはありません。
-</div>
-
-<div *ngIf="runs.length > 0" class="correction-list-table-wrap">
-  <button type="button" class="im-btn-soft" (click)="exportCsv()" [disabled]="runs.length === 0" style="margin-bottom: 10px; margin-right: auto;">
-    CSV出力</button>
-  <table class="correction-list-table">
-    <thead>
-      <tr>
-        <th>社員ID</th>
-        <th>名前</th>
-        <th>対象月</th>
-        <th *ngIf="listType !== 'bonus'">等級</th>
-        <th *ngIf="listType === 'bonus'">賞与額</th>
-        <th>健康保険<br>
-          <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
-        </th>
-        <th>介護保険<br>
-          <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
-        </th>
-        <th>厚生年金<br>
-          <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
-        </th>
-        <th>合計<br>
-          <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
-        </th>
-        <th *ngIf="listType !== 'bonus'">種別</th>
-        <th>修正日</th>
-        <th>修正者</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let run of runs">
-        <td>{{ getEmployeeId(run) }}</td>
-        <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: getEmployeeId(run) }">{{ getEmployeeName(run) }}</a></td>
-        <td>{{ getAdjustMonth(run) }}</td>
-        <td *ngIf="listType !== 'bonus'">{{ getGrade(run) }}</td>
-        <td *ngIf="listType === 'bonus'">
-          <span>{{ getBeforeAmount(run) | number }}→<strong>{{ getAfterAmount(run) | number }}</strong>円</span>
-          <small class="correction-list-diff">{{ (getAfterAmount(run) - getBeforeAmount(run)) | number }}円</small>
-        </td>
-        <td>
-          <span>{{ getCurrentHealth(run) | number }}→{{ getNewHealth(run) | number }}円</span>
-          <small class="correction-list-diff"> {{ getHealthDiff(run) | number }}円</small>
-        </td>
-        <td>
-          <span>{{ getCurrentNursing(run) | number }}→{{ getNewNursing(run) | number }}円</span>
-          <small class="correction-list-diff">{{ getNursingDiff(run) | number }}円</small>
-        </td>
-        <td>
-          <span>{{ getCurrentPension(run) | number }}→{{ getNewPension(run) | number }}円</span>
-          <small class="correction-list-diff">{{ getPensionDiff(run) | number }}円</small>
-        </td>
-        <td class="correction-list-total">
-          <span>{{ getCurrentTotal(run) | number }}→<strong>{{ getNewTotal(run) | number }}</strong>円</span>
-          <small class="correction-list-diff"><strong>{{ getTotalDiff(run) | number }}円</strong></small>
-        </td>
-        <td *ngIf="listType !== 'bonus'">{{ getSourceType(run) }}</td>
-        <td>{{ commonService.formatDateTime(run.createdAt) }}</td>
-        <td>{{ commonService.getEmployeeName(run.approval?.approvedBy ?? '') }}</td>
-      </tr>
-    </tbody>
-  </table>
+  <div *ngIf="runs.length > 0" class="correction-list-table-wrap">
+    <button type="button" class="im-btn-soft" (click)="exportCsv()" [disabled]="runs.length === 0" style="margin-bottom: 10px; margin-right: auto;">
+      CSV出力</button>
+    <table class="correction-list-table">
+      <thead>
+        <tr>
+          <th>社員ID</th>
+          <th>名前</th>
+          <th>対象月</th>
+          <th *ngIf="listType !== 'bonus'">等級</th>
+          <th *ngIf="listType === 'bonus'">賞与額</th>
+          <th>健康保険<br>
+            <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
+          </th>
+          <th>介護保険<br>
+            <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
+          </th>
+          <th>厚生年金<br>
+            <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
+          </th>
+          <th>合計<br>
+            <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
+          </th>
+          <th *ngIf="listType !== 'bonus'">種別</th>
+          <th>修正日</th>
+          <th>修正者</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let run of runs">
+          <td>{{ getEmployeeId(run) }}</td>
+          <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: getEmployeeId(run) }">{{ getEmployeeName(run) }}</a></td>
+          <td>{{ getAdjustMonth(run) }}</td>
+          <td *ngIf="listType !== 'bonus'">{{ getGrade(run) }}</td>
+          <td *ngIf="listType === 'bonus'">
+            <span>{{ getBeforeAmount(run) | number }}→<strong>{{ getAfterAmount(run) | number }}</strong>円</span>
+            <small class="correction-list-diff">{{ (getAfterAmount(run) - getBeforeAmount(run)) | number }}円</small>
+          </td>
+          <td>
+            <span>{{ getCurrentHealth(run) | number }}→{{ getNewHealth(run) | number }}円</span>
+            <small class="correction-list-diff"> {{ getHealthDiff(run) | number }}円</small>
+          </td>
+          <td>
+            <span>{{ getCurrentNursing(run) | number }}→{{ getNewNursing(run) | number }}円</span>
+            <small class="correction-list-diff">{{ getNursingDiff(run) | number }}円</small>
+          </td>
+          <td>
+            <span>{{ getCurrentPension(run) | number }}→{{ getNewPension(run) | number }}円</span>
+            <small class="correction-list-diff">{{ getPensionDiff(run) | number }}円</small>
+          </td>
+          <td class="correction-list-total">
+            <span>{{ getCurrentTotal(run) | number }}→<strong>{{ getNewTotal(run) | number }}</strong>円</span>
+            <small class="correction-list-diff"><strong>{{ getTotalDiff(run) | number }}円</strong></small>
+          </td>
+          <td *ngIf="listType !== 'bonus'">{{ getSourceType(run) }}</td>
+          <td>{{ commonService.formatDateTime(run.createdAt) }}</td>
+          <td>{{ commonService.getEmployeeName(run.approval?.approvedBy ?? '') }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </div>

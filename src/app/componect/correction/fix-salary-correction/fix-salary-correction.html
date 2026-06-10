@@ -1,17 +1,23 @@
-<h1>固定給修正（遡及）</h1>
-<p>適用作業月の3か月後に随時改定のシステム計算結果を作成し、固定給を更新します。</p>
-<p *ngIf="message">{{ message }}</p>
+<div class="im-page-shell">
+  <h1 class="page-title">固定給修正（遡及）</h1>
+  <p class="page-lead">適用作業月の3か月後に随時改定のシステム計算結果を作成し、固定給を更新します。</p>
+  <p *ngIf="message" class="im-action-message">{{ message }}</p>
 
-<form [formGroup]="form" (ngSubmit)="submit()">
-  <label>社員
-    <select formControlName="employeeId">
-      <option value="">選択</option>
-      <option *ngFor="let employee of employees" [value]="employee.employeeId">
-        {{ employee.employeeId }}：{{ employee.firstName }} {{ employee.lastName }}
-      </option>
-    </select>
-  </label>
-  <label>固定給適用日 <input type="date" formControlName="applyDate"></label>
-  <label>固定給 <input type="number" min="0" formControlName="fixedSalary"></label>
-  <button type="submit">反映</button>
-</form>
+  <section class="im-surface-panel im-correction-form">
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <label>社員
+        <select formControlName="employeeId">
+          <option value="">選択</option>
+          <option *ngFor="let employee of employees" [value]="employee.employeeId">
+            {{ employee.employeeId }}：{{ employee.firstName }} {{ employee.lastName }}
+          </option>
+        </select>
+      </label>
+      <label>固定給適用日 <input type="date" formControlName="applyDate"></label>
+      <label>固定給 <input type="number" min="0" formControlName="fixedSalary"></label>
+      <div class="form-footer-actions">
+        <button type="submit" class="im-btn-primary">反映</button>
+      </div>
+    </form>
+  </section>
+</div>

@@ -1,6 +1,7 @@
 import { inject, Injectable, signal, computed } from '@angular/core';
 import { CrudService } from '../common/crud-service';
 import { Employee, EmployeeInsurance } from '../../model/employee';
+import { deleteField } from '@angular/fire/firestore';
 
 /**
  * 社員情報サービス
@@ -24,11 +25,27 @@ export class EmployeeService {
   /** 該当会社の全社員情報を取得 */
   allEmployees = signal<Employee[]>([]);
   isallEmployeesLoaded = false;
+  private cachedCompanyId = '';
+
+  resetCache(): void {
+    this.allEmployees.set([]);
+    this.isallEmployeesLoaded = false;
+    this.cachedCompanyId = '';
+  }
+
   async getAllEmployees(forceReload: boolean = false) {
+    const companyId = sessionStorage.getItem('companyId') ?? '';
+    if (this.cachedCompanyId !== companyId) {
+      forceReload = true;
+    }
     if (this.isallEmployeesLoaded && !forceReload) return;
-    const allEmployees = await this.crudService.getAll<Employee>(`${this.path}`, 'employeeId');
+
+    const allEmployees = companyId
+      ? await this.crudService.getAll<Employee>(`${this.path}`, 'employeeId')
+      : [];
     this.allEmployees.set(allEmployees);
     this.isallEmployeesLoaded = true;
+    this.cachedCompanyId = companyId;
     return;
   }
 
@@ -62,21 +79,41 @@ export class EmployeeService {
 
   /** 新規社員を作成(管理者側のみ可能) */
   async registerEmployee(employee: Partial<Employee>): Promise<boolean> {
-    return await this.crudService.create(`${this.path}/${employee.employeeId}`, employee);
+    const created = await this.crudService.create(`${this.path}/${employee.employeeId}`, employee);
+    if (created) {
+      await this.getAllEmployees(true);
+    }
+    return created;
   }
 
   /** 社員を削除 */
   async deleteEmployee(employee: Employee): Promise<boolean> {
-    return await this.crudService.delete(`${this.path}/${employee.employeeId}`);
+    const deleted = await this.crudService.delete(`${this.path}/${employee.employeeId}`);
+    if (deleted) {
+      await this.getAllEmployees(true);
+    }
+    return deleted;
   }
 
   /** 社員を更新 */
   async updateEmployee(employee: Partial<Employee>): Promise<boolean> {
-    return await this.crudService.update(`${this.path}/${employee.employeeId}`, employee);
+    const data: Record<string, unknown> = { ...employee };
+    if (employee.leaveTypes === null) {
+      data['leaveTypes'] = deleteField();
+    }
+    const result = await this.crudService.update(`${this.path}/${employee.employeeId}`, data);
+    if (result) {
+      await this.getAllEmployees(true);
+    }
+    return result;
   }
 
   /** 社員の保険情報を更新 */
   async updateEmployeeInsurance(employeeId: string, insurance: Partial<EmployeeInsurance>): Promise<boolean> {
-    return await this.crudService.update(`${this.path}/${employeeId}`, { insurance: insurance });
+    const updated = await this.crudService.update(`${this.path}/${employeeId}`, { insurance });
+    if (updated) {
+      await this.getAllEmployees(true);
+    }
+    return updated;
   }
 }

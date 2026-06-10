@@ -17,6 +17,10 @@ export type AdHocRevisionResult = {
   calculatedGrade?: number;
   averageSalary?: number;
   reason?: string;
+  targetPayrolls?: {
+    payrollId: string;
+    actualPaymentAmount?: number;
+  }[];
 };
 
 export type CalculationBaseResult = {
@@ -353,7 +357,7 @@ export class EmployeeLogicService {
   async getAdHocRevisionResult(employee: Employee, changeMonth: YearMonth): Promise<AdHocRevisionResult> {
     const currentGrade = employee.insurance?.currentGrade ?? 0;
     if (!currentGrade) {
-      return { status: '判定不可', currentGrade, reason: '現在等級が未設定のため判定できません' };
+      return { status: '判定不可', currentGrade, reason: '現在等級が未設定のため判定できません', targetPayrolls: [] };
     }
 
     const year = changeMonth.year.toString();
@@ -373,10 +377,10 @@ export class EmployeeLogicService {
       const payrollId = `${targetMonth.year}-${String(targetMonth.month).padStart(2, '0')}`;
       const payroll = monthlyPayrolls.find(item => item.payrollId === payrollId);
       if (!payroll) {
-        return { status: '判定不可', currentGrade, reason: `${payrollId}の給与データがありません` };
+        return { status: '判定不可', currentGrade, reason: `${payrollId}の給与データがありません`, targetPayrolls: this.toAdHocRevisionPayrolls(matchedPayrolls) };
       }
       if (payroll.actualPaymentAmount === undefined) {
-        return { status: '判定不可', currentGrade, reason: `${payrollId}の総支給額が未入力です` };
+        return { status: '判定不可', currentGrade, reason: `${payrollId}の総支給額が未入力です`, targetPayrolls: this.toAdHocRevisionPayrolls([...matchedPayrolls, payroll]) };
       }
       matchedPayrolls.push(payroll);
     }
@@ -393,14 +397,27 @@ export class EmployeeLogicService {
     }
 
     if (calculatedGrade === undefined) {
-      return { status: '判定不可', currentGrade, averageSalary, reason: '3か月平均の報酬月額に該当する標準報酬等級がありません' };
+      return {
+        status: '判定不可',
+        currentGrade,
+        averageSalary,
+        reason: '3か月平均の報酬月額に該当する標準報酬等級がありません',
+        targetPayrolls: this.toAdHocRevisionPayrolls(matchedPayrolls),
+      };
     }
 
     if (Math.abs(calculatedGrade - currentGrade) >= 2) {
-      return { status: '改定あり', currentGrade, calculatedGrade, averageSalary };
+      return { status: '改定あり', currentGrade, calculatedGrade, averageSalary, targetPayrolls: this.toAdHocRevisionPayrolls(matchedPayrolls) };
     }
 
-    return { status: '変更なし', currentGrade, calculatedGrade, averageSalary };
+    return { status: '変更なし', currentGrade, calculatedGrade, averageSalary, targetPayrolls: this.toAdHocRevisionPayrolls(matchedPayrolls) };
+  }
+
+  private toAdHocRevisionPayrolls(payrolls: Payroll[]): AdHocRevisionResult['targetPayrolls'] {
+    return payrolls.map(payroll => ({
+      payrollId: payroll.payrollId,
+      actualPaymentAmount: payroll.actualPaymentAmount,
+    }));
   }
 
   private async getPayrollListWithAdjustedAmounts(employeeId: string): Promise<Payroll[]> {

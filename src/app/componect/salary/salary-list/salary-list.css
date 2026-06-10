@@ -40,45 +40,8 @@
   gap: var(--im-size-8);
 }
 
-.salary-edit-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  place-items: center;
-  padding: var(--im-size-24);
-  background: var(--im-color-black-40);
-}
-
 .salary-edit-modal__panel {
   width: min(760px, 100%);
-  max-height: 85vh;
-  padding: var(--im-size-24);
-  overflow: auto;
-  border: 1px solid var(--im-color-gray-150);
-  border-radius: var(--im-radius-12);
-  background: var(--im-color-white);
-  box-shadow: var(--im-shadow-2);
-}
-
-.salary-edit-modal__header {
-  display: flex;
-  align-items: center;
-  margin-bottom: var(--im-size-16);
-  padding-bottom: var(--im-size-12);
-  border-bottom: 1px solid var(--im-color-gray-150);
-}
-
-.salary-edit-modal__header h2 {
-  display: grid;
-  gap: var(--im-size-12);
-  margin: 0;
-}
-
-.salary-edit-modal__payroll-id {
-  color: var(--im-color-slate-600);
-  font-size: var(--im-font-14);
-  font-weight: 600;
 }
 
 .salary-edit-form {
@@ -154,8 +117,6 @@
   grid-template-columns: 2fr 1fr;
   gap: var(--im-size-8);
   margin-top: var(--im-size-8);
-  padding-top: var(--im-size-12);
-  border-top: 1px solid var(--im-color-gray-150);
 }
 
 .salary-edit-actions button {

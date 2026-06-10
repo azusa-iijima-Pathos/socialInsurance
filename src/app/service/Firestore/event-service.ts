@@ -8,6 +8,27 @@ import { ApplicantType, EmployeeEventType } from '../../constants/model-constant
 
 export type EmployeeEventItem = Event & { employeeId: string };
 
+export function compareEventsByAppliedDateDesc(left: Event, right: Event): number {
+  const leftTime = getEventAppliedDateMillis(left);
+  const rightTime = getEventAppliedDateMillis(right);
+  if (leftTime !== rightTime) {
+    return rightTime - leftTime;
+  }
+  return String(right.eventId ?? '').localeCompare(String(left.eventId ?? ''));
+}
+
+function getEventAppliedDateMillis(event: Event): number {
+  const appliedDate = event.appliedDate as { toMillis?: () => number; seconds?: number } | undefined;
+  if (!appliedDate) return 0;
+  if (typeof appliedDate.toMillis === 'function') {
+    return appliedDate.toMillis();
+  }
+  if (typeof appliedDate.seconds === 'number') {
+    return appliedDate.seconds * 1000;
+  }
+  return 0;
+}
+
 /**
  * イベントサービス
  */
@@ -40,6 +61,10 @@ export class EventService {
       occurredDate: event.occurredDate?.toDate(),
       targetPeriodStart,
     });
+
+    if (event.eventType === '一定年齢到達') {
+      return this.createEventWithId(employeeId, eventId, event);
+    }
 
     return this.createEventWithBaseId(employeeId, eventId, event);
   }
@@ -85,21 +110,34 @@ export class EventService {
     return await this.crudService.getAll<Event>(`${this.path}/${employeeId}/events`, 'eventId');
   }
 
+  /** 従業員詳細：全イベントを申請日降順で返す */
+  async getEmployeeEventsByAppliedDateDesc(employeeId: string): Promise<Event[]> {
+    const events = await this.getEmployeeEvents(employeeId);
+    return events.sort(compareEventsByAppliedDateDesc);
+  }
+
   async getPendingEmployeeEvents(employeeId: string): Promise<Event[]> {
     const events = await this.getEmployeeEvents(employeeId);
     return events
       .filter(event => event.approval?.approvalStatus === '申請中')
-      .sort((left, right) => right.eventId.localeCompare(left.eventId));
+      .sort(compareEventsByAppliedDateDesc);
   }
 
   async getEmployeeEventsUpToWorkingMonth(employeeId: string): Promise<Event[]> {
     const events = await this.getEmployeeEvents(employeeId);
     const { year, month } = getWorkingYearMonth();
-    if (!year || !month) return [];
+    if (!year || !month) {
+      return events.sort(compareEventsByAppliedDateDesc);
+    }
 
     return events
-      .filter(event => event.eventId && isEventAtOrBeforeWorkingMonth(event.eventId, year, month))
-      .sort((left, right) => right.eventId.localeCompare(left.eventId));
+      .filter(event => event.eventId && isEventAtOrBeforeWorkingMonth(
+        event.eventId,
+        year,
+        month,
+        event.appliedDate as { toDate?: () => Date; seconds?: number } | undefined,
+      ))
+      .sort(compareEventsByAppliedDateDesc);
   }
 
   /** 全社員の申請中イベント（作業月以前） */
@@ -115,7 +153,7 @@ export class EventService {
       }
     }
 
-    return results.sort((left, right) => right.eventId.localeCompare(left.eventId));
+    return results.sort(compareEventsByAppliedDateDesc);
   }
 
   async getReachAgeEvents(evnetId: string): Promise<Event[]> {

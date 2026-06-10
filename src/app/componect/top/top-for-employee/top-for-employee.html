@@ -1,4 +1,5 @@
-<h1>従業員トップページ</h1>
+<div class="im-page-shell">
+<h1 class="page-title">従業員トップページ</h1>
 
 <div *ngIf="permission === '申請'" class="information-area">
     <p>社会保険担当者様は、管理者に権限を変更してもらう必要があります。</p>
@@ -23,4 +24,5 @@
         <a [routerLink]="['/my-insurance-detail']">登録情報閲覧</a><br>
         <a [routerLink]="['/company-detail']" [queryParams]="{ mode: 'view' }">会社情報閲覧</a>
     </div>
+</div>
 </div>

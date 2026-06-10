@@ -7,6 +7,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AUTH_ERROR_MESSAGES, GURARD_MESSAGES, CREATE_MESSAGES } from '../../../constants/constants';
 import { UserService } from '../../../service/Firestore/user-service';
 import { CompanyService } from '../../../service/Firestore/company-service';
+import { SessionCacheService } from '../../../service/common/session-cache.service';
 
 @Component({
   selector: 'app-login',
@@ -22,6 +23,7 @@ export class Login {
   private route = inject(ActivatedRoute);
   private userService = inject(UserService);
   private companyService = inject(CompanyService);
+  private sessionCacheService = inject(SessionCacheService);
 
   form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
@@ -70,6 +72,8 @@ export class Login {
       return;
     }
     this.errorMessage = '';
+
+    this.sessionCacheService.clearAllCaches();
 
     let result;
     try {
@@ -129,6 +133,7 @@ export class Login {
 
     //ログインユーザ情報をキャッシュにセット
     this.authService.loginUser.set(result.user!);
+    await this.sessionCacheService.reloadSessionData();
 
     if (result.user!.permission === '管理' || result.user!.permission === '承認') {
       this.router.navigate(['/top-for-manage']);

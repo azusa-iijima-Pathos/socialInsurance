@@ -6,7 +6,6 @@ import { EmployeeEventType } from '../../constants/model-constants';
 import { EventService } from '../Firestore/event-service';
 import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { CompanyService } from '../Firestore/company-service';
-import { EmployeeLogicService } from './employee-logic-service';
 import {
   addMonths,
   buildCurrentWorkMonthEventId,
@@ -16,8 +15,6 @@ import {
 } from './event-id-service';
 import { Event } from '../../model/event';
 
-type InsuranceStatusKind = 'joined' | 'notJoined' | 'lost';
-
 @Injectable({
   providedIn: 'root',
 })
@@ -26,7 +23,6 @@ export class EmployeeDetailEventService {
   private eventService = inject(EventService);
   private calculationRunService = inject(CalculationRunService);
   private companyService = inject(CompanyService);
-  private employeeLogicService = inject(EmployeeLogicService);
 
   async createEventsFromContractChange(
     employeeId: string,
@@ -148,34 +144,6 @@ export class EmployeeDetailEventService {
     return run.eventType === '固定給変更' || run.eventType === '雇用形態変更';
   }
 
-  async hasInsuranceStatusChangePossible(before: Employee, after: Employee): Promise<boolean> {
-    const isSpecificApplicableOffice = await this.companyService.isSpecificApplicableOffice();
-    const beforeRequired = this.employeeLogicService.isInsuranceRequired(before, isSpecificApplicableOffice);
-    const afterRequired = this.employeeLogicService.isInsuranceRequired(after, isSpecificApplicableOffice);
-
-    const checks = [
-      [beforeRequired.isHealthInsuranceRequired, afterRequired.isHealthInsuranceRequired, before.insurance?.healthInsurance],
-      [beforeRequired.isNursingCareInsuranceRequired, afterRequired.isNursingCareInsuranceRequired, before.insurance?.nursingCareInsurance],
-      [beforeRequired.isPensionInsuranceRequired, afterRequired.isPensionInsuranceRequired, before.insurance?.employeePensionInsurance],
-    ] as const;
-
-    for (const [beforeJoinRequired, afterJoinRequired, detail] of checks) {
-      if (beforeJoinRequired !== afterJoinRequired) {
-        return true;
-      }
-      const actual = this.getActualInsuranceStatus(detail);
-      if (actual === 'lost') {
-        continue;
-      }
-      const expectedAfter: InsuranceStatusKind = afterJoinRequired ? 'joined' : 'notJoined';
-      if (actual !== expectedAfter) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
   private async createFixedSalaryEvents(
     employeeId: string,
     before: Employee,
@@ -209,7 +177,7 @@ export class EmployeeDetailEventService {
     const adminId = await this.createAdminApprovedEvent(employeeId, '雇用形態変更', before, after, loginEmployeeId);
     if (adminId) createdIds.push(adminId);
 
-    if (await this.hasInsuranceStatusChangePossible(before, after)) {
+    if (this.shouldCreateEmploymentSystemRun(before, after)) {
       const systemId = await this.calculationRunService.createSystemEventRun(
         employeeId,
         buildCurrentWorkMonthEventId('雇用形態変更'),
@@ -221,6 +189,29 @@ export class EmployeeDetailEventService {
     }
 
     return createdIds;
+  }
+
+  private shouldCreateEmploymentSystemRun(before: Employee, after: Employee): boolean {
+    const beforeContract = before.employmentContract;
+    const afterContract = after.employmentContract;
+    if (!beforeContract || !afterContract) return false;
+
+    const afterIsShortContractOrPart = this.isShortContractOrPart(afterContract);
+    const beforeIsShortContractOrPart = this.isShortContractOrPart(beforeContract);
+    const changedContractCondition =
+      beforeContract.employmentCategory !== afterContract.employmentCategory
+      || beforeContract.workStyle !== afterContract.workStyle
+      || beforeContract.contractedWorkingHoursPerWeek !== afterContract.contractedWorkingHoursPerWeek
+      || beforeContract.contractedWorkingDaysPerMonth !== afterContract.contractedWorkingDaysPerMonth;
+
+    return (beforeContract.employmentCategory === '正社員' && afterIsShortContractOrPart)
+      || (beforeIsShortContractOrPart && changedContractCondition);
+  }
+
+  private isShortContractOrPart(contract: NonNullable<Employee['employmentContract']>): boolean {
+    return (contract.employmentCategory === '契約社員' && contract.workStyle === '時短')
+      || contract.employmentCategory === 'パート'
+      || contract.workStyle === 'パート';
   }
 
   private async createAdminApprovedEvent(
@@ -242,13 +233,6 @@ export class EmployeeDetailEventService {
       },
       payload: { before, after },
     });
-  }
-
-  private getActualInsuranceStatus(detail?: { joined?: boolean; lostDate?: unknown }): InsuranceStatusKind {
-    if (!detail) return 'notJoined';
-    if (detail.joined) return 'joined';
-    if (detail.lostDate) return 'lost';
-    return 'notJoined';
   }
 
   private hasDependentChanges(before: Dependent[], after: Dependent[]): boolean {

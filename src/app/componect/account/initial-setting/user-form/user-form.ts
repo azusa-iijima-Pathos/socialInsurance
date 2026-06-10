@@ -11,6 +11,7 @@ import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { UPDATE_MESSAGES } from '../../../../constants/constants';
 import { AuthService } from '../../../../service/Firestore/auth-service';
+import { SessionCacheService } from '../../../../service/common/session-cache.service';
 import { ValidationService } from '../../../../service/common/validation-service';
 import { Permission } from '../../../../constants/model-constants';
 
@@ -26,6 +27,7 @@ export class UserForm {
   private userService = inject(UserService);
   private router = inject(Router);
   private authService = inject(AuthService);
+  private sessionCacheService = inject(SessionCacheService);
   private validationService = inject(ValidationService);
 
   //ログインユーザUIDをセッションストレージから取得
@@ -97,6 +99,8 @@ export class UserForm {
     sessionStorage.setItem('companyId', user.companyId!);
     //セッションストレージの権限を登録（もしくは上書き）
     sessionStorage.setItem('permission', user.permission!);
+
+    await this.sessionCacheService.reloadSessionData();
 
     if(this.permission === '管理' || this.permission === '承認') {
       this.router.navigate(['/top-for-manage']);

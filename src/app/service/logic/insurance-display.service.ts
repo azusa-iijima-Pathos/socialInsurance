@@ -191,6 +191,57 @@ export class InsuranceDisplayService {
     return this.applyDifferenceAdjustments(confirmed, diffs);
   }
 
+  /** 従業員詳細の保険料履歴用（確定スナップショット + 該当月の遡及修正のみ） */
+  getEmployeeHistoryBreakdown(
+    snapshot: InsuranceSnapshot | null | undefined,
+    runs: CalculationRun[],
+    employeeId: string,
+    payrollId: string,
+  ): InsuranceAmountBreakdown {
+    const confirmed = this.getSnapshotBreakdown(snapshot);
+    const matchingRuns = this.getMatchingDifferenceAdjustments(runs, employeeId, payrollId);
+    if (matchingRuns.length === 0) {
+      return confirmed;
+    }
+
+    const latestRun = matchingRuns[matchingRuns.length - 1];
+    const comparison = latestRun.payload?.['comparison'] as {
+      newHealth?: number;
+      newNursing?: number;
+      newPension?: number;
+    } | undefined;
+    if (comparison && (comparison.newHealth !== undefined || comparison.newNursing !== undefined || comparison.newPension !== undefined)) {
+      return this.breakdownFromAdjustedTotals(confirmed, {
+        health: Number(comparison.newHealth ?? 0),
+        nursing: Number(comparison.newNursing ?? 0),
+        pension: Number(comparison.newPension ?? 0),
+      });
+    }
+
+    const diffs = this.sumDifferenceAdjustmentsForHistory(matchingRuns, payrollId);
+    if (diffs.health === 0 && diffs.nursing === 0 && diffs.pension === 0) {
+      return confirmed;
+    }
+    return this.applyDifferenceAdjustments(confirmed, diffs);
+  }
+
+  getEmployeeHistoryGrade(
+    snapshot: InsuranceSnapshot | null | undefined,
+    runs: CalculationRun[],
+    employeeId: string,
+    payrollId: string,
+  ): number {
+    const matchingRuns = this.getMatchingDifferenceAdjustments(runs, employeeId, payrollId);
+    for (let index = matchingRuns.length - 1; index >= 0; index--) {
+      const comparison = matchingRuns[index].payload?.['comparison'] as { grade?: number } | undefined;
+      const comparisonGrade = Number(comparison?.grade ?? 0);
+      if (comparisonGrade > 0) {
+        return comparisonGrade;
+      }
+    }
+    return Number(snapshot?.grade ?? 0);
+  }
+
   getAdjustedGrade(
     snapshot: InsuranceSnapshot | null | undefined,
     runs: CalculationRun[],
@@ -285,6 +336,102 @@ export class InsuranceDisplayService {
         ...this.summarizeRows(officeRows),
       }))
       .sort((left, right) => left.officeName.localeCompare(right.officeName, 'ja'));
+  }
+
+  private getMatchingDifferenceAdjustments(
+    runs: CalculationRun[],
+    employeeId: string,
+    payrollId: string,
+  ): CalculationRun[] {
+    return runs
+      .filter(run => run.type === '差額調整')
+      .filter(run => this.matchesDifferenceAdjustmentRun(run, employeeId, payrollId))
+      .sort((left, right) => String(left.runId ?? '').localeCompare(String(right.runId ?? '')));
+  }
+
+  private matchesDifferenceAdjustmentRun(
+    run: CalculationRun,
+    employeeId: string,
+    payrollId: string,
+  ): boolean {
+    const runEmployeeId = String(run.payload?.['employeeId'] ?? run.targetEmployeeIds ?? '');
+    if (runEmployeeId !== employeeId) return false;
+    if (String(run.payload?.['payrollId'] ?? '') === payrollId) return true;
+
+    const monthlyDiffs = run.payload?.['monthlyDiffs'] as { payrollId?: string }[] | undefined;
+    return monthlyDiffs?.some(diff => diff.payrollId === payrollId) ?? false;
+  }
+
+  private sumDifferenceAdjustmentsForHistory(
+    matchingRuns: CalculationRun[],
+    payrollId: string,
+  ): InsuranceDiffTotals {
+    return matchingRuns.reduce<InsuranceDiffTotals>((total, run) => {
+      if (String(run.payload?.['payrollId'] ?? '') === payrollId) {
+        return {
+          health: total.health + Number(run.payload?.['healthDiff'] ?? 0),
+          nursing: total.nursing + Number(run.payload?.['nursingDiff'] ?? 0),
+          pension: total.pension + Number(run.payload?.['pensionDiff'] ?? 0),
+        };
+      }
+
+      const monthlyDiffs = run.payload?.['monthlyDiffs'] as {
+        payrollId?: string;
+        healthDiff?: number;
+        nursingDiff?: number;
+        pensionDiff?: number;
+      }[] | undefined;
+      const monthlyDiff = monthlyDiffs?.find(diff => diff.payrollId === payrollId);
+      if (!monthlyDiff) return total;
+      return {
+        health: total.health + Number(monthlyDiff.healthDiff ?? 0),
+        nursing: total.nursing + Number(monthlyDiff.nursingDiff ?? 0),
+        pension: total.pension + Number(monthlyDiff.pensionDiff ?? 0),
+      };
+    }, { health: 0, nursing: 0, pension: 0 });
+  }
+
+  private breakdownFromAdjustedTotals(
+    confirmed: InsuranceAmountBreakdown,
+    totals: InsuranceDiffTotals,
+  ): InsuranceAmountBreakdown {
+    const health = this.splitTotalWithRatio(totals.health, confirmed.healthInsurance, confirmed.healthInsuranceForCompany, confirmed.healthInsuranceForEmployee);
+    const nursing = this.splitTotalWithRatio(totals.nursing, confirmed.nursingCareInsurance, confirmed.nursingCareInsuranceForCompany, confirmed.nursingCareInsuranceForEmployee);
+    const pension = this.splitTotalWithRatio(totals.pension, confirmed.pensionInsurance, confirmed.pensionInsuranceForCompany, confirmed.pensionInsuranceForEmployee);
+
+    return this.normalizeBreakdown({
+      healthInsurance: health.total,
+      nursingCareInsurance: nursing.total,
+      pensionInsurance: pension.total,
+      healthInsuranceForCompany: health.company,
+      nursingCareInsuranceForCompany: nursing.company,
+      pensionInsuranceForCompany: pension.company,
+      healthInsuranceForEmployee: health.employee,
+      nursingCareInsuranceForEmployee: nursing.employee,
+      pensionInsuranceForEmployee: pension.employee,
+      totalInsurance: health.total + nursing.total + pension.total,
+      totalInsuranceForCompany: health.company + nursing.company + pension.company,
+      totalInsuranceForEmployee: health.employee + nursing.employee + pension.employee,
+    });
+  }
+
+  private splitTotalWithRatio(
+    total: number,
+    previousTotal: number,
+    previousCompany: number,
+    previousEmployee: number,
+  ): { total: number; company: number; employee: number } {
+    const newTotal = this.roundAmount(total);
+    if (newTotal === 0) {
+      return { total: 0, company: 0, employee: 0 };
+    }
+    if (previousTotal === 0) {
+      const half = this.roundAmount(newTotal / 2);
+      return { total: newTotal, company: half, employee: newTotal - half };
+    }
+    const companyRatio = previousCompany / previousTotal;
+    const newCompany = this.roundAmount(newTotal * companyRatio);
+    return { total: newTotal, company: newCompany, employee: this.roundAmount(newTotal - newCompany) };
   }
 
   private applyTotalDiff(

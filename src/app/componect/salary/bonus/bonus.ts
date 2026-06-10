@@ -2,7 +2,7 @@ import { Component, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SalaryList } from '../salary-list/salary-list';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { Timestamp } from '@angular/fire/firestore';
+import { timestampFromDateInput } from '../../../service/common/date-input.util';
 import { Payroll } from '../../../model/payroll';
 import { PayrollService } from '../../../service/Firestore/payroll-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
@@ -81,10 +81,10 @@ export class Bonus {
       companyId: this.companyId!,
       payrollId: this.payrollId,
       targetPeriod: [
-        Timestamp.fromDate(new Date(this.form.value.targetPeriodStart!)),
-        Timestamp.fromDate(new Date(this.form.value.targetPeriodEnd!)),
+        timestampFromDateInput(this.form.value.targetPeriodStart!),
+        timestampFromDateInput(this.form.value.targetPeriodEnd!),
       ],
-      paymentDate: Timestamp.fromDate(new Date(this.form.value.paymentDate!)),
+      paymentDate: timestampFromDateInput(this.form.value.paymentDate!),
       actualPaymentAmount: this.form.value.actualPaymentAmount!,
     };
     const employeeId = this.form.value.employeeId!;

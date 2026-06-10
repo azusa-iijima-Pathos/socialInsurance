@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { EmployeeEventItem, EventService } from '../../../service/Firestore/event-service';
+import { EmployeeEventItem, EventService, compareEventsByAppliedDateDesc } from '../../../service/Firestore/event-service';
 import { CalculationRunService, SystemCalculationRunItem } from '../../../service/Firestore/calculation-run-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
@@ -54,6 +54,8 @@ export class SystemApplicationList {
   approvingSystemRun: SystemCalculationRunItem | null = null;
   fixedSalaryDraft: FixedSalaryApprovalDraft | null = null;
   insuranceDraft: InsuranceApprovalDraft | null = null;
+  insuranceApprovalChangeDate = '';
+  insuranceApprovalValidationError = '';
 
   employeeReviewModalOpen = false;
   reviewingEmployeeEvent: EmployeeEventItem | null = null;
@@ -71,17 +73,25 @@ export class SystemApplicationList {
   async loadEvents() {
     const events = await this.eventService.getAllPendingEventsUpToWorkingMonth();
     const systemRuns = await this.calculationRunService.getPendingSystemRunsUpToWorkingMonth();
+    const sortRuns = (runs: SystemCalculationRunItem[]) =>
+      [...runs].sort((left, right) => (right.detectedDate?.toMillis() ?? 0) - (left.detectedDate?.toMillis() ?? 0));
 
-    this.reachAgeEvents = events.filter(event => event.eventType === '一定年齢到達');
-    this.fixedSalaryRuns = systemRuns.filter(run => run.eventType === '固定給変更');
-    this.retireRuns = systemRuns.filter(run => run.eventType === '退社');
-    this.otherSystemRuns = systemRuns.filter(run => run.eventType === '雇用形態変更');
-    this.employeeApplicationEvents = events.filter(event => event.applicantType === '社員');
-    this.otherEvents = events.filter(event =>
-      event.applicantType !== '社員'
-      && event.eventType !== '一定年齢到達'
-      && event.applicantType !== 'システム',
-    );
+    this.reachAgeEvents = events
+      .filter(event => event.eventType === '一定年齢到達')
+      .sort(compareEventsByAppliedDateDesc);
+    this.fixedSalaryRuns = sortRuns(systemRuns.filter(run => run.eventType === '固定給変更'));
+    this.retireRuns = sortRuns(systemRuns.filter(run => run.eventType === '退社'));
+    this.otherSystemRuns = sortRuns(systemRuns.filter(run => run.eventType === '雇用形態変更'));
+    this.employeeApplicationEvents = events
+      .filter(event => event.applicantType === '社員')
+      .sort(compareEventsByAppliedDateDesc);
+    this.otherEvents = events
+      .filter(event =>
+        event.applicantType !== '社員'
+        && event.eventType !== '一定年齢到達'
+        && event.applicantType !== 'システム',
+      )
+      .sort(compareEventsByAppliedDateDesc);
     this.selectedReachAge.clear();
     this.selectedRetire.clear();
   }
@@ -99,6 +109,8 @@ export class SystemApplicationList {
       } else {
         this.insuranceDraft = await this.employeeEventApprovalService.buildInsuranceApprovalDraft(eventView);
         this.approvalModalType = 'insurance';
+        this.insuranceApprovalChangeDate = this.formatDateInput(eventView.occurredDate?.toDate()) || this.formatDateInput(new Date());
+        this.insuranceApprovalValidationError = '';
       }
       this.approvingSystemRun = run;
       this.approvalModalOpen = true;
@@ -107,6 +119,9 @@ export class SystemApplicationList {
 
     let approved = false;
     if (run.eventType === '退社') {
+      if (!window.confirm('システム計算結果を承認しますか？\n退社処理を行うと保険情報の変更はできません。')) {
+        return;
+      }
       approved = await this.employeeEventApprovalService.approveRetireEvent(
         run.employeeId, eventView, this.loginEmployeeId, run.runId,
       );
@@ -115,6 +130,7 @@ export class SystemApplicationList {
   }
 
   async onRejectSystemRun(run: SystemCalculationRunItem) {
+    if (!window.confirm('システム計算結果を却下しますか？')) return;
     const rejected = await this.employeeEventApprovalService.rejectSystemRun(run.runId, this.loginEmployeeId);
     if (rejected) {
       this.showMessage('システム計算結果を却下しました');
@@ -179,6 +195,8 @@ export class SystemApplicationList {
       } else {
         this.insuranceDraft = await this.employeeEventApprovalService.buildInsuranceApprovalDraft(event);
         this.approvalModalType = 'insurance';
+        this.insuranceApprovalChangeDate = this.formatDateInput(event.occurredDate?.toDate()) || this.formatDateInput(new Date());
+        this.insuranceApprovalValidationError = '';
       }
       this.approvingEvent = event;
       this.approvalModalOpen = true;
@@ -323,6 +341,7 @@ export class SystemApplicationList {
   }
 
   async bulkApproveReachAge() {
+    if (!window.confirm('選択した一定年齢到達イベントを承認しますか？')) return;
     let count = 0;
     for (const key of this.selectedReachAge) {
       const event = this.reachAgeEvents.find(item => this.getEventKey(item) === key);
@@ -339,6 +358,7 @@ export class SystemApplicationList {
 
   // 一定年齢到達イベント一括却下
   async bulkRejectReachAge() {
+    if (!window.confirm('選択した一定年齢到達イベントを却下しますか？')) return;
     let count = 0;
     for (const key of this.selectedReachAge) {
       const event = this.reachAgeEvents.find(item => this.getEventKey(item) === key);
@@ -354,6 +374,7 @@ export class SystemApplicationList {
   }
 
   async bulkApproveRetire() {
+    if (!window.confirm('選択した退社処理を承認しますか？\n退社処理を行うと保険情報の変更はできません。')) return;
     let count = 0;
     for (const key of this.selectedRetire) {
       const run = this.retireRuns.find(item => this.getSystemRunKey(item) === key);
@@ -372,6 +393,7 @@ export class SystemApplicationList {
   }
 
   async bulkRejectRetire() {
+    if (!window.confirm('選択した退社処理を却下しますか？')) return;
     let count = 0;
     for (const key of this.selectedRetire) {
       const run = this.retireRuns.find(item => this.getSystemRunKey(item) === key);
@@ -393,11 +415,42 @@ export class SystemApplicationList {
     this.approvingSystemRun = null;
     this.fixedSalaryDraft = null;
     this.insuranceDraft = null;
+    this.insuranceApprovalChangeDate = '';
+    this.insuranceApprovalValidationError = '';
+  }
+
+  onInsuranceDraftStatusChange(insuranceKey: 'health' | 'nursing' | 'pension') {
+    if (!this.insuranceDraft) return;
+    this.employeeEventApprovalService.onInsuranceDraftStatusChange(
+      this.insuranceDraft,
+      insuranceKey,
+      this.insuranceApprovalChangeDate,
+    );
+    this.insuranceApprovalValidationError = '';
+  }
+
+  isInsuranceGradeEditable(): boolean {
+    return this.insuranceDraft?.healthStatus === 'joined';
+  }
+
+  private formatDateInput(date?: Date): string {
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   async rejectApprovalModal() {
+    if (!window.confirm('システム計算結果を却下しますか？')) return;
     if (this.approvingSystemRun) {
-      await this.onRejectSystemRun(this.approvingSystemRun);
+      const rejected = await this.employeeEventApprovalService.rejectSystemRun(this.approvingSystemRun.runId, this.loginEmployeeId);
+      if (rejected) {
+        this.showMessage('システム計算結果を却下しました');
+        await this.loadEvents();
+      } else {
+        this.showMessage('却下に失敗しました');
+      }
     } else if (this.approvingEvent) {
       await this.onRejectEvent(this.approvingEvent);
     }
@@ -406,6 +459,9 @@ export class SystemApplicationList {
 
   async confirmApprovalModal() {
     if (!this.approvingSystemRun && !this.approvingEvent) return;
+    if (!window.confirm('システム計算結果を承認しますか？')) {
+      return;
+    }
 
     let approved = false;
     const employeeId = this.approvingSystemRun?.employeeId ?? this.approvingEvent!.employeeId;
@@ -419,6 +475,12 @@ export class SystemApplicationList {
         employeeId, eventView, this.fixedSalaryDraft, this.loginEmployeeId, runId,
       );
     } else if (this.approvalModalType === 'insurance' && this.insuranceDraft) {
+      const validationError = this.employeeEventApprovalService.validateInsuranceApprovalDraft(this.insuranceDraft);
+      if (validationError) {
+        this.insuranceApprovalValidationError = validationError;
+        this.showMessage(validationError);
+        return;
+      }
       approved = await this.employeeEventApprovalService.approveInsuranceEvent(
         employeeId, eventView, this.insuranceDraft, this.loginEmployeeId, runId,
       );

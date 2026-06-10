@@ -82,7 +82,21 @@ export class PayrollService {
   //全従業員の該当月の給与・勤務実績一覧を取得
   allPayrollListForMonth = signal<{payrollId: string, payrollList: Payroll[]}[]>([]);
   isAllPayrollListForMonthLoaded: { [key: string]: boolean } = {};
+  private cachedCompanyId = '';
+
+  resetCache(): void {
+    this.allPayrollListForMonth.set([]);
+    this.isAllPayrollListForMonthLoaded = {};
+    this.cachedCompanyId = '';
+  }
+
   async getAllPayrollListForMonth(payrollId: string, forceReload: boolean = false) {
+    const companyId = sessionStorage.getItem('companyId') ?? '';
+    if (this.cachedCompanyId !== companyId) {
+      forceReload = true;
+      this.isAllPayrollListForMonthLoaded = {};
+      this.cachedCompanyId = companyId;
+    }
     if (!payrollId) return;
     if (this.isAllPayrollListForMonthLoaded[payrollId] && !forceReload) return;
 

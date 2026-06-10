@@ -1,4 +1,4 @@
-import { Component, computed, EventEmitter, inject, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+import { Component, computed, EventEmitter, inject, Input, OnChanges, Output, signal, SimpleChanges } from '@angular/core';
 import { PayrollService } from '../../../service/Firestore/payroll-service';
 import { CommonModule } from '@angular/common';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
@@ -10,6 +10,7 @@ import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { ValidationService } from '../../../service/common/validation-service';
 import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
 import { RouterLink } from '@angular/router';
+import { formatTimestampForDateInput, parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
 
 @Component({
   selector: 'app-salary-list',
@@ -31,11 +32,13 @@ export class SalaryList implements OnChanges {
   editPayrollModalOpen = false;
   private originalPayroll: Payroll | null = null;
   targetPeriodStartError = '';
+  private payrollIdState = signal('');
 
   allPayrollListForMonth = computed(() => {
+    const payrollId = this.payrollIdState();
     const retiredIds = this.employeeService.retiredEmployeeIdSet();
     return this.payrollService.allPayrollListForMonth()
-      .find(item => item.payrollId === this.payrollId)?.payrollList
+      .find(item => item.payrollId === payrollId)?.payrollList
       .filter(payroll => !retiredIds.has(payroll.employeeId ?? '')) ?? [];
   });
 
@@ -59,14 +62,18 @@ export class SalaryList implements OnChanges {
   });
 
   async ngOnInit() {
-    await this.loadPayrollList();
+    this.payrollIdState.set(this.payrollId);
+    await this.loadPayrollList(true);
     await this.employeeService.getAllEmployees();
     this.updateFormValidators();
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    if (changes['payrollId'] && !changes['payrollId'].firstChange && this.payrollId) {
-      void this.loadPayrollList();
+    if (changes['payrollId']) {
+      this.payrollIdState.set(this.payrollId);
+      if (!changes['payrollId'].firstChange && this.payrollId) {
+        void this.loadPayrollList(true);
+      }
     }
     if (changes['correctionMode'] || changes['isBonus']) {
       this.updateFormValidators();
@@ -82,9 +89,9 @@ export class SalaryList implements OnChanges {
     this.form.updateValueAndValidity({ emitEvent: false });
   }
 
-  private async loadPayrollList() {
+  private async loadPayrollList(forceReload = false) {
     if (!this.payrollId) return;
-    await this.payrollService.getAllPayrollListForMonth(this.payrollId);
+    await this.payrollService.getAllPayrollListForMonth(this.payrollId, forceReload);
   }
 
   editPayroll(payroll: Payroll) {
@@ -96,9 +103,9 @@ export class SalaryList implements OnChanges {
       employeeId: payroll.employeeId ?? '',
       actualWorkingDays: payroll.actualWorkingDays ?? 0,
       actualWorkingHours: payroll.actualWorkingHours ?? 0,
-      targetPeriodStart: this.formatDateForInput(payroll.targetPeriod?.[0]),
-      targetPeriodEnd: this.formatDateForInput(payroll.targetPeriod?.[1]),
-      paymentDate: this.formatDateForInput(payroll.paymentDate),
+      targetPeriodStart: formatTimestampForDateInput(payroll.targetPeriod?.[0]),
+      targetPeriodEnd: formatTimestampForDateInput(payroll.targetPeriod?.[1]),
+      paymentDate: formatTimestampForDateInput(payroll.paymentDate),
       fixedSalary: payroll.fixedSalary ?? 0,
       actualPaymentAmount: payroll.actualPaymentAmount ?? 0,
     });
@@ -146,10 +153,10 @@ export class SalaryList implements OnChanges {
       payrollId: this.form.value.payrollId!,
       employeeId: this.form.value.employeeId!,
       targetPeriod: [
-        Timestamp.fromDate(new Date(this.form.value.targetPeriodStart!)),
-        Timestamp.fromDate(new Date(this.form.value.targetPeriodEnd!)),
+        timestampFromDateInput(this.form.value.targetPeriodStart!),
+        timestampFromDateInput(this.form.value.targetPeriodEnd!),
       ],
-      paymentDate: Timestamp.fromDate(new Date(this.form.value.paymentDate!)),
+      paymentDate: timestampFromDateInput(this.form.value.paymentDate!),
       actualPaymentAmount: this.form.value.actualPaymentAmount!,
     };
 
@@ -192,31 +199,21 @@ export class SalaryList implements OnChanges {
     return;
   }
 
-  private formatDateForInput(date: Timestamp | null | undefined): string {
-    if (!date) return '';
-
-    const dateValue = date.toDate();
-    const year = dateValue.getFullYear();
-    const month = String(dateValue.getMonth() + 1).padStart(2, '0');
-    const day = String(dateValue.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
   private hasPayrollChanges(original: Payroll | null, updated: Partial<Payroll>): boolean {
     if (!original) return true;
     if (this.isBonus) {
       return (original.actualPaymentAmount ?? 0) !== (updated.actualPaymentAmount ?? 0)
-        || this.formatDateForInput(original.paymentDate) !== this.formatDateForInput(updated.paymentDate as Timestamp)
-        || this.formatDateForInput(original.targetPeriod?.[0]) !== this.formatDateForInput(updated.targetPeriod?.[0] as Timestamp)
-        || this.formatDateForInput(original.targetPeriod?.[1]) !== this.formatDateForInput(updated.targetPeriod?.[1] as Timestamp);
+        || formatTimestampForDateInput(original.paymentDate) !== formatTimestampForDateInput(updated.paymentDate as Timestamp)
+        || formatTimestampForDateInput(original.targetPeriod?.[0]) !== formatTimestampForDateInput(updated.targetPeriod?.[0] as Timestamp)
+        || formatTimestampForDateInput(original.targetPeriod?.[1]) !== formatTimestampForDateInput(updated.targetPeriod?.[1] as Timestamp);
     }
     return (original.fixedSalary ?? 0) !== (updated.fixedSalary ?? 0)
       || (original.actualPaymentAmount ?? 0) !== (updated.actualPaymentAmount ?? 0)
       || (original.actualWorkingDays ?? 0) !== (updated.actualWorkingDays ?? 0)
       || (original.actualWorkingHours ?? 0) !== (updated.actualWorkingHours ?? 0)
-      || this.formatDateForInput(original.paymentDate) !== this.formatDateForInput(updated.paymentDate as Timestamp)
-      || this.formatDateForInput(original.targetPeriod?.[0]) !== this.formatDateForInput(updated.targetPeriod?.[0] as Timestamp)
-      || this.formatDateForInput(original.targetPeriod?.[1]) !== this.formatDateForInput(updated.targetPeriod?.[1] as Timestamp);
+      || formatTimestampForDateInput(original.paymentDate) !== formatTimestampForDateInput(updated.paymentDate as Timestamp)
+      || formatTimestampForDateInput(original.targetPeriod?.[0]) !== formatTimestampForDateInput(updated.targetPeriod?.[0] as Timestamp)
+      || formatTimestampForDateInput(original.targetPeriod?.[1]) !== formatTimestampForDateInput(updated.targetPeriod?.[1] as Timestamp);
   }
 
 }

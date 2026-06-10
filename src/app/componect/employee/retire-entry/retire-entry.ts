@@ -4,7 +4,7 @@ import { ValidationService } from '../../../service/common/validation-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { Employee } from '../../../model/employee';
-import { Timestamp } from '@angular/fire/firestore';
+import { timestampFromDateInput } from '../../../service/common/date-input.util';
 import { WorkStatus } from '../../../constants/model-constants';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule } from '@angular/forms';
@@ -74,7 +74,7 @@ export class RetireEntry {
       ...employee,
       employmentContract: employee.employmentContract ? { ...employee.employmentContract } : undefined,
     };
-    const resignationDate = Timestamp.fromDate(new Date(this.form.value.occurredDate!));
+    const resignationDate = timestampFromDateInput(this.form.value.occurredDate!);
     const updatedEmployee: Employee = {
       ...previousEmployee,
       workStatus: this.form.value.workStatus!,
