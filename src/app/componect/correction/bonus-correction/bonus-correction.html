@@ -36,13 +36,14 @@
           <th>介護保険</th>
           <th>厚生年金</th>
           <th>合計</th>
+          <th>登録日</th>
           <th>賞与額修正</th>
         </tr>
       </thead>
       <tbody>
         <tr *ngFor="let row of rows">
           <td>{{ row.payroll.employeeId }}</td>
-          <td>{{ row.employeeName }}</td>
+          <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: row.payroll.employeeId }">{{ row.employeeName }}</a></td>
           <td>{{ displayBonusPayrollId(selectedPayrollId) }}</td>
           <td> <span *ngIf="!row.editing" style="font-weight: bold;">{{ row.adjustedAmount | number }}円</span>
             <input *ngIf="row.editing" type="number" min="0" [(ngModel)]="row.editAmount">
@@ -51,6 +52,7 @@
           <td>{{ row.nursing | number }}円</td>
           <td>{{ row.pension | number }}円</td>
           <td class="bonus-correction-total">{{ row.total | number }}円</td>
+          <td>{{ commonService.formatDate(row.payroll.createdAt) }}</td>
           <td>
             <button *ngIf="!row.editing" type="button" class="im-btn-soft im-btn-sm"
               (click)="startEdit(row)">修正</button>

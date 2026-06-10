@@ -14,7 +14,7 @@
     </div>
     <div>
     <h3>社会保険情報</h3>
-    <p>社会保険加入義務：{{ company?.socialInsuranceRequired ? 'あり' : 'なし' }}</p>
+    <p>社会保険加入：{{ company?.socialInsuranceRequired ? 'あり' : 'なし' }}</p>
     <p *ngIf="permission === '管理'">自動判定：{{ isSocialInsuranceRequired ? 'あり' : 'なし' }}</p>
     <p>任意適用事業所：{{ company?.optionalApplicableOffice ? 'あり' : 'なし' }}</p>
     <p>特定適用事業所：{{ company?.specificApplicableOffice ? 'あり' : 'なし' }}</p>
@@ -45,10 +45,10 @@
         <div>
             <label for="isCorporation">事業形態</label>
             <label for="isCorporation1">
-            <input type="radio" id="isCorporation1" formControlName="isCorporation" value="true">
+            <input type="radio" id="isCorporation1" formControlName="isCorporation" [value]="true">
             法人</label>
             <label for="isCorporation2">
-            <input type="radio" id="isCorporation2" formControlName="isCorporation" value="false">
+            <input type="radio" id="isCorporation2" formControlName="isCorporation" [value]="false">
             個人事業</label>
         </div>
         <div>
@@ -72,34 +72,39 @@
             </select>
         </div>
         <div>
-            <label for="socialInsuranceRequired">社会保険加入義務</label>
+            <label for="socialInsuranceRequired">社会保険加入</label>
             <label for="socialInsuranceRequired1">
-            <input type="radio" id="socialInsuranceRequired1" formControlName="socialInsuranceRequired" value="true">
+            <input type="radio" id="socialInsuranceRequired1" formControlName="socialInsuranceRequired" [value]="true">
             あり</label>
             <label for="socialInsuranceRequired2">
-            <input type="radio" id="socialInsuranceRequired2" formControlName="socialInsuranceRequired" value="false">
+            <input type="radio" id="socialInsuranceRequired2" formControlName="socialInsuranceRequired" [value]="false">
             なし</label>
         </div>
         <div>
             <label for="optionalApplicableOffice">任意適用事業所</label>
-            <input type="checkbox" id="optionalApplicableOffice" formControlName="optionalApplicableOffice">
+            <input type="checkbox" id="optionalApplicableOffice" formControlName="optionalApplicableOffice" [value]="true">
         </div>
+
+        <div *ngIf="noInsuranceMessage">
+            <p class="error">{{ noInsuranceMessage }}</p>
+        </div>
+
         <div>
             <label for="specificApplicableOffice">特定適用事業所</label>
             <label for="specificApplicableOffice1">
-            <input type="radio" id="specificApplicableOffice1" formControlName="specificApplicableOffice" value="true">
+            <input type="radio" id="specificApplicableOffice1" formControlName="specificApplicableOffice" [value]="true">
             あり</label>
             <label for="specificApplicableOffice2">
-            <input type="radio" id="specificApplicableOffice2" formControlName="specificApplicableOffice" value="false">
+            <input type="radio" id="specificApplicableOffice2" formControlName="specificApplicableOffice" [value]="false">
             なし</label>
         </div>
         <div>
             <label for="optionalSpecificApplicableOffice">任意特定適用事業所</label>
-            <input type="checkbox" id="optionalSpecificApplicableOffice" formControlName="optionalSpecificApplicableOffice">
+            <input type="checkbox" id="optionalSpecificApplicableOffice" formControlName="optionalSpecificApplicableOffice" [value]="true">
         </div>
         <div>
             <button type="button" (click)="closeModal()">キャンセル</button>
-            <button type="submit">保存</button>
+            <button type="submit" [disabled]="noInsuranceMessage">保存</button>
         </div>
     </form>
 </div>

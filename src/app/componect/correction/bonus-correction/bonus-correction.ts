@@ -14,7 +14,7 @@ import { Employee } from '../../../model/employee';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { InsuranceSnapshot } from '../../../model/insurance-snapshot';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 type BonusCorrectionRow = {
   payroll: Payroll;
@@ -31,7 +31,7 @@ type BonusCorrectionRow = {
 
 @Component({
   selector: 'app-bonus-correction',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './bonus-correction.html',
   styleUrl: './bonus-correction.css',
 })
@@ -209,18 +209,18 @@ export class BonusCorrection {
     return payrollId.replace('_bonus', '');
   }
 
-  private getSnapshotTotals(snapshot: InsuranceSnapshot | null) {
-    const payments = snapshot?.insurancePayments ?? [];
-    const sum = (type: string) => {
-      const payment = payments.find(item => item.insuranceType === type);
-      return (payment?.employeeBurdenAmount ?? 0) + (payment?.companyBurdenAmount ?? 0);
-    };
-    return {
-      health: sum('健康保険'),
-      nursing: sum('介護保険'),
-      pension: sum('厚生年金'),
-    };
-  }
+  // private getSnapshotTotals(snapshot: InsuranceSnapshot | null) {
+  //   const payments = snapshot?.insurancePayments ?? [];
+  //   const sum = (type: string) => {
+  //     const payment = payments.find(item => item.insuranceType === type);
+  //     return (payment?.employeeBurdenAmount ?? 0) + (payment?.companyBurdenAmount ?? 0);
+  //   };
+  //   return {
+  //     health: sum('健康保険'),
+  //     nursing: sum('介護保険'),
+  //     pension: sum('厚生年金'),
+  //   };
+  // }
 
   private getAdjustedBonusAmount(
     runs: { type?: string; payload?: Record<string, unknown>; targetEmployeeIds?: string }[],

@@ -26,7 +26,7 @@ export type Employee = {
     workStatus?: WorkStatus;
 
     /** 休暇情報 */
-    leaveTypes?: LeaveType;
+    leaveTypes?: LeaveType | null;
 
     /** 退職日 */
     resignationDate?: Timestamp;

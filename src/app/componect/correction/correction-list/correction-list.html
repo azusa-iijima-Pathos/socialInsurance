@@ -54,13 +54,15 @@
         <th>合計<br>
           <span style="font-size: 12px; color: var(--im-color-red-600); text-align: center;">差額</span>
         </th>
-        <th>種別</th>
+        <th *ngIf="listType !== 'bonus'">種別</th>
+        <th>修正日</th>
+        <th>修正者</th>
       </tr>
     </thead>
     <tbody>
       <tr *ngFor="let run of runs">
         <td>{{ getEmployeeId(run) }}</td>
-        <td>{{ getEmployeeName(run) }}</td>
+        <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: getEmployeeId(run) }">{{ getEmployeeName(run) }}</a></td>
         <td>{{ getAdjustMonth(run) }}</td>
         <td *ngIf="listType !== 'bonus'">{{ getGrade(run) }}</td>
         <td *ngIf="listType === 'bonus'">
@@ -83,7 +85,9 @@
           <span>{{ getCurrentTotal(run) | number }}→<strong>{{ getNewTotal(run) | number }}</strong>円</span>
           <small class="correction-list-diff"><strong>{{ getTotalDiff(run) | number }}円</strong></small>
         </td>
-        <td>{{ getSourceType(run) }}</td>
+        <td *ngIf="listType !== 'bonus'">{{ getSourceType(run) }}</td>
+        <td>{{ commonService.formatDateTime(run.createdAt) }}</td>
+        <td>{{ commonService.getEmployeeName(run.approval?.approvedBy ?? '') }}</td>
       </tr>
     </tbody>
   </table>

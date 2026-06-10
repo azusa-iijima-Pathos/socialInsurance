@@ -1,6 +1,6 @@
 import { Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators, FormGroup, FormArray, AbstractControl } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators, FormGroup, FormArray, AbstractControl, ValidationErrors } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Dependent } from '../../../model/dependent';
 import { RELATIONSHIPS, Relationship, LifeEventType, LeaveType } from '../../../constants/model-constants';
@@ -15,6 +15,7 @@ import { CREATE_MESSAGES } from '../../../constants/constants';
 import { ValidationService } from '../../../service/common/validation-service';
 import { CompanyService } from '../../../service/Firestore/company-service';
 import { getWorkMonthForDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { Router } from '@angular/router';
 
 type LifeEventTab = 'marriage' | 'birth' | 'name' | 'dependent';
 type DependentCoverageStatus = 'dependent' | 'notDependent';
@@ -54,6 +55,8 @@ export class LifeeventApplication {
   message = '';
   private messageTimer: MessageTimer | null = null;
 
+  dateValidMessage = '';
+
   marriageForm = this.fb.nonNullable.group({
     type: ['結婚' as '結婚' | '離婚', [Validators.required]],
     name: ['', [Validators.required]],
@@ -64,10 +67,13 @@ export class LifeeventApplication {
   birthForm = this.fb.nonNullable.group({
     type: ['出産' as '出産' | '育児', [Validators.required]],
     leaveTypes: ['産前産後' as '産前産後' | '育児' | 'なし', [Validators.required]],
+    isMultipleBirth: [false],
     resignationDate: [''],
     childBirthDate: ['', [Validators.required]],
     dependents: this.fb.array<FormGroup>([]),
-  });
+  },
+    { validators: [this.childBirthDateValidator, this.birthTypeValidator, this.birthLeaveDateValidator] },
+  );
 
   nameChangeForm = this.fb.nonNullable.group({
     name: ['', [Validators.required]],
@@ -89,9 +95,28 @@ export class LifeeventApplication {
     this.initBirthDependents();
     this.nameChangeForm.patchValue({ name: employee.firstName ?? '' });
     this.initDependentChangeDependents();
+
+    this.birthForm.get('type')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(type => {
+        if (type === '出産') {
+          this.birthForm.patchValue({
+            leaveTypes: '産前産後'
+          });
+        }
+        if (type === '育児') {
+          this.birthForm.patchValue({
+            leaveTypes: '育児'
+          });
+          this.birthDependents.push(
+            this.createDependentForm()
+          );
+        }
+      });
   }
 
   setActiveTab(tab: LifeEventTab) {
+    this.dateValidMessage = '';
     this.activeTab = tab;
   }
 
@@ -123,11 +148,15 @@ export class LifeeventApplication {
     const changedDependents = this.collectChangedDependents(this.marriageDependents);
     if (this.hasBlockedDependentRegistration(changedDependents)) {
       this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+      this.resetMarriageForm();
+      this.resetDependentChangeForm();
       return;
     }
 
     if (!nameChanged && changedDependents.length === 0) {
       this.showMessage('変更内容がありません');
+      this.resetMarriageForm();
+      this.resetDependentChangeForm();
       return;
     }
 
@@ -150,6 +179,8 @@ export class LifeeventApplication {
       if (await this.eventService.createEvent(this.loginEmployeeId, nameEvent)) {
         created++;
       } else {
+        this.resetMarriageForm();
+        this.resetDependentChangeForm();
         this.showMessage(`申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
         return;
       }
@@ -161,20 +192,26 @@ export class LifeeventApplication {
 
     if (failed) {
       this.showMessage('一部の扶養申請に失敗しました。申請一覧から内容を確認してください。');
+      this.resetMarriageForm();
+      this.resetDependentChangeForm();
       return;
     }
 
     if (created === 0) {
       this.showMessage('変更内容がありません');
+      this.resetMarriageForm();
+      this.resetDependentChangeForm();
       return;
     }
 
     this.showMessage(`${created}件申請しました`);
     this.resetMarriageForm();
+    this.resetDependentChangeForm();
   }
 
   /** 出産/育児申請 */
   async submitBirthForm() {
+    this.dateValidMessage = '';
     this.updateBirthLeaveValidators();
     if (this.birthForm.invalid || !this.validateDependentArray(this.birthDependents)) {
       this.birthForm.markAllAsTouched();
@@ -199,24 +236,27 @@ export class LifeeventApplication {
       if (leaveTypes && leaveStart) {
         const allowed = await this.isLeaveStartAllowed(leaveStart);
         if (!allowed) {
-          this.showMessage('休職開始日は現在の作業月以降の日付を指定してください');
+          this.dateValidMessage = '休職開始日は現在の作業月以降の日付を指定してください';
           return;
         }
       }
 
       const occurredDate = leaveStart || this.birthForm.get('childBirthDate')!.value;
+      const expectedBirthDate = new Date(this.birthForm.get('childBirthDate')!.value);
       const leaveEvent: Partial<Event> = {
         occurredDate: Timestamp.fromDate(new Date(occurredDate)),
-        eventType: '雇用形態変更',
+        eventType: '勤務状況変更',
         lifeEventType,
         appliedDate: Timestamp.now(),
         applicantType: '社員',
         approval: { approvalStatus: '申請中' },
-        payload: { before: this.employee, after: afterEmployee },
+        payload: { before: this.employee, after: afterEmployee, expectedBirthDate: Timestamp.fromDate(expectedBirthDate), isMultipleBirth: this.birthForm.get('isMultipleBirth')!.value ?? false },
       };
       if (await this.eventService.createEvent(this.loginEmployeeId, leaveEvent)) {
         created++;
       } else {
+        this.resetBirthForm();
+        this.resetDependentChangeForm();
         this.showMessage(`申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
         return;
       }
@@ -225,22 +265,30 @@ export class LifeeventApplication {
     const changedDependents = this.collectChangedDependents(this.birthDependents);
     if (this.hasBlockedDependentRegistration(changedDependents)) {
       this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+      this.resetBirthForm();
+      this.resetDependentChangeForm();
       return;
     }
+
     const occurredDate = this.birthForm.get('childBirthDate')!.value;
     const dependentResult = await this.createDependentEvents(changedDependents, occurredDate, lifeEventType);
     created += dependentResult.success;
     if (dependentResult.failed) {
       this.showMessage('一部の扶養申請に失敗しました。申請一覧から内容を確認してください。');
+      this.resetBirthForm();
+      this.resetDependentChangeForm();
       return;
     }
 
     if (created === 0) {
       this.showMessage('変更内容がありません');
+      this.resetBirthForm();
+      this.resetDependentChangeForm();
       return;
     }
 
     this.showMessage(`${created}件申請しました`);
+    this.resetDependentChangeForm();
     this.resetBirthForm();
   }
 
@@ -253,6 +301,7 @@ export class LifeeventApplication {
 
     if (this.nameChangeForm.get('name')!.value === (this.employee?.firstName ?? '')) {
       this.showMessage('変更内容がありません');
+      this.nameChangeForm.patchValue({ name: this.employee?.firstName ?? '' });
       return;
     }
 
@@ -286,20 +335,24 @@ export class LifeeventApplication {
     const changedDependents = this.collectChangedDependents(this.dependentChangeDependents);
     if (this.hasBlockedDependentRegistration(changedDependents)) {
       this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+      this.resetDependentChangeForm();
       return;
     }
     if (changedDependents.length === 0) {
       this.showMessage('変更内容がありません');
+      this.resetDependentChangeForm();
       return;
     }
 
     const count = await this.createDependentEvents(changedDependents, new Date().toISOString().slice(0, 10), 'その他');
     if (count.failed) {
       this.showMessage(`申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
+      this.resetDependentChangeForm();
       return;
     }
     if (count.success === 0) {
       this.showMessage('変更内容がありません');
+      this.resetDependentChangeForm();
       return;
     }
     this.showMessage(`${count.success}件申請しました`);
@@ -309,6 +362,7 @@ export class LifeeventApplication {
   addDependent(type: 1 | 2 | 3) {
     if (!this.canRegisterDependent()) {
       this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
+      this.resetDependentChangeForm();
       return;
     }
     const form = this.createDependentForm();
@@ -353,13 +407,6 @@ export class LifeeventApplication {
 
   private initBirthDependents() {
     this.birthDependents.clear();
-    if (this.dependents.length > 0) {
-      this.dependents.forEach(dependent => {
-        this.birthDependents.push(this.createDependentForm(dependent));
-      });
-    } else {
-      this.birthDependents.push(this.createDependentForm());
-    }
   }
 
   private initDependentChangeDependents() {
@@ -427,6 +474,7 @@ export class LifeeventApplication {
     return this.employee?.insurance?.healthInsurance?.joined === true;
   }
 
+  /** 扶養情報変更申請 */
   private async createDependentEvents(
     items: { before: Dependent | null; after: DependentFormPayload }[],
     occurredDate: string,
@@ -442,7 +490,7 @@ export class LifeeventApplication {
         name: item.after.name,
         relationship: item.after.relationship as Relationship,
         birthDate: Timestamp.fromDate(new Date(item.after.birthDate)),
-        isDependent: item.after.isDependent,
+        isDependent: item.after.isDependent ?? true, //記載がない場合は扶養として登録
       };
 
       const dependentEvent: Partial<Event> = {
@@ -558,5 +606,97 @@ export class LifeeventApplication {
       value => this.message = value,
       this.messageTimer,
     );
+  }
+
+
+  private childBirthDateValidator(control: AbstractControl): ValidationErrors | null {
+    const type = control.get('type')?.value;
+    const childBirthDate = control.get('childBirthDate')?.value;
+    if (!childBirthDate) {
+      return null;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetDate = new Date(childBirthDate);
+    targetDate.setHours(0, 0, 0, 0);
+    // 出産予定日
+    if (type === '出産' && targetDate < today) {
+      return {
+        invalidBirthDate: '出産予定日は今日以降を入力してください'
+      };
+    }
+    // 子どもの誕生日
+    if (type === '育児' && targetDate >= today) {
+      return {
+        invalidBirthDate: '子どもの誕生日は今日以前を入力してください'
+      };
+    }
+    return null;
+  }
+
+  birthTypeValidator(control: AbstractControl) {
+    const type = control.get('type')?.value;
+    const leaveTypes = control.get('leaveTypes')?.value;
+    if (
+      type === '出産' &&
+      leaveTypes === '育児'
+    ) {
+      return {
+        invalidLeaveType: '出産では育児休業は選択できません'
+      };
+    }
+    if (
+      type === '育児' &&
+      leaveTypes === '産前産後'
+    ) {
+      return {
+        invalidLeaveType: '育児では産前産後休業は選択できません'
+      };
+    }
+    return null;
+  }
+
+  private birthLeaveDateValidator(control: AbstractControl) {
+    const leaveType = control.get('leaveTypes')?.value;
+    const childBirthDate = control.get('childBirthDate')?.value;
+    const leaveStartDate = control.get('resignationDate')?.value;
+    const isMultipleBirth = control.get('isMultipleBirth')?.value;
+
+    if (!childBirthDate || !leaveStartDate) {
+      return null;
+    }
+    const birthDate = new Date(childBirthDate);
+    const startDate = new Date(leaveStartDate);
+    // 育休
+    if (
+      leaveType === '育児' &&
+      startDate < birthDate
+    ) {
+      return {
+        invalidLeaveStartDate:
+          '育児休業開始日は出生日以降を入力してください'
+      };
+    }
+    // 産前産後休業
+    if (
+      leaveType === '産前産後'
+    ) {
+      const days = isMultipleBirth ? 98 : 42;
+      const minStartDate = new Date(birthDate);
+      minStartDate.setDate(minStartDate.getDate() - days);
+
+      if (startDate < minStartDate) {
+        return {
+          invalidLeaveStartDate:
+            `産前産後休業開始日は出産予定日の${days}日前以降を入力してください`
+        };
+      }
+    }
+    return null;
+  }
+
+  private router = inject(Router);
+  toMyApplication() {
+    this.router.navigate(['/my-application']);
   }
 }

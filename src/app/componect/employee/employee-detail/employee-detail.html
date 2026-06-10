@@ -120,7 +120,7 @@
                         <dd>{{ selectedEmployee.employmentContract?.contractedWorkingDaysPerMonth! }}日</dd>
                     </div>
                     <div class="employee-detail-info-grid__item">
-                        <dt>基本給</dt>
+                        <dt>固定給</dt>
                         <dd>{{ selectedEmployee.employmentContract?.fixedSalary! | number }}円</dd>
                     </div>
                     <div class="employee-detail-info-grid__item"
@@ -146,7 +146,7 @@
                             <dd>{{ selectedEmployee.insurance?.currentGrade ?? '未登録' }}</dd>
                         </div>
                         <div class="employee-detail-info-grid__item">
-                            <dt>自動計算結果</dt>
+                            <dt>自動計算<small>　※雇用契約情報より算出</small></dt>
                             <dd>{{ autoInsuranceGrade ? autoInsuranceGrade : '等級判定不能' }}</dd>
                         </div>
                     </dl>
@@ -314,9 +314,13 @@
                                     <button type="button" class="im-btn-soft im-btn-sm"
                                         (click)="onRejectEvent(employeeEvent)">却下</button>
                                 </ng-container>
+                                <ng-container *ngIf="!isPendingEvent(employeeEvent) ">
+                                    <button type="button" class="im-btn-muted"
+                                        (click)="showDetail(employeeEvent)">詳細</button>
+                                </ng-container>
                             </td>
                             <td>{{ employeeEvent.eventType }}</td>
-                            <td>{{ employeeEvent.lifeEventType ?? '—' }}</td>
+                            <td>{{ employeeEvent.lifeEventType ?? employeeEvent.reachAgeType ?? '—' }}</td>
                             <td> {{ getApplicantLabel(employeeEvent) }}</td>
                             <td>{{ commonService.formatDateTime(employeeEvent.appliedDate) }}</td>
                             <td>{{ commonService.formatDate(employeeEvent.occurredDate) }}</td>
@@ -1094,6 +1098,24 @@
             <button type="button" class="im-btn-primary" (click)="confirmApprovalModal()">承認</button>
             <button type="button" class="im-btn-soft" (click)="rejectApprovalModal()">却下</button>
             <button type="button" class="im-btn-soft" (click)="cancelApprovalModal()">キャンセル</button>
+        </div>
+    </div>
+</div>
+
+<!-- イベント詳細モーダル -->
+<div class="employee-edit-modal" *ngIf="detailModalOpen">
+    <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
+        <h3>イベント詳細</h3>
+        <p>{{ detailModalEmployeeEvent?.eventType }} {{ detailModalEmployeeEvent?.lifeEventType ? '(' + detailModalEmployeeEvent?.lifeEventType + ')' : '' }}</p>
+        <p>発生日：{{ commonService.formatDate(detailModalEmployeeEvent?.occurredDate) }}</p>
+        <p>内容</p>
+        <ul>
+            <li *ngFor="let line of getEmployeeEventChangeLines(detailModalEmployeeEvent!)">{{ line }}</li>
+        </ul>
+        <P>ステータス：{{ detailModalEmployeeEvent?.approval?.approvalStatus ?? '' }}</P>
+        <P>承認者：{{ commonService.getEmployeeName(detailModalEmployeeEvent?.approval?.approvedBy ?? '') }}</P>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-soft" (click)="detailModalOpen = false">閉じる</button>
         </div>
     </div>
 </div>

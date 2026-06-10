@@ -36,15 +36,48 @@ export class CompanyDetail {
 
   permission = sessionStorage.getItem('permission') ?? '';
 
+  noInsuranceMessage: string = '';
+
   async ngOnInit() {
     await this.companyService.getCompany();
     this.company = this.companyService.company();
 
     if (this.company) {
-      console.log(this.company);
       this.isSocialInsuranceRequired = this.companyLogicService.isSocialInsuranceRequired(this.company);
       this.isSpecificApplicableOffice = this.companyLogicService.isSpecificApplicableOffice(this.company);
     }
+
+    this.form.get('socialInsuranceRequired')?.valueChanges.subscribe(value => {
+
+      if (value) {
+        this.form.patchValue({
+          optionalApplicableOffice: false
+        });
+
+        this.form.get('optionalApplicableOffice')?.disable();
+      } else {
+        this.form.get('optionalApplicableOffice')?.enable();
+        this.form.get('optionalApplicableOffice')?.valueChanges.subscribe(value2 => {
+          if (!value2) {
+            this.noInsuranceMessage = '社会保険にも任意適用事業所にも加入していません。どちらかを選択してください。';
+            this.commonService.showTimedMessage(this.noInsuranceMessage, value => this.noInsuranceMessage = value, this.messageTimer);
+          }
+        });
+      }
+
+    });
+
+    this.form.get('specificApplicableOffice')?.valueChanges.subscribe(value => {
+      if (value) {
+        this.form.patchValue({
+          optionalSpecificApplicableOffice: false
+        });
+        this.form.get('optionalSpecificApplicableOffice')?.disable();
+      } else {
+        this.form.get('optionalSpecificApplicableOffice')?.enable();
+      }
+    });
+
 
   }
 
@@ -133,7 +166,7 @@ export class CompanyDetail {
         const message = "会社情報を変更しました。本社の所在地が変更されているため、事業所情報ページより本社の所在地を更新してください。"
         this.commonService.showTimedMessage(message, value => this.message = value, this.messageTimer);
       }
-    //本社の住所は変わっていない場合
+      //本社の住所は変わっていない場合
     } else {
       this.commonService.showTimedMessage(UPDATE_MESSAGES.SUCCESS, value => this.message = value, this.messageTimer);
     }

@@ -63,11 +63,11 @@
               <dt>休職種別</dt>
               <dd>{{ selectedEmployee.leaveTypes ?? '—' }}</dd>
             </div>
-            <div class="employee-detail-info-grid__item">
+            <div class="employee-detail-info-grid__item" *ngIf="selectedEmployee.workStatus === '休職中'">
               <dt>休職開始日</dt>
               <dd>{{ getLeaveStartDisplay() }}</dd>
             </div>
-            <div class="employee-detail-info-grid__item">
+            <div class="employee-detail-info-grid__item" *ngIf="selectedEmployee.workStatus !== '休職中'">
               <dt>休職終了日</dt>
               <dd>{{ getLeaveEndDisplay() }}</dd>
             </div>

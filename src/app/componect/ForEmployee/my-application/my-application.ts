@@ -25,6 +25,10 @@ export class MyApplication {
 
   events: Event[] = [];
 
+  approvedEvents: Event[] = [];
+  unapprovedEvents: Event[] = [];
+  rejectedEvents: Event[] = [];
+
   async ngOnInit() {
 
     await this.employeeService.getAllEmployees();
@@ -34,13 +38,10 @@ export class MyApplication {
       return;
     }
     this.events = await this.eventService.getEmployeeAllEvents(this.loginEmployeeId);
+    this.approvedEvents = this.events.filter(event => event.approval?.approvalStatus === '承認済み');
+    this.unapprovedEvents = this.events.filter(event => event.approval?.approvalStatus === '申請中');
+    this.rejectedEvents = this.events.filter(event => event.approval?.approvalStatus === '却下');
   }
-
-  openEventDetail(event: Event) {
-
-  }
-
-
 
   reviewModalOpen = false;
   reviewingEvent: Event | null = null;
@@ -86,15 +87,35 @@ export class MyApplication {
       return lines;
     }
 
-    if (event.eventType === '雇用形態変更' || event.eventType === '勤務状況変更') {
+    if (event.eventType === '勤務状況変更') {
       const beforeEmp = before as Employee | undefined;
       const afterEmp = after as Employee | undefined;
+      const occurredDate = event.occurredDate;
+      const expectedBirthDate = event.payload?.['expectedBirthDate'];
+      const isMultipleBirth = event.payload?.['isMultipleBirth'] as boolean | undefined;
+      console.log(isMultipleBirth);
+      console.log(expectedBirthDate);
       const lines: string[] = [];
       if (beforeEmp?.workStatus !== afterEmp?.workStatus) {
         lines.push(`勤務状況：${beforeEmp?.workStatus ?? '—'} → ${afterEmp?.workStatus ?? '—'}`);
       }
       if (beforeEmp?.leaveTypes !== afterEmp?.leaveTypes) {
         lines.push(`休業種別：${beforeEmp?.leaveTypes ?? '—'} → ${afterEmp?.leaveTypes ?? '—'}`);
+      }
+      if (occurredDate) {
+        lines.push(`休職開始日：${this.commonService.formatDate(occurredDate)}`);
+      }
+      if (expectedBirthDate) {
+        if (event.lifeEventType === '出産') {
+          lines.push(`出産予定日：${this.commonService.formatDate(expectedBirthDate)}`);
+        } else if (event.lifeEventType === '育児') {
+          lines.push(`子どもの誕生日：${this.commonService.formatDate(expectedBirthDate)}`);
+        }
+      }
+      if (isMultipleBirth === true) {
+        lines.push(`多胎妊娠：○`);
+      } else if (isMultipleBirth === false) {
+        lines.push(`多胎妊娠：×`);
       }
       if (event.lifeEventType) {
         lines.unshift(`ライフイベント：${event.lifeEventType}`);
@@ -117,5 +138,13 @@ export class MyApplication {
   private formatDependentFlag(value: unknown): string {
     return value === false ? '扶養ではない' : '扶養';
   }
+
+  toLifeeventApplication() {
+    this.router.navigate(['/lifeevent-application']);
+  }
+
+
+
+
 
 }

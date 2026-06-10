@@ -22,13 +22,14 @@
                         <th *ngIf="!isBonus">固定給</th>
                         <th>総支給額</th>
                         <th>登録日</th>
+                        <th *ngIf="correctionMode">更新日</th>
                         <th *ngIf="!disabled"></th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr *ngFor="let payroll of allPayrollListForMonth()">
                         <td>{{ payroll.employeeId }}</td>
-                        <td>{{ commonService.getEmployeeName(payroll.employeeId!) }}</td>
+                        <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: payroll.employeeId }">{{ commonService.getEmployeeName(payroll.employeeId!) }}</a></td>
                         <td *ngIf="!isBonus">{{ payroll.actualWorkingDays }}日</td>
                         <td *ngIf="!isBonus">{{ payroll.actualWorkingHours }}時間</td>
                         <td>{{ commonService.formatDate(payroll.targetPeriod?.[0]) }} ～ {{
@@ -37,6 +38,7 @@
                         <td *ngIf="!isBonus">{{ payroll.fixedSalary | number }}円</td>
                         <td>{{ payroll.actualPaymentAmount | number }}円</td>
                         <td>{{ commonService.formatDate(payroll.createdAt) }}</td>
+                        <td *ngIf="correctionMode">{{ commonService.formatDate(payroll.updatedAt) }}</td>
                         <td *ngIf="!disabled"><button class="im-btn-soft" (click)="editPayroll(payroll)" [disabled]="disabled">{{ getEditButtonLabel() }}</button>
                             <span *ngIf="!correctionMode">&nbsp;</span>
                         <button *ngIf="!correctionMode" class="im-btn-soft im-btn-soft--danger" (click)="deletePayroll(payroll)" [disabled]="disabled">削除</button></td>

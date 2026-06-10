@@ -8,10 +8,12 @@ import { CommonService } from '../../../service/common/common-service';
 import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
 import { getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
+import { RouterLink } from '@angular/router';
+import { EmployeeService } from '../../../service/Firestore/employee-service';
 
 @Component({
   selector: 'app-correction-list',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './correction-list.html',
   styleUrl: './correction-list.css',
 })
@@ -22,6 +24,7 @@ export class CorrectionList {
   private payrollLockService = inject(PayrollLockService);
   private route = inject(ActivatedRoute);
   commonService = inject(CommonService);
+  employeeService = inject(EmployeeService);
 
   monthOptions = this.correctionLogicService.getPastYearMonthOptions(12);
   selectedMonthKey = `${getWorkingYearMonth().year}-${getWorkingYearMonth().month}`;
@@ -31,6 +34,8 @@ export class CorrectionList {
   runs: CalculationRun[] = [];
 
   async ngOnInit() {
+    await this.employeeService.getAllEmployees();
+
     const lockedBonusPayrolls = await this.payrollLockService.getLockedPayrolls('賞与');
     this.bonusPayrollIds = lockedBonusPayrolls.map(lock => lock.payrollId);
     this.selectedBonusPayrollId = this.bonusPayrollIds[0] ?? '';

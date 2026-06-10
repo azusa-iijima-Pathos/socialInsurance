@@ -567,7 +567,7 @@ export class RetroactiveCorrection {
         return {
           ...base,
           workStatus: '通常勤務' as WorkStatus,
-          leaveTypes: undefined,
+          leaveTypes: null,
         };
       }
 
@@ -582,7 +582,7 @@ export class RetroactiveCorrection {
       return {
         ...base,
         workStatus: '通常勤務' as WorkStatus,
-        leaveTypes: undefined,
+        leaveTypes: null,
       };
     }
 
@@ -596,6 +596,9 @@ export class RetroactiveCorrection {
     return { ...base, insurance };
   }
 
+  /**
+   * 育休・産休修正を承認する
+   */
   private async createLeaveWorkStatusEvents(
     employeeId: string,
     beforeEmployee: Employee,
@@ -646,7 +649,7 @@ export class RetroactiveCorrection {
       const after: Employee = {
         ...afterEmployee,
         workStatus: '通常勤務',
-        leaveTypes: undefined,
+        leaveTypes: null,
       };
       const created = await this.eventService.createEventWithBaseId(
         employeeId,

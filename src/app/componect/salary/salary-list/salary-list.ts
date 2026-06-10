@@ -9,10 +9,11 @@ import { Timestamp } from '@angular/fire/firestore';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { ValidationService } from '../../../service/common/validation-service';
 import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
+import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-salary-list',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   templateUrl: './salary-list.html',
   styleUrl: './salary-list.css',
 })

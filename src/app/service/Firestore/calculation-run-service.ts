@@ -264,7 +264,11 @@ export class CalculationRunService {
       targetEmployeeIds: employeeId,
       detectedDate: Timestamp.now(),
       type: '差額調整',
-      approval: { approvalStatus: '申請中' },
+      approval: {
+        approvalStatus: '承認済み',
+        approvedDate: Timestamp.now(),
+        approvedBy: sessionStorage.getItem('loginEmployeeId') ?? '',
+      },
       payload: {
         employeeId,
         sourceType,
@@ -295,7 +299,11 @@ export class CalculationRunService {
         targetEmployeeIds: employeeId,
         detectedDate: Timestamp.now(),
         type: '差額調整',
-        approval: { approvalStatus: '申請中' },
+        approval: {
+          approvalStatus: '承認済み',
+          approvedDate: Timestamp.now(),
+          approvedBy: sessionStorage.getItem('loginEmployeeId') ?? '',
+        },
         payload: {
           employeeId,
           sourceType,

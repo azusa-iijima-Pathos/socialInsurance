@@ -1,4 +1,4 @@
-import { EmployeeEventType } from '../../constants/model-constants';
+import { ApplicantType, EmployeeEventType } from '../../constants/model-constants';
 
 export type YearMonth = { year: number; month: number };
 
@@ -18,11 +18,9 @@ export function getWorkMonthForDate(date: Date, targetPeriodStart: number): Year
   if (targetPeriodStart === 1) {
     return { year, month };
   }
-
   if (day >= targetPeriodStart) {
     return { year, month };
   }
-
   if (month === 1) {
     return { year: year - 1, month: 12 };
   }
@@ -70,6 +68,7 @@ export function buildAdHocRevisionRunId(revisionMonth: YearMonth): string {
 /** 入社・年齢到達など従来ルール */
 export function buildEventId(
   eventType: EmployeeEventType,
+  applicantType?: ApplicantType,
   options: {
     occurredDate?: Date;
     targetPeriodStart?: number;
@@ -96,7 +95,12 @@ export function buildEventId(
     case '雇用形態変更':
     case '勤務状況変更':
     case '扶養情報変更':
-      return buildCurrentWorkMonthEventId(eventType, working);
+      if (applicantType === '社員') {
+        const occurredDate = getWorkMonthForDate(options.occurredDate!, targetPeriodStart);
+        return `${eventType}_${formatYearMonth(occurredDate.year, occurredDate.month)}`;
+      } else {
+        return buildCurrentWorkMonthEventId(eventType, working);
+      }
     default:
       return `${eventType}_${formatYearMonth(working.year, working.month)}`;
   }

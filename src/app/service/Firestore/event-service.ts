@@ -4,7 +4,7 @@ import { Event } from '../../model/event';
 import { CompanyService } from './company-service';
 import { EmployeeService } from './employee-service';
 import { buildEventId, getWorkingYearMonth, isEventAtOrBeforeWorkingMonth } from '../logic/event-id-service';
-import { EmployeeEventType } from '../../constants/model-constants';
+import { ApplicantType, EmployeeEventType } from '../../constants/model-constants';
 
 export type EmployeeEventItem = Event & { employeeId: string };
 
@@ -35,7 +35,8 @@ export class EventService {
 
     await this.companyService.getCompany();
     const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
-    const eventId = buildEventId(event.eventType as EmployeeEventType, {
+    const applicantType = event.applicantType?? undefined;
+    const eventId = buildEventId(event.eventType as EmployeeEventType, applicantType, {
       occurredDate: event.occurredDate?.toDate(),
       targetPeriodStart,
     });

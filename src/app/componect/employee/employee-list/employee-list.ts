@@ -96,6 +96,7 @@ export class EmployeeList {
         fixedSalary: employee.employmentContract?.fixedSalary?.toString(),
         transportationExpenses: employee.employmentContract?.transportationExpenses?.toString() ?? '',
       },
+      leaveTypes: employee.leaveTypes ?? '',
     });
   }
 

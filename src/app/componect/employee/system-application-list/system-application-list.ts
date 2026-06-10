@@ -272,15 +272,33 @@ export class SystemApplicationList {
       return lines;
     }
 
-    if (event.eventType === '雇用形態変更' || event.eventType === '勤務状況変更') {
+    if (event.eventType === '勤務状況変更') {
       const beforeEmp = before as Employee | undefined;
       const afterEmp = after as Employee | undefined;
+      const expectedBirthDate = event.payload?.['expectedBirthDate'];
+      const isMultipleBirth = event.payload?.['isMultipleBirth'] as boolean | undefined;
+      const occurredDate = event.occurredDate;
       const lines: string[] = [];
       if (beforeEmp?.workStatus !== afterEmp?.workStatus) {
         lines.push(`勤務状況：${beforeEmp?.workStatus ?? '—'} → ${afterEmp?.workStatus ?? '—'}`);
       }
       if (beforeEmp?.leaveTypes !== afterEmp?.leaveTypes) {
         lines.push(`休業種別：${beforeEmp?.leaveTypes ?? '—'} → ${afterEmp?.leaveTypes ?? '—'}`);
+      }
+      if (occurredDate) {
+        lines.push(`休職開始日：${this.commonService.formatDate(occurredDate)}`);
+      }
+      if (expectedBirthDate) {
+        if (event.lifeEventType === '出産') {
+          lines.push(`出産予定日：${this.commonService.formatDate(expectedBirthDate)}`);
+        } else if (event.lifeEventType === '育児') {
+          lines.push(`子どもの誕生日：${this.commonService.formatDate(expectedBirthDate)}`);
+        }
+      }
+      if (isMultipleBirth === true) {
+        lines.push(`多胎妊娠：○`);
+      } else if (isMultipleBirth === false) {
+        lines.push(`多胎妊娠：×`);
       }
       if (event.lifeEventType) {
         lines.unshift(`ライフイベント：${event.lifeEventType}`);
