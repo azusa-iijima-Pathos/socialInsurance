@@ -104,6 +104,31 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentCohabitation' + i">同居・別居区分</label></div>
+                            <div class="im-field-row__control">
+                                <select [id]="'marriageDependentCohabitation' + i" formControlName="cohabitationType">
+                                    <option value=""></option>
+                                    <option *ngFor="let type of COHABITATION_TYPES" [value]="type">{{ type }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentAnnualIncome' + i">収入額（年収見込み）</label></div>
+                            <div class="im-field-row__control">
+                                <input type="number" min="0" [id]="'marriageDependentAnnualIncome' + i" formControlName="annualIncome">
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentOccupation' + i">職業</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [id]="'marriageDependentOccupation' + i" formControlName="occupation">
+                            </div>
+                        </div>
+                        <app-dependent-disability-student-fields
+                            [group]="$any(dependent)"
+                            [idPrefix]="'marriageDependent' + i">
+                        </app-dependent-disability-student-fields>
                         <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide employee-dependent-status-field"
                             *ngIf="dependent.get('isExisting')?.value">
                             <div class="im-field-row__label"><span>現在の扶養状況</span></div>
@@ -173,8 +198,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="im-field-block im-field-row employee-edit-field" *ngIf="birthForm.get('type')?.value === '出産'">
-                    <div class="im-field-row__label"><span>多胎妊娠</span></div>
+                <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide lifeevent-multiple-birth-field"
+                    *ngIf="birthForm.get('type')?.value === '出産'">
                     <div class="im-field-row__control">
                         <label class="im-checkbox-option">
                             <input type="checkbox" formControlName="isMultipleBirth">
@@ -247,6 +272,31 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                                <div class="im-field-row__label"><label [for]="'birthDependentCohabitation' + i">同居・別居区分</label></div>
+                                <div class="im-field-row__control">
+                                    <select [id]="'birthDependentCohabitation' + i" formControlName="cohabitationType">
+                                        <option value=""></option>
+                                        <option *ngFor="let type of COHABITATION_TYPES" [value]="type">{{ type }}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                                <div class="im-field-row__label"><label [for]="'birthDependentAnnualIncome' + i">収入額（年収見込み）</label></div>
+                                <div class="im-field-row__control">
+                                    <input type="number" min="0" [id]="'birthDependentAnnualIncome' + i" formControlName="annualIncome">
+                                </div>
+                            </div>
+                            <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                                <div class="im-field-row__label"><label [for]="'birthDependentOccupation' + i">職業</label></div>
+                                <div class="im-field-row__control">
+                                    <input type="text" [id]="'birthDependentOccupation' + i" formControlName="occupation">
+                                </div>
+                            </div>
+                            <app-dependent-disability-student-fields
+                                [group]="$any(dependent)"
+                                [idPrefix]="'birthDependent' + i">
+                            </app-dependent-disability-student-fields>
                         </div>
                     </div>
                 </div>
@@ -323,6 +373,31 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeCohabitation' + i">同居・別居区分</label></div>
+                            <div class="im-field-row__control">
+                                <select [id]="'dependentChangeCohabitation' + i" formControlName="cohabitationType">
+                                    <option value=""></option>
+                                    <option *ngFor="let type of COHABITATION_TYPES" [value]="type">{{ type }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeAnnualIncome' + i">収入額（年収見込み）</label></div>
+                            <div class="im-field-row__control">
+                                <input type="number" min="0" [id]="'dependentChangeAnnualIncome' + i" formControlName="annualIncome">
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeOccupation' + i">職業</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [id]="'dependentChangeOccupation' + i" formControlName="occupation">
+                            </div>
+                        </div>
+                        <app-dependent-disability-student-fields
+                            [group]="$any(dependent)"
+                            [idPrefix]="'dependentChange' + i">
+                        </app-dependent-disability-student-fields>
                         <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide employee-dependent-status-field"
                             *ngIf="dependent.get('isExisting')?.value">
                             <div class="im-field-row__label"><span>現在の扶養状況</span></div>

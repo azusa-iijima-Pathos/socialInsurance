@@ -7,6 +7,10 @@ import { Router } from '@angular/router';
 import { CommonService } from '../../../service/common/common-service';
 import { InsuranceFormService } from '../../../service/logic/insurance-form.service';
 import { CommonModule } from '@angular/common';
+import {
+  formatDisabilityForDisplay,
+  formatStudentForDisplay,
+} from '../../../service/common/dependent-field.util';
 
 
 @Component({
@@ -49,6 +53,14 @@ export class MyInsuranceDetail {
   showLostDate(type: 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance'): boolean {
     const detail = this.employee?.insurance?.[type];
     return Boolean(detail && !detail.joined && detail.lostDate);
+  }
+
+  formatDisabilityForDisplay(dependent: Dependent): string {
+    return formatDisabilityForDisplay(dependent);
+  }
+
+  formatStudentForDisplay(dependent: Dependent): string {
+    return formatStudentForDisplay(dependent);
   }
 
 }

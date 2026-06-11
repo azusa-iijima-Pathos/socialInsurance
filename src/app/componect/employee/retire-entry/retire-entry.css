@@ -1,0 +1,44 @@
+.retire-entry-container {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: var(--im-size-24) var(--im-size-32) var(--im-size-32);
+}
+
+.retire-entry-form {
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--im-color-gray-150);
+    border-radius: var(--im-radius-8);
+    background: var(--im-color-white);
+}
+
+.retire-entry-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.retire-entry-readonly-value {
+    margin: 0;
+    padding: 0.5rem 0;
+    color: var(--im-color-slate-700);
+}
+
+.retire-entry-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+    .retire-entry-container {
+        padding: var(--im-size-16);
+    }
+
+    .retire-entry-pair {
+        grid-template-columns: 1fr;
+    }
+}

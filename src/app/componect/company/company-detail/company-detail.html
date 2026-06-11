@@ -1,11 +1,11 @@
-<div class="im-page-shell">
+<div class="im-page-shell company-detail-page">
   <h2 class="page-title">会社情報</h2>
 
   <div *ngIf="message" class="im-action-message">{{ message }}</div>
 
-  <section class="im-surface-panel">
-    <div>
-      <div>
+  <section class="im-surface-panel company-detail-content">
+    <div class="company-detail-layout">
+      <div class="company-detail-panel">
         <h3 class="section-title">基本情報</h3>
         <p>会社ID：{{ company?.companyId }}</p>
         <p>会社名：{{ company?.name }}</p>
@@ -13,8 +13,11 @@
         <p>事業種：{{ company?.businessType }}</p>
         <p>常時従業員数：{{ company?.employeeCount }}</p>
         <p>本社住所：{{ company?.headOfficePrefecture }}</p>
+        <p>本社事業所整理記号：{{ headOffice?.officeOrganizationSymbol || '—' }}</p>
+        <p *ngIf="headOffice?.officeNumber">本社事業所番号：{{ headOffice?.officeNumber }}</p>
       </div>
-      <div>
+
+      <div class="company-detail-panel">
         <h3 class="section-title">社会保険情報</h3>
         <p>社会保険加入：{{ company?.socialInsuranceRequired ? 'あり' : 'なし' }}</p>
         <p *ngIf="permission === '管理'">自動判定：{{ isSocialInsuranceRequired ? 'あり' : 'なし' }}</p>
@@ -23,11 +26,11 @@
         <p *ngIf="permission === '管理'">自動判定：{{ isSpecificApplicableOffice ? 'あり' : 'なし' }}</p>
         <p>任意特定適用事業所：{{ company?.optionalSpecificApplicableOffice ? 'あり' : 'なし' }}</p>
       </div>
+    </div>
 
-      <div *ngIf="permission === '管理'">
-        <p>登録日：{{ commonService.formatDateTime(company?.createdAt) }}</p>
-        <p>更新日：{{ commonService.formatDateTime(company?.updatedAt) }}</p>
-      </div>
+    <div class="company-detail-meta" *ngIf="permission === '管理'">
+      <p>登録日：{{ commonService.formatDateTime(company?.createdAt) }}</p>
+      <p>更新日：{{ commonService.formatDateTime(company?.updatedAt) }}</p>
     </div>
 
     <div class="form-footer-actions" *ngIf="permission === '管理' && mode !== 'view'">
@@ -37,78 +40,99 @@
 </div>
 
 <div *ngIf="isOpenModal" class="company-edit-modal" (click)="closeModal()">
-  <div class="company-edit-modal__panel" (click)="$event.stopPropagation()">
+  <div class="company-edit-modal__panel company-edit-modal__panel--wide" (click)="$event.stopPropagation()">
     <div class="company-edit-modal__header">
       <h3>会社情報編集</h3>
     </div>
-    <form class="im-fields-grid" [formGroup]="form" (ngSubmit)="submitForm()">
-      <div class="im-field-block">
-        <label for="name">会社名</label>
-        <input type="text" id="name" formControlName="name">
-        <div class="error">
-          <p *ngIf="form.get('name')?.errors?.['required'] && form.get('name')?.touched">会社名は必須です</p>
+    <form [formGroup]="form" (ngSubmit)="submitForm()">
+      <div class="company-detail-modal-layout">
+        <div class="company-detail-modal-column im-fields-grid">
+          <h4 class="company-detail-modal-heading">基本情報</h4>
+          <div class="im-field-block">
+            <label for="name">会社名</label>
+            <input type="text" id="name" formControlName="name">
+            <div class="error">
+              <p *ngIf="form.get('name')?.errors?.['required'] && form.get('name')?.touched">会社名は必須です</p>
+            </div>
+          </div>
+          <div class="im-field-block">
+            <label for="isCorporation">事業形態</label>
+            <label for="isCorporation1">
+              <input type="radio" id="isCorporation1" formControlName="isCorporation" [value]="true">
+              法人</label>
+            <label for="isCorporation2">
+              <input type="radio" id="isCorporation2" formControlName="isCorporation" [value]="false">
+              個人事業</label>
+          </div>
+          <div class="im-field-block">
+            <label for="businessType">事業種</label>
+            <select id="businessType" formControlName="businessType">
+              <option *ngFor="let businessType of BUSINESS_TYPES" [value]="businessType">{{ businessType }}</option>
+            </select>
+          </div>
+          <div class="im-field-block">
+            <label for="employeeCount">常時従業員数</label>
+            <input type="number" id="employeeCount" formControlName="employeeCount">
+            <div class="error">
+              <p *ngIf="form.get('employeeCount')?.errors?.['required'] && form.get('employeeCount')?.touched">常時従業員数は必須です</p>
+              <p *ngIf="form.get('employeeCount')?.errors?.['min'] && form.get('employeeCount')?.touched">常時従業員数は1人以上です</p>
+            </div>
+          </div>
+          <div class="im-field-block">
+            <label for="headOfficePrefecture">本社住所</label>
+            <select id="headOfficePrefecture" formControlName="headOfficePrefecture">
+              <option *ngFor="let prefecture of PREFECTURES" [value]="prefecture">{{ prefecture }}</option>
+            </select>
+          </div>
+          <div class="im-field-block">
+            <label for="officeOrganizationSymbol">本社事業所整理記号</label>
+            <input type="text" id="officeOrganizationSymbol" formControlName="officeOrganizationSymbol">
+            <div class="error">
+              <p *ngIf="form.get('officeOrganizationSymbol')?.errors?.['required'] && form.get('officeOrganizationSymbol')?.touched">本社事業所整理記号は必須です</p>
+            </div>
+          </div>
+          <div class="im-field-block">
+            <label for="officeNumber">本社事業所番号</label>
+            <input type="text" id="officeNumber" formControlName="officeNumber">
+          </div>
+        </div>
+
+        <div class="company-detail-modal-column im-fields-grid">
+          <h4 class="company-detail-modal-heading">社会保険情報</h4>
+          <div class="im-field-block">
+            <label for="socialInsuranceRequired">社会保険加入</label>
+            <label for="socialInsuranceRequired1">
+              <input type="radio" id="socialInsuranceRequired1" formControlName="socialInsuranceRequired" [value]="true">
+              あり</label>
+            <label for="socialInsuranceRequired2">
+              <input type="radio" id="socialInsuranceRequired2" formControlName="socialInsuranceRequired" [value]="false">
+              なし</label>
+          </div>
+          <div class="im-field-block">
+            <label for="optionalApplicableOffice">任意適用事業所</label>
+            <input type="checkbox" id="optionalApplicableOffice" formControlName="optionalApplicableOffice" [value]="true">
+          </div>
+
+          <div *ngIf="noInsuranceMessage">
+            <p class="error">{{ noInsuranceMessage }}</p>
+          </div>
+
+          <div class="im-field-block">
+            <label for="specificApplicableOffice">特定適用事業所</label>
+            <label for="specificApplicableOffice1">
+              <input type="radio" id="specificApplicableOffice1" formControlName="specificApplicableOffice" [value]="true">
+              あり</label>
+            <label for="specificApplicableOffice2">
+              <input type="radio" id="specificApplicableOffice2" formControlName="specificApplicableOffice" [value]="false">
+              なし</label>
+          </div>
+          <div class="im-field-block">
+            <label for="optionalSpecificApplicableOffice">任意特定適用事業所</label>
+            <input type="checkbox" id="optionalSpecificApplicableOffice" formControlName="optionalSpecificApplicableOffice" [value]="true">
+          </div>
         </div>
       </div>
-      <div class="im-field-block">
-        <label for="isCorporation">事業形態</label>
-        <label for="isCorporation1">
-          <input type="radio" id="isCorporation1" formControlName="isCorporation" [value]="true">
-          法人</label>
-        <label for="isCorporation2">
-          <input type="radio" id="isCorporation2" formControlName="isCorporation" [value]="false">
-          個人事業</label>
-      </div>
-      <div class="im-field-block">
-        <label for="businessType">事業種</label>
-        <select id="businessType" formControlName="businessType">
-          <option *ngFor="let businessType of BUSINESS_TYPES" [value]="businessType">{{ businessType }}</option>
-        </select>
-      </div>
-      <div class="im-field-block">
-        <label for="employeeCount">常時従業員数</label>
-        <input type="number" id="employeeCount" formControlName="employeeCount">
-        <div class="error">
-          <p *ngIf="form.get('employeeCount')?.errors?.['required'] && form.get('employeeCount')?.touched">常時従業員数は必須です</p>
-          <p *ngIf="form.get('employeeCount')?.errors?.['min'] && form.get('employeeCount')?.touched">常時従業員数は1人以上です</p>
-        </div>
-      </div>
-      <div class="im-field-block">
-        <label for="headOfficePrefecture">本社住所</label>
-        <select id="headOfficePrefecture" formControlName="headOfficePrefecture">
-          <option *ngFor="let prefecture of PREFECTURES" [value]="prefecture">{{ prefecture }}</option>
-        </select>
-      </div>
-      <div class="im-field-block">
-        <label for="socialInsuranceRequired">社会保険加入</label>
-        <label for="socialInsuranceRequired1">
-          <input type="radio" id="socialInsuranceRequired1" formControlName="socialInsuranceRequired" [value]="true">
-          あり</label>
-        <label for="socialInsuranceRequired2">
-          <input type="radio" id="socialInsuranceRequired2" formControlName="socialInsuranceRequired" [value]="false">
-          なし</label>
-      </div>
-      <div class="im-field-block">
-        <label for="optionalApplicableOffice">任意適用事業所</label>
-        <input type="checkbox" id="optionalApplicableOffice" formControlName="optionalApplicableOffice" [value]="true">
-      </div>
 
-      <div *ngIf="noInsuranceMessage">
-        <p class="error">{{ noInsuranceMessage }}</p>
-      </div>
-
-      <div class="im-field-block">
-        <label for="specificApplicableOffice">特定適用事業所</label>
-        <label for="specificApplicableOffice1">
-          <input type="radio" id="specificApplicableOffice1" formControlName="specificApplicableOffice" [value]="true">
-          あり</label>
-        <label for="specificApplicableOffice2">
-          <input type="radio" id="specificApplicableOffice2" formControlName="specificApplicableOffice" [value]="false">
-          なし</label>
-      </div>
-      <div class="im-field-block">
-        <label for="optionalSpecificApplicableOffice">任意特定適用事業所</label>
-        <input type="checkbox" id="optionalSpecificApplicableOffice" formControlName="optionalSpecificApplicableOffice" [value]="true">
-      </div>
       <div class="company-edit-modal__actions">
         <button type="button" class="im-btn-soft" (click)="closeModal()">キャンセル</button>
         <button type="submit" class="im-btn-primary" [disabled]="noInsuranceMessage">保存</button>

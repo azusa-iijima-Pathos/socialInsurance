@@ -1,5 +1,7 @@
-<div class="im-page-shell">
+<div class="office-detail-page">
   <h2 class="page-title">事業所情報</h2>
+
+  <div *ngIf="message" class="im-action-message">{{ message }}</div>
 
   <div class="office-detail-layout">
     <section class="im-surface-panel im-section-block office-detail-list">

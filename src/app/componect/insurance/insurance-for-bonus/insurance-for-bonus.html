@@ -32,7 +32,7 @@
                 (click)="setOutputViewMode('adjusted')">差額調整済みデータ</button>
             <button class="im-btn-soft" [class.im-btn-primary]="outputViewMode === 'confirmed'"
                 (click)="setOutputViewMode('confirmed')">確定時データ</button>
-
+            <button class="im-btn-soft" (click)="exportBonusFormCsv()">CSV出力</button>
         </div>
     </div>
 </div>
@@ -307,6 +307,10 @@
             </tr>
         </tbody>
     </table>
+
+    <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+        <button type="button" class="im-btn-soft" (click)="exportInsuranceSummaryCsv()">CSV出力（会社・事業所合計）</button>
+    </div>
 </div>
 
 <div *ngIf="dataForShow.length === 0">

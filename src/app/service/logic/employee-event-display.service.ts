@@ -5,6 +5,10 @@ import { Dependent } from '../../model/dependent';
 import { Event } from '../../model/event';
 import { CommonService } from '../common/common-service';
 import { OfficeService } from '../Firestore/office-service';
+import {
+  formatDisabilityForDisplay,
+  formatStudentForDisplay,
+} from '../common/dependent-field.util';
 
 type RevisionSummary = {
   currentGrade?: number;
@@ -112,6 +116,7 @@ export class EmployeeEventDisplayService {
         `続柄：${this.formatText(beforeDep.relationship)} → ${this.formatText(afterDep?.relationship)}`,
         `生年月日：${this.formatPayloadDate(beforeDep.birthDate)} → ${this.formatPayloadDate(afterDep?.birthDate)}`,
         `扶養状況：${this.formatDependentFlag(beforeDep.isDependent)} → ${this.formatDependentFlag(afterDep?.isDependent)}`,
+        ...this.formatDependentExtraChangeLines(beforeDep, afterDep),
       ];
     }
 
@@ -121,10 +126,36 @@ export class EmployeeEventDisplayService {
         `続柄：${this.formatText(afterDep.relationship)}`,
         `生年月日：${this.formatPayloadDate(afterDep.birthDate)}`,
         `扶養状況：${this.formatDependentFlag(afterDep.isDependent)}`,
+        ...this.formatDependentExtraLines(afterDep),
       ];
     }
 
     return ['変更内容を確認してください'];
+  }
+
+  private formatDependentExtraChangeLines(beforeDep: Dependent, afterDep: Dependent | null): string[] {
+    const after = afterDep ?? ({} as Dependent);
+    return [
+      `同居・別居：${this.formatText(beforeDep.cohabitationType)} → ${this.formatText(after.cohabitationType)}`,
+      `収入額（年収見込み）：${this.formatIncome(beforeDep.annualIncome)} → ${this.formatIncome(after.annualIncome)}`,
+      `職業：${this.formatText(beforeDep.occupation)} → ${this.formatText(after.occupation)}`,
+      `障害：${formatDisabilityForDisplay(beforeDep)} → ${formatDisabilityForDisplay(afterDep)}`,
+      `学生：${formatStudentForDisplay(beforeDep)} → ${formatStudentForDisplay(afterDep)}`,
+    ];
+  }
+
+  private formatDependentExtraLines(dependent: Dependent): string[] {
+    return [
+      `同居・別居：${this.formatText(dependent.cohabitationType)}`,
+      `収入額（年収見込み）：${this.formatIncome(dependent.annualIncome)}`,
+      `職業：${this.formatText(dependent.occupation)}`,
+      `障害：${formatDisabilityForDisplay(dependent)}`,
+      `学生：${formatStudentForDisplay(dependent)}`,
+    ];
+  }
+
+  private formatIncome(value: number | undefined): string {
+    return value !== undefined && value !== null ? `${value.toLocaleString()}円` : '—';
   }
 
   private getEmploymentChangeLines(

@@ -1,3 +1,9 @@
 .monthly-event-list-toolbar {
   margin-bottom: var(--im-size-16);
 }
+
+.monthly-event-list-export {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--im-size-12);
+}

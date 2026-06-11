@@ -5,7 +5,7 @@ import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Employee } from '../../../../model/employee';
 import { AbstractControl, ValidationErrors, Validators } from '@angular/forms';
 import { timestampFromDateInput } from '../../../../service/common/date-input.util';
-import { WorkStatus, EmploymentCategory, WorkStyle, WORK_STATUSES, EMPLOYMENT_CATEGORIES, WORK_STYLES, LEAVE_TYPES, LeaveType } from '../../../../constants/model-constants';
+import { WorkStatus, EmploymentCategory, WorkStyle, WORK_STATUSES, EMPLOYMENT_CATEGORIES, WORK_STYLES, LEAVE_TYPES, LeaveType, GENDERS, Gender } from '../../../../constants/model-constants';
 import { EmploymentContract } from '../../../../model/employee';
 import { CREATE_MESSAGES } from '../../../../constants/constants';
 import { OfficeService } from '../../../../service/Firestore/office-service';
@@ -42,6 +42,7 @@ export class EmployeeForm {
   LEAVE_TYPES = LEAVE_TYPES;
   EMPLOYMENT_CATEGORIES = EMPLOYMENT_CATEGORIES;
   WORK_STYLES = WORK_STYLES;
+  GENDERS = GENDERS;
 
   companyId = sessionStorage.getItem('companyId');
 
@@ -54,6 +55,7 @@ export class EmployeeForm {
     firstName: ['', [Validators.required]],
     lastName: ['', [Validators.required]],
     birthDate: ['', [Validators.required, this.validationService.birthDateValidator]],
+    gender: ['', [Validators.required]],
     hireDate: ['', [Validators.required]],
     workStatus: ['通常勤務', [Validators.required]],
     leaveTypes: [''],
@@ -147,6 +149,7 @@ export class EmployeeForm {
       firstName: this.form.value.firstName!,
       lastName: this.form.value.lastName!,
       birthDate: timestampFromDateInput(this.form.value.birthDate!),
+      gender: this.form.value.gender! as Gender,
       hireDate: timestampFromDateInput(this.form.value.hireDate!),
       workStatus: this.form.value.workStatus! as WorkStatus,
       ...(this.form.value.workStatus === '休職中'

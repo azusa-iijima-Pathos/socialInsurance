@@ -1,6 +1,9 @@
 import { Timestamp } from "@angular/fire/firestore";
 import {
-    Relationship
+    Relationship,
+    CohabitationType,
+    DisabilityType,
+    StudentType,
 } from "../constants/model-constants";
 
 /**
@@ -22,4 +25,25 @@ export type Dependent = {
 
     /** ステータス */
     isDependent?: boolean;
+
+    /** 同居・別居区分 */
+    cohabitationType?: CohabitationType;
+
+    /** 収入額（年収見込み） */
+    annualIncome?: number;
+
+    /** 職業 */
+    occupation?: string;
+
+    /** 障害あり */
+    hasDisability?: boolean;
+
+    /** 障害タイプ（障害ありの場合必須） */
+    disabilityType?: DisabilityType;
+
+    /** 学生 */
+    isStudent?: boolean;
+
+    /** 学生タイプ（学生の場合必須） */
+    studentType?: StudentType;
 }

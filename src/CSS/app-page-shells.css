@@ -517,3 +517,148 @@
   font-weight: 600;
   color: var(--im-color-slate-900);
 }
+
+/* =============================================================================
+   トップページ（管理者・従業員）
+   ============================================================================= */
+
+.top-page-shell {
+  max-width: none;
+  min-height: calc(100vh - 56px);
+  padding: var(--im-size-24) var(--im-size-32) var(--im-size-32);
+  background: var(--im-color-gray-50);
+  box-sizing: border-box;
+}
+
+.top-page-title {
+  margin: 0 0 var(--im-size-24);
+  font-size: var(--im-font-20);
+  font-weight: 700;
+  color: var(--im-color-slate-900);
+}
+
+.top-page-empty,
+.top-page-notice {
+  max-width: 640px;
+  margin: 0 auto var(--im-size-24);
+  text-align: center;
+}
+
+.top-page-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-16);
+  align-items: stretch;
+}
+
+.top-page-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--im-size-16);
+}
+
+.top-page-row {
+  display: grid;
+  gap: var(--im-size-16);
+  align-items: stretch;
+}
+
+.top-page-row--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.top-page-row--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.top-page-grid--employee {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.top-page-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 160px;
+  padding: calc(var(--im-size-16) + var(--im-size-4));
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-12);
+  background: var(--im-color-white);
+  box-shadow: var(--im-shadow-1);
+  box-sizing: border-box;
+}
+
+.top-page-card--full {
+  grid-column: 1 / -1;
+}
+
+.top-page-card__title {
+  margin: 0 0 var(--im-size-12);
+  font-size: var(--im-font-108r);
+  font-weight: 600;
+  color: var(--im-color-slate-900);
+}
+
+.top-page-card__subtitle {
+  display: inline;
+  margin-left: var(--im-size-4);
+  font-size: var(--im-font-13);
+  font-weight: 500;
+  color: var(--im-color-slate-500);
+}
+
+.top-page-card__links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--im-size-8);
+}
+
+.top-page-card__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--im-size-36);
+  padding: var(--im-size-6) var(--im-size-12);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-gray-50);
+  color: var(--im-color-blue-600);
+  font-size: var(--im-font-14);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background var(--im-time-200) ease, border-color var(--im-time-200) ease;
+}
+
+.top-page-card__links a:hover {
+  background: var(--im-color-white);
+  border-color: var(--im-color-blue-300);
+}
+
+.top-page-card__empty {
+  color: var(--im-color-slate-500);
+  font-size: var(--im-font-13);
+}
+
+@media (max-width: 1200px) {
+  .top-page-row--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .top-page-shell {
+    padding: var(--im-size-16) var(--im-size-16) var(--im-size-24);
+  }
+
+  .top-page-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-page-row--3,
+  .top-page-row--4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-page-card--full {
+    grid-column: auto;
+  }
+}

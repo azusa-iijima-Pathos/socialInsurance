@@ -4,7 +4,8 @@ import { FormBuilder, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { AUTH_ERROR_MESSAGES, GURARD_MESSAGES, CREATE_MESSAGES } from '../../../constants/constants';
+import { AUTH_ERROR_MESSAGES, CREATE_MESSAGES } from '../../../constants/constants';
+import { resolveGuardMessage } from '../../../service/common/guard-message.util';
 import { UserService } from '../../../service/Firestore/user-service';
 import { CompanyService } from '../../../service/Firestore/company-service';
 import { SessionCacheService } from '../../../service/common/session-cache.service';
@@ -41,27 +42,17 @@ export class Login {
     this.errorMessage =
       history.state?.message ||
       history.state?.transferMessage ||
-      this.toGuardMessage(guardMessageCode);
-    if (this.errorMessage) {
+      resolveGuardMessage(guardMessageCode);
+    if (this.errorMessage && (history.state?.message || history.state?.transferMessage)) {
       history.replaceState({}, '');
     }
     if (guardMessageCode) {
       void this.router.navigate([], {
         relativeTo: this.route,
-        queryParams: {},
+        queryParams: { message: null },
+        queryParamsHandling: 'merge',
         replaceUrl: true,
       });
-    }
-  }
-
-  private toGuardMessage(code: string | null): string {
-    switch (code) {
-      case 'sessionExpired':
-        return GURARD_MESSAGES.SESSION_EXPIRED;
-      case 'noPermission':
-        return GURARD_MESSAGES.NO_PERMISSION;
-      default:
-        return '';
     }
   }
 

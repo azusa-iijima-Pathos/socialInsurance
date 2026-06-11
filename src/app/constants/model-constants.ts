@@ -25,6 +25,12 @@ export const WORK_STYLES = ['フルタイム', '時短', 'パート'] as const;
 export type WorkStyle = typeof WORK_STYLES[number];
 
 /**
+* 性別
+*/
+export const GENDERS = ['男性', '女性'] as const;
+export type Gender = typeof GENDERS[number];
+
+/**
 * 保険種別
 */
 export const INSURANCE_TYPES = ['健康保険', '介護保険', '厚生年金'] as const;
@@ -72,6 +78,36 @@ export type PayrollType = typeof PAYROLL_TYPES[number];
 */
 export const RELATIONSHIPS = ['配偶者', '子', '親', 'その他'] as const;
 export type Relationship = typeof RELATIONSHIPS[number];
+
+/**
+* 同居・別居区分
+*/
+export const COHABITATION_TYPES = ['同居', '別居'] as const;
+export type CohabitationType = typeof COHABITATION_TYPES[number];
+
+/**
+* 障害の有無
+*/
+export const DISABILITY_STATUSES = ['なし', 'あり'] as const;
+export type DisabilityStatus = typeof DISABILITY_STATUSES[number];
+
+/**
+* 障害タイプ
+*/
+export const DISABILITY_TYPES = ['身体障害者', '精神障害者', '知的障害者'] as const;
+export type DisabilityType = typeof DISABILITY_TYPES[number];
+
+/**
+* 学生区分
+*/
+export const STUDENT_STATUSES = ['学生じゃない', '学生'] as const;
+export type StudentStatus = typeof STUDENT_STATUSES[number];
+
+/**
+* 学生タイプ
+*/
+export const STUDENT_TYPES = ['大学生', '専門学校生', '高校生', '中学生以下'] as const;
+export type StudentType = typeof STUDENT_TYPES[number];
 
 /**
 * 計算タイプ

@@ -10,6 +10,28 @@ import { getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
 import { RouterLink } from '@angular/router';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
+import { InsuranceDisplayService, InsuranceAmountBreakdown } from '../../../service/logic/insurance-display.service';
+import { InsuranceSnapshotService } from '../../../service/Firestore/insurance-snapshot-service';
+
+type BurdenAmounts = {
+  base: number;
+  diff: number;
+  total: number;
+};
+
+type InsuranceColumn = {
+  employee: BurdenAmounts;
+  company: BurdenAmounts;
+};
+
+type EmployeeCollectionRow = {
+  employeeId: string;
+  employeeName: string;
+  health: InsuranceColumn;
+  nursing: InsuranceColumn;
+  pension: InsuranceColumn;
+  total: InsuranceColumn;
+};
 
 @Component({
   selector: 'app-correction-list',
@@ -25,6 +47,8 @@ export class CorrectionList {
   private route = inject(ActivatedRoute);
   commonService = inject(CommonService);
   employeeService = inject(EmployeeService);
+  private insuranceDisplayService = inject(InsuranceDisplayService);
+  private insuranceSnapshotService = inject(InsuranceSnapshotService);
 
   monthOptions = this.correctionLogicService.getPastYearMonthOptions(12);
   selectedMonthKey = `${getWorkingYearMonth().year}-${getWorkingYearMonth().month}`;
@@ -32,6 +56,8 @@ export class CorrectionList {
   selectedBonusPayrollId = '';
   listType: 'all' | 'bonus' = 'all';
   runs: CalculationRun[] = [];
+  collectionRows: EmployeeCollectionRow[] = [];
+  private allDifferenceRuns: CalculationRun[] = [];
 
   async ngOnInit() {
     await this.employeeService.getAllEmployees();
@@ -50,7 +76,13 @@ export class CorrectionList {
     await this.loadRuns();
   }
 
+  get selectedMonthLabel(): string {
+    const option = this.monthOptions.find(item => `${item.year}-${item.month}` === this.selectedMonthKey);
+    return option?.label ?? this.selectedMonthKey;
+  }
+
   async loadRuns() {
+    this.collectionRows = [];
     if (this.listType === 'bonus') {
       const runs = await this.calculationRunService.getAllCalculationRuns();
       this.runs = runs
@@ -66,6 +98,171 @@ export class CorrectionList {
     const month = Number(monthText);
     this.runs = await this.calculationRunService.getDifferenceAdjustmentsByTargetMonth(year, month);
     this.runs = this.runs.filter(run => run.payload?.['sourceType'] !== '賞与修正');
+    await this.buildCollectionRows();
+  }
+
+  formatSignedDiff(diff: number): string {
+    const sign = diff > 0 ? '+' : '';
+    return `${sign}${diff.toLocaleString()}円`;
+  }
+
+  private async buildCollectionRows() {
+    if (this.runs.length === 0) {
+      this.collectionRows = [];
+      return;
+    }
+
+    this.allDifferenceRuns = (await this.calculationRunService.getAllCalculationRuns())
+      .filter(run => run.type === '差額調整');
+
+    const employeePayrolls = new Map<string, Set<string>>();
+    for (const run of this.runs) {
+      const employeeId = this.getEmployeeId(run);
+      const payrollId = this.getRunPayrollId(run);
+      if (!employeeId || !payrollId) continue;
+      if (!employeePayrolls.has(employeeId)) {
+        employeePayrolls.set(employeeId, new Set());
+      }
+      employeePayrolls.get(employeeId)!.add(payrollId);
+    }
+
+    const rows: EmployeeCollectionRow[] = [];
+
+    for (const employeeId of [...employeePayrolls.keys()].sort((left, right) => left.localeCompare(right, 'ja'))) {
+      const payrollIds = [...employeePayrolls.get(employeeId)!].sort();
+      const snapshots = await this.insuranceSnapshotService.getSnapshotsForEmployee(employeeId);
+      const snapshotByPayrollId = new Map(
+        snapshots.map(snapshot => [String(snapshot.payrollId ?? snapshot.snapshotId ?? ''), snapshot]),
+      );
+
+      let health = this.emptyInsuranceColumn();
+      let nursing = this.emptyInsuranceColumn();
+      let pension = this.emptyInsuranceColumn();
+      let hasSnapshot = false;
+
+      for (const payrollId of payrollIds) {
+        const snapshot = snapshotByPayrollId.get(payrollId)
+          ?? await this.insuranceSnapshotService.getSnapshot(employeeId, payrollId);
+        if (!snapshot) continue;
+
+        hasSnapshot = true;
+        const confirmed = this.insuranceDisplayService.getSnapshotBreakdown(snapshot);
+        const adjusted = this.insuranceDisplayService.getAdjustedSnapshotBreakdown(
+          snapshot,
+          this.allDifferenceRuns,
+          employeeId,
+          payrollId,
+        );
+
+        health = this.sumInsuranceColumns(health, this.buildInsuranceColumn(confirmed, adjusted, 'health'));
+        nursing = this.sumInsuranceColumns(nursing, this.buildInsuranceColumn(confirmed, adjusted, 'nursing'));
+        pension = this.sumInsuranceColumns(pension, this.buildInsuranceColumn(confirmed, adjusted, 'pension'));
+      }
+
+      if (!hasSnapshot) continue;
+
+      const total = this.sumInsuranceColumns(health, nursing, pension);
+      if (!this.hasAnyAmount(total)) continue;
+
+      rows.push({
+        employeeId,
+        employeeName: this.commonService.getEmployeeName(employeeId) ?? employeeId,
+        health,
+        nursing,
+        pension,
+        total,
+      });
+    }
+
+    this.collectionRows = rows;
+  }
+
+  private getRunPayrollId(run: CalculationRun): string {
+    const payrollId = String(run.payload?.['payrollId'] ?? '').trim();
+    if (payrollId) return payrollId;
+
+    const adjust = run.payload?.['adjustMonth'] as { year?: number; month?: number } | undefined;
+    if (adjust?.year && adjust?.month) {
+      return this.correctionLogicService.getPayrollId(adjust.year, adjust.month);
+    }
+
+    return '';
+  }
+
+  private emptyInsuranceColumn(): InsuranceColumn {
+    return {
+      employee: { base: 0, diff: 0, total: 0 },
+      company: { base: 0, diff: 0, total: 0 },
+    };
+  }
+
+  private buildInsuranceColumn(
+    confirmed: InsuranceAmountBreakdown,
+    adjusted: InsuranceAmountBreakdown,
+    type: 'health' | 'nursing' | 'pension',
+  ): InsuranceColumn {
+    const values = {
+      health: {
+        employeeConfirmed: confirmed.healthInsuranceForEmployee,
+        employeeAdjusted: adjusted.healthInsuranceForEmployee,
+        companyConfirmed: confirmed.healthInsuranceForCompany,
+        companyAdjusted: adjusted.healthInsuranceForCompany,
+      },
+      nursing: {
+        employeeConfirmed: confirmed.nursingCareInsuranceForEmployee,
+        employeeAdjusted: adjusted.nursingCareInsuranceForEmployee,
+        companyConfirmed: confirmed.nursingCareInsuranceForCompany,
+        companyAdjusted: adjusted.nursingCareInsuranceForCompany,
+      },
+      pension: {
+        employeeConfirmed: confirmed.pensionInsuranceForEmployee,
+        employeeAdjusted: adjusted.pensionInsuranceForEmployee,
+        companyConfirmed: confirmed.pensionInsuranceForCompany,
+        companyAdjusted: adjusted.pensionInsuranceForCompany,
+      },
+    }[type];
+
+    return {
+      employee: this.buildBurdenAmounts(values.employeeConfirmed, values.employeeAdjusted),
+      company: this.buildBurdenAmounts(values.companyConfirmed, values.companyAdjusted),
+    };
+  }
+
+  private buildBurdenAmounts(confirmed: number, adjusted: number): BurdenAmounts {
+    return {
+      base: confirmed,
+      diff: adjusted - confirmed,
+      total: adjusted,
+    };
+  }
+
+  private sumInsuranceColumns(...columns: InsuranceColumn[]): InsuranceColumn {
+    return columns.reduce<InsuranceColumn>((sum, column) => ({
+      employee: {
+        base: sum.employee.base + column.employee.base,
+        diff: sum.employee.diff + column.employee.diff,
+        total: sum.employee.total + column.employee.total,
+      },
+      company: {
+        base: sum.company.base + column.company.base,
+        diff: sum.company.diff + column.company.diff,
+        total: sum.company.total + column.company.total,
+      },
+    }), {
+      employee: { base: 0, diff: 0, total: 0 },
+      company: { base: 0, diff: 0, total: 0 },
+    });
+  }
+
+  private hasAnyAmount(column: InsuranceColumn): boolean {
+    return [
+      column.employee.base,
+      column.employee.diff,
+      column.employee.total,
+      column.company.base,
+      column.company.diff,
+      column.company.total,
+    ].some(value => value !== 0);
   }
 
   getEmployeeId(run: CalculationRun): string {
@@ -149,10 +346,6 @@ export class CorrectionList {
 
   getAfterAmount(run: CalculationRun): number {
     return Number(run.payload?.['afterAmount'] ?? 0);
-  }
-
-  getInsuranceCell(current: number, next: number, diff: number): string {
-    return `${current.toLocaleString()}→${next.toLocaleString()}円（差額 ${diff.toLocaleString()}円）`;
   }
 
   displayBonusPayrollId(payrollId: string): string {

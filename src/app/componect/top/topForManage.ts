@@ -1,5 +1,5 @@
 import { Component, inject, computed } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CompanyService } from '../../service/Firestore/company-service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -9,6 +9,7 @@ import { STANDARD_MONTHLY_REMUNERATION_PERIOD_2026, STANDARD_MONTHLY_REMUNERATIO
 import { PREFECTURE_INSURANCE_RATES_2026, PREFECTURE_INSURANCE_RATES_2025 } from '../../insuranceData/forEmployee';
 import { INSURANCE_RATE_PERIOD_2026, INSURANCE_RATE_PERIOD_2025 } from '../../insuranceData/forEmployee';
 import { Firestore, doc, writeBatch } from '@angular/fire/firestore';
+import { consumeGuardMessage } from '../../service/common/guard-message.util';
 
 
 @Component({
@@ -40,7 +41,13 @@ export class TopForManage {
 
   bonusMonths = computed<number[]>(() => this.companyService.company()?.settings?.bonusMonths ?? []);
 
+  guardMessage = '';
+
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+
   async ngOnInit() {
+    this.guardMessage = consumeGuardMessage(this.route, this.router);
     this.companyService.getCompany();
     if (this.workingMonth && !this.workingYear) {
       this.workingYear = new Date().getFullYear().toString();
@@ -111,8 +118,6 @@ export class TopForManage {
 
   private firestore = inject(Firestore);
 
-
-  private router = inject(Router);
   toCompanySetting() {
     this.router.navigate(['/company-setting'], { queryParams: { mode: 'initial' } });
   }

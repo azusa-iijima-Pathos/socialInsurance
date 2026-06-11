@@ -712,6 +712,18 @@ export class InsuranceConfirm {
     );
   }
 
+  exportInsuranceSummaryCsv() {
+    const suffix = this.isOutputMode ? `-${this.outputViewMode}` : '';
+    const fileName = this.isOutputMode
+      ? `insurance-summary-${this.outputYearMonth}${suffix}.csv`
+      : `insurance-summary-${this.workingYear}-${String(this.workingMonth).padStart(2, '0')}${suffix}.csv`;
+    this.insuranceConfirmCsvService.exportInsuranceSummary(
+      this.insuranceSummary,
+      this.officeSummaries,
+      fileName,
+    );
+  }
+
   /** 給与・勤務実績登録へ遷移 */
   toPayrollForm() {
     this.router.navigate(['/monthly-salary', this.workingYear, this.workingMonth]);

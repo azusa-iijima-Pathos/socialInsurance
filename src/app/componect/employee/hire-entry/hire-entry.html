@@ -73,6 +73,20 @@
         <div class="hire-entry-triple">
             <div class="im-field-block im-field-row">
                 <div class="im-field-row__label">
+                    <label for="gender">性別</label>
+                </div>
+                <div class="im-field-row__control">
+                    <select id="gender" formControlName="gender">
+                        <option value="">性別を選択してください</option>
+                        <option *ngFor="let gender of GENDERS" [value]="gender">{{ gender }}</option>
+                    </select>
+                    <div class="error">
+                        <p *ngIf="form.get('gender')?.errors?.['required'] && form.get('gender')?.touched">性別は必須です</p>
+                    </div>
+                </div>
+            </div>
+            <div class="im-field-block im-field-row">
+                <div class="im-field-row__label">
                     <label for="hireDate">入社日</label>
                 </div>
                 <div class="im-field-row__control">
@@ -302,36 +316,37 @@
                         </p>
                     </div>
                 </div>
-            </div>
 
-            <div class="hire-entry-insurance-card" formGroupName="employeePensionInsurance">
-                <h3>厚生年金</h3>
-                <div class="im-radio-group">
-                    <label class="im-radio-option"><input type="radio" formControlName="joined"
-                            value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入する</span></label>
-                    <label class="im-radio-option"><input type="radio" formControlName="joined"
-                            value="notJoined"><span>加入しない</span></label>
-                </div>
-                <p class="hire-entry-auto-judgement">自動判定：{{ autoInsuranceJudgement?.isPensionInsuranceRequired ?
-                    '加入する' : '加入しない' }}</p>
-                <label for="employeePensionInsuranceAcquiredDate">取得予定日</label>
-                <input type="date" id="employeePensionInsuranceAcquiredDate" formControlName="acquiredDate">
-                <label for="employeePensionInsuranceCompanyBurdenRate">会社負担率（％）</label>
-                <input type="number" id="employeePensionInsuranceCompanyBurdenRate" min="0" max="100"
-                    formControlName="companyBurdenRate">
-                <div class="error">
-                    <p *ngIf="
+                <div class="hire-entry-insurance-card" formGroupName="employeePensionInsurance">
+                    <h3>厚生年金</h3>
+                    <div class="im-radio-group">
+                        <label class="im-radio-option"><input type="radio" formControlName="joined"
+                                value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入する</span></label>
+                        <label class="im-radio-option"><input type="radio" formControlName="joined"
+                                value="notJoined"><span>加入しない</span></label>
+                    </div>
+                    <p class="hire-entry-auto-judgement">自動判定：{{ autoInsuranceJudgement?.isPensionInsuranceRequired ?
+                        '加入する' : '加入しない' }}</p>
+                    <label for="employeePensionInsuranceAcquiredDate">取得予定日</label>
+                    <input type="date" id="employeePensionInsuranceAcquiredDate" formControlName="acquiredDate">
+                    <label for="employeePensionInsuranceCompanyBurdenRate">会社負担率（％）</label>
+                    <input type="number" id="employeePensionInsuranceCompanyBurdenRate" min="0" max="100"
+                        formControlName="companyBurdenRate">
+                    <div class="error">
+                        <p *ngIf="
                         form.get('insurance.employeePensionInsurance.companyBurdenRate')?.errors?.['min']
                         && form.get('insurance.employeePensionInsurance.companyBurdenRate')?.touched">
-                        0以上で入力してください
-                    </p>
-                    <p *ngIf="
+                            0以上で入力してください
+                        </p>
+                        <p *ngIf="
                         form.get('insurance.employeePensionInsurance.companyBurdenRate')?.errors?.['max']
                         && form.get('insurance.employeePensionInsurance.companyBurdenRate')?.touched">
-                        100以下で入力してください
-                    </p>
+                            100以下で入力してください
+                        </p>
+                    </div>
                 </div>
             </div>
+
             <div class="error" *ngIf="form.get('insurance')?.errors?.['healthInsuranceDependency']">
                 <p>健康保険に加入しない場合、介護保険と厚生年金は加入できません</p>
             </div>
@@ -389,6 +404,37 @@
                             </div>
                         </div>
                     </div>
+                    <div class="im-field-block im-field-row">
+                        <div class="im-field-row__label">
+                            <label [for]="'dependentCohabitation' + i">同居・別居区分</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <select [id]="'dependentCohabitation' + i" formControlName="cohabitationType">
+                                <option value=""></option>
+                                <option *ngFor="let type of COHABITATION_TYPES" [value]="type">{{ type }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row">
+                        <div class="im-field-row__label">
+                            <label [for]="'dependentAnnualIncome' + i">収入額（年収見込み）</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="number" min="0" [id]="'dependentAnnualIncome' + i" formControlName="annualIncome">
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row">
+                        <div class="im-field-row__label">
+                            <label [for]="'dependentOccupation' + i">職業</label>
+                        </div>
+                        <div class="im-field-row__control">
+                            <input type="text" [id]="'dependentOccupation' + i" formControlName="occupation">
+                        </div>
+                    </div>
+                    <app-dependent-disability-student-fields
+                        [group]="$any(dependent)"
+                        [idPrefix]="'dependent' + i">
+                    </app-dependent-disability-student-fields>
 
                     <button type="button" class="im-btn-soft" (click)="removeDependent(i)">削除</button>
                 </div>

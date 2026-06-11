@@ -81,7 +81,7 @@ export class SalaryList implements OnChanges {
   }
 
   private updateFormValidators() {
-    if (this.correctionMode && !this.isBonus) {
+    if (!this.isBonus) {
       this.form.setValidators(this.validationService.validatePaymentAmount);
     } else {
       this.form.setValidators(null);

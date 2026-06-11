@@ -5,7 +5,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { timestampFromDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
 import { CREATE_MESSAGES } from '../../../constants/constants';
-import { EMPLOYMENT_CATEGORIES, EmploymentCategory, LEAVE_TYPES, LeaveType, RELATIONSHIPS, Relationship, WORK_STATUSES, WORK_STYLES, WorkStatus, WorkStyle } from '../../../constants/model-constants';
+import { EMPLOYMENT_CATEGORIES, EmploymentCategory, GENDERS, Gender, LEAVE_TYPES, LeaveType, RELATIONSHIPS, Relationship, WORK_STATUSES, WORK_STYLES, WorkStatus, WorkStyle, COHABITATION_TYPES, CohabitationType } from '../../../constants/model-constants';
+import { DependentDisabilityStudentFields } from '../../common/dependent-disability-student-fields/dependent-disability-student-fields';
+import {
+  getDependentDisabilityStudentFormDefaults,
+  mapDependentDisabilityStudentFromForm,
+  setupDependentDisabilityStudentValidators,
+} from '../../../service/common/dependent-field.util';
 import { Dependent } from '../../../model/dependent';
 import { Employee, EmployeeInsurance, EmploymentContract, InsuranceDetail } from '../../../model/employee';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
@@ -24,7 +30,7 @@ type InsuranceJudgement = { isHealthInsuranceRequired?: boolean, isNursingCareIn
 
 @Component({
   selector: 'app-hire-entry',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, DependentDisabilityStudentFields],
   templateUrl: './hire-entry.html',
   styleUrl: './hire-entry.css',
 })
@@ -46,7 +52,9 @@ export class HireEntry {
   LEAVE_TYPES = LEAVE_TYPES;
   EMPLOYMENT_CATEGORIES = EMPLOYMENT_CATEGORIES;
   WORK_STYLES = WORK_STYLES;
+  GENDERS = GENDERS;
   RELATIONSHIPS = RELATIONSHIPS;
+  COHABITATION_TYPES = COHABITATION_TYPES;
   officeNameMap = computed(() => this.officeService.allOfficeNameMap());
 
   message = '';
@@ -67,6 +75,7 @@ export class HireEntry {
     firstName: ['', [Validators.required]],
     lastName: ['', [Validators.required]],
     birthDate: ['', [Validators.required, this.validationService.birthDateValidator]],
+    gender: ['', [Validators.required]],
     hireDate: ['', [Validators.required]],
     // workStatus: ['通常勤務', [Validators.required]],
     // leaveTypes: [''],
@@ -239,6 +248,7 @@ export class HireEntry {
       firstName: this.form.value.firstName!,
       lastName: this.form.value.lastName!,
       birthDate: timestampFromDateInput(this.form.value.birthDate!),
+      gender: this.form.value.gender! as Gender,
       hireDate: timestampFromDateInput(this.form.value.hireDate!),
       workStatus: "通常勤務" as WorkStatus,
       employmentContract: this.createEmploymentContractFromForm(),
@@ -308,6 +318,10 @@ export class HireEntry {
         birthDate: timestampFromDateInput(value.birthDate!),
         relationship: value.relationship! as Relationship,
         isDependent: true,
+        cohabitationType: value.cohabitationType || undefined,
+        annualIncome: value.annualIncome === '' || value.annualIncome == null ? undefined : Number(value.annualIncome),
+        occupation: value.occupation?.trim() || undefined,
+        ...mapDependentDisabilityStudentFromForm(value),
       });
     });
     return dependents;
@@ -315,12 +329,18 @@ export class HireEntry {
 
   // 扶養情報のFormGroupを作る
   private createDependentForm() {
+    const disabilityStudentDefaults = getDependentDisabilityStudentFormDefaults();
     const group = this.fb.nonNullable.group({
       name: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
       birthDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
       relationship: ['' as Relationship | '', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      cohabitationType: ['' as CohabitationType | ''],
+      annualIncome: [''],
+      occupation: [''],
+      ...disabilityStudentDefaults,
     });
     this.setupDependentRowValidation(group);
+    setupDependentDisabilityStudentValidators(group, this.destroyRef);
     return group;
   }
 

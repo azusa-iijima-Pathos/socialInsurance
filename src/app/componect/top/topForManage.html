@@ -1,96 +1,94 @@
-<div class="im-page-shell top-container">
-    <h1 class="page-title">トップページ</h1>
+<div class="im-page-shell top-page-shell">
+    <h1 class="top-page-title">トップページ</h1>
 
-    <div *ngIf="!workingMonth && permission === '管理'" style="text-align: center;">
+    <p *ngIf="guardMessage" class="im-alert-banner" role="alert">{{ guardMessage }}</p>
+
+    <div *ngIf="!workingMonth && permission === '管理'" class="top-page-empty">
         <p>初期設定を行ってください。</p>
         <p>作業月の設定まで完了するとシステムを使用することができます。</p>
         <button class="im-btn-primary" (click)="toCompanySetting()">初期設定設定へ▶</button>
     </div>
 
-    <div *ngIf="!workingMonth && permission === '承認'" style="text-align: center;">
+    <div *ngIf="!workingMonth && permission === '承認'" class="top-page-empty">
         <p>作業月の設定まで完了するとシステムを使用することができます。</p>
         <p>管理者に作業月の設定を依頼してください。</p>
     </div>
 
-    <div *ngIf="workingMonth">
-        <section class="section-block card-container">
-            <h3 class="section-title">今月の作業</h3>
-            <div>
-                <div *ngIf="workingMonth === '7' || workingMonth === '9'">
-                    <a [routerLink]="['/calculation-base-pending-list']">算定基礎</a><br>
-                </div>
+    <div class="top-page-layout" *ngIf="workingMonth">
+        <div class="top-page-row top-page-row--3">
+            <section class="top-page-card">
+                <h3 class="top-page-card__title">今月の作業</h3>
+                <nav class="top-page-card__links">
+                    <a *ngIf="workingMonth === '7' || workingMonth === '9'" [routerLink]="['/calculation-base-pending-list']">算定基礎</a>
+                    <a [routerLink]="['/monthly-salary', `${workingYear}`, `${workingMonth}`]">{{ workingMonth }}月の給与入力</a>
+                    <a [routerLink]="['/system-application-list']">{{ workingMonth }}月の申請一覧</a>
+                    <a [routerLink]="['/insurance-confirm', `${workingYear}`, `${workingMonth}`]">{{ workingMonth }}月保険料算出</a>
+                </nav>
+            </section>
 
-                <a [routerLink]="['/monthly-salary',`${workingYear}`,`${workingMonth}`]">{{ workingMonth
-                    }}月の給与入力</a><br>
-                <a [routerLink]="['/system-application-list']">{{ workingMonth}}月の申請一覧</a><br>
+            <section class="top-page-card">
+                <h3 class="top-page-card__title">賞与</h3>
+                <nav class="top-page-card__links">
+                    <a *ngFor="let month of bonusMonths()"
+                        [routerLink]="['/bonus', `${getBonusPaymentYear(month)}-${month.toString().padStart(2, '0')}_bonus`]">
+                        {{ month }}月支給の賞与
+                    </a>
+                    <span *ngIf="bonusMonths().length === 0" class="top-page-card__empty">対象月がありません</span>
+                </nav>
+            </section>
 
-                <a [routerLink]="['/insurance-confirm',`${workingYear}`,`${workingMonth}`]">{{ workingMonth}}月保険料算出</a>
-            </div>
-        </section>
+            <section class="top-page-card">
+                <h3 class="top-page-card__title">
+                    遡及修正<small class="top-page-card__subtitle">（{{ workingMonth }}月分給与以前に影響がある場合）</small>
+                </h3>
+                <nav class="top-page-card__links">
+                    <a [routerLink]="['/retroactive-correction']">保険情報・固定給・休職の遡及修正</a>
+                    <a [routerLink]="['/correction-list']">月給用保険料の差額調整一覧</a>
+                    <a [routerLink]="['/salary-correction']">月額給与修正</a>
+                    <a [routerLink]="['/bonus-correction']">賞与確定後修正</a>
+                    <a [routerLink]="['/correction-list']" [queryParams]="{ type: 'bonus' }">賞与用保険料の差額調整一覧</a>
+                </nav>
+            </section>
+        </div>
 
-        <div *ngIf="bonusMonths().length > 0">
-            <section class="section-block">
-                <h3 class="section-title">賞与</h3>
-                <ng-container *ngIf="bonusMonths().length > 0">
-                    <ng-container *ngFor="let month of bonusMonths()">
-                        <a
-                            [routerLink]="['/bonus',`${getBonusPaymentYear(month)}-${month.toString().padStart(2, '0')}_bonus`]">
-                            {{ month }}月支給の賞与</a><br>
-                    </ng-container>
-                </ng-container>
+        <div class="top-page-row top-page-row--4">
+            <section class="top-page-card">
+                <h3 class="top-page-card__title">社会保険</h3>
+                <nav class="top-page-card__links">
+                    <a [routerLink]="['/insurance-confirm', getPreviousInsuranceOutputYear(), getPreviousInsuranceOutputMonth()]"
+                        [queryParams]="{ mode: 'output' }">確定済み保険料閲覧</a>
+                    <a *ngIf="latestLockedBonusPayrollId"
+                        [routerLink]="['/insurance-for-bonus', latestLockedBonusPayrollId]"
+                        [queryParams]="{ mode: 'output' }">確定済み賞与社保険料閲覧</a>
+                    <a [routerLink]="['/calculation-base-pending-list']">算定基礎</a>
+                    <a [routerLink]="['/monthly-event-list']">月別イベント一覧</a>
+                </nav>
+            </section>
+
+            <section class="top-page-card">
+                <h3 class="top-page-card__title">社員情報</h3>
+                <nav class="top-page-card__links">
+                    <a [routerLink]="['/employee-detail']">個別従業員情報閲覧・編集</a>
+                    <a [routerLink]="['/employee-hire-entry']">入社処理</a>
+                    <a [routerLink]="['/employee-retire-entry']">退社処理</a>
+                </nav>
+            </section>
+
+            <section class="top-page-card">
+                <h3 class="top-page-card__title">会社情報</h3>
+                <nav class="top-page-card__links">
+                    <a [routerLink]="['/company-detail']">会社情報閲覧・編集</a>
+                    <a [routerLink]="['/office-detail']">事業所情報閲覧・編集</a>
+                </nav>
+            </section>
+
+            <section class="top-page-card" *ngIf="permission === '管理'">
+                <h3 class="top-page-card__title">システム設定<small class="top-page-card__subtitle">（トップ権限のみ）</small></h3>
+                <nav class="top-page-card__links">
+                    <a [routerLink]="['/company-setting']">設定</a>
+                    <a [routerLink]="['/permission-setting']">社員権限編集</a>
+                </nav>
             </section>
         </div>
     </div>
-
-    <div *ngIf="workingMonth">
-        <section class="section-block">
-            <h3 class="section-title">社会保険</h3>
-            <a [routerLink]="['/insurance-confirm', getPreviousInsuranceOutputYear(), getPreviousInsuranceOutputMonth()]"
-                [queryParams]="{ mode: 'output' }">確定済み保険料閲覧</a><br>
-            <div *ngIf="latestLockedBonusPayrollId">
-                <a [routerLink]="['/insurance-for-bonus', latestLockedBonusPayrollId]"
-                    [queryParams]="{ mode: 'output' }">確定済み賞与社保険料閲覧</a><br>
-            </div>
-            <a [routerLink]="['/calculation-base-pending-list']">算定基礎</a><br>
-            <a [routerLink]="['/monthly-event-list']">月別イベント一覧</a><br>
-        </section>
-    </div>
-
-    <div *ngIf="workingMonth">
-        <section class="section-block">
-            <h3 class="section-title">社員情報</h3>
-            <a [routerLink]="['/employee-detail']">個別従業員情報閲覧・編集</a><br>
-            <a [routerLink]="['/employee-hire-entry']">入社処理</a><br>
-            <a [routerLink]="['/employee-retire-entry']">退社処理</a><br>
-        </section>
-    </div>
-
-    <div *ngIf="workingMonth">
-        <section class="section-block">
-            <h3 class="section-title">遡及修正<small>({{workingMonth}}月分給与以前に影響がある場合)</small></h3>
-            <a [routerLink]="['/retroactive-correction']">保険情報・固定給・休職の遡及修正</a><br>
-            <a [routerLink]="['/correction-list']">月給用保険料の差額調整一覧</a><br>
-
-            <a [routerLink]="['/salary-correction']">月額給与修正</a><br>
-            <a [routerLink]="['/bonus-correction']">賞与確定後修正</a><br>
-            <a [routerLink]="['/correction-list']" [queryParams]="{ type: 'bonus' }">賞与用保険料の差額調整一覧</a><br>
-        </section>
-    </div>
-
-    <div *ngIf="workingMonth">
-        <section class="section-block">
-            <h3 class="section-title">会社情報</h3>
-            <a [routerLink]="['/company-detail']">会社情報閲覧・編集</a><br>
-            <a [routerLink]="['/office-detail']">事業所情報閲覧・編集</a><br>
-        </section>
-    </div>
-
-    <div *ngIf="workingMonth && permission === '管理'">
-        <section class="section-block">
-            <h3 class="section-title">システム設定（トップ権限のみ）</h3>
-            <a [routerLink]="['/company-setting']">設定</a><br>
-            <a [routerLink]="['/permission-setting']">社員権限編集</a><br>
-        </section>
-    </div>
-
 </div>

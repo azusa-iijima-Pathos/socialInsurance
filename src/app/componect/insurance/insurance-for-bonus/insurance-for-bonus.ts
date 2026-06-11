@@ -15,6 +15,7 @@ import { InsuranceSnapshotService } from '../../../service/Firestore/insurance-s
 import { InsuranceSnapshot } from '../../../model/insurance-snapshot';
 import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
 import { InsuranceConfirmCsvService } from '../../../service/CSV/insurance-confirm-csv-service';
+import { SocialInsuranceFormCsvService } from '../../../service/CSV/social-insurance-form-csv.service';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { CalculationRun } from '../../../model/calculation-run';
 import { InsuranceDisplayService, InsuranceNoticeSummary, OfficeInsuranceSummary } from '../../../service/logic/insurance-display.service';
@@ -81,6 +82,7 @@ export class InsuranceForBonus {
   private insuranceSnapshotService = inject(InsuranceSnapshotService);
   private payrollLockService = inject(PayrollLockService);
   private insuranceConfirmCsvService = inject(InsuranceConfirmCsvService);
+  private formCsvService = inject(SocialInsuranceFormCsvService);
   private calculationRunService = inject(CalculationRunService);
   private insuranceDisplayService = inject(InsuranceDisplayService);
 
@@ -688,6 +690,38 @@ export class InsuranceForBonus {
   exportWithSalaryCsv() {
     const suffix = this.isOutputMode ? `-${this.outputViewMode}` : '';
     this.insuranceConfirmCsvService.exportBonusWithSalary(this.createBonusCsvRows(), this.payrollId, suffix);
+  }
+
+  exportInsuranceSummaryCsv() {
+    const suffix = this.isOutputMode ? `-${this.outputViewMode}` : '';
+    const fileName = `bonus-insurance-summary-${this.payrollId}${suffix}.csv`;
+    this.insuranceConfirmCsvService.exportInsuranceSummary(
+      this.insuranceSummary,
+      this.officeSummaries,
+      fileName,
+    );
+  }
+
+  exportBonusFormCsv() {
+    const rows = this.confirmedOutputRows
+      .filter(row => row.hasBonusData)
+      .map(row => {
+        const bonus = this.bonusData.find(item => item.employeeId === row.employeeId);
+        return {
+          employeeId: row.employeeId,
+          employeeName: row.employeeName,
+          paymentDate: bonus?.paymentDate,
+          bonusAmount: row.actualPaymentAmount,
+          standardBonusAmount: row.standardBonusAmount,
+        };
+      });
+
+    if (rows.length === 0) {
+      alert('出力対象の賞与データがありません');
+      return;
+    }
+
+    this.formCsvService.exportConfirmedBonusCsv(rows, this.payrollId);
   }
 
   private createBonusCsvRows() {

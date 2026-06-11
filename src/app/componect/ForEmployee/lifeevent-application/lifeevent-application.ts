@@ -3,7 +3,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators, FormGroup, FormArray, AbstractControl, ValidationErrors } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Dependent } from '../../../model/dependent';
-import { RELATIONSHIPS, Relationship, LifeEventType, LeaveType } from '../../../constants/model-constants';
+import { RELATIONSHIPS, Relationship, LifeEventType, LeaveType, COHABITATION_TYPES, CohabitationType } from '../../../constants/model-constants';
+import { DependentDisabilityStudentFields } from '../../common/dependent-disability-student-fields/dependent-disability-student-fields';
+import {
+  getDependentDisabilityStudentFormDefaults,
+  mapDependentDisabilityStudentFromForm,
+  setupDependentDisabilityStudentValidators,
+} from '../../../service/common/dependent-field.util';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { Employee } from '../../../model/employee';
 import { DependentService } from '../../../service/Firestore/dependent-service';
@@ -27,11 +33,18 @@ type DependentFormPayload = {
   relationship: Relationship | '';
   birthDate: string;
   isDependent: boolean;
+  cohabitationType?: CohabitationType;
+  annualIncome?: number;
+  occupation?: string;
+  hasDisability?: boolean;
+  disabilityType?: Dependent['disabilityType'];
+  isStudent?: boolean;
+  studentType?: Dependent['studentType'];
 };
 
 @Component({
   selector: 'app-lifeevent-application',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, DependentDisabilityStudentFields],
   templateUrl: './lifeevent-application.html',
   styleUrls: [
     './lifeevent-application.css',
@@ -51,6 +64,7 @@ export class LifeeventApplication {
   private companyService = inject(CompanyService);
 
   RELATIONSHIPS = RELATIONSHIPS;
+  COHABITATION_TYPES = COHABITATION_TYPES;
   activeTab: LifeEventTab = 'marriage';
 
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? '';
@@ -439,6 +453,7 @@ export class LifeeventApplication {
   }
 
   private createDependentForm(existing?: Dependent): FormGroup {
+    const disabilityStudentDefaults = getDependentDisabilityStudentFormDefaults(existing);
     const group = this.fb.nonNullable.group({
       dependentId: [existing?.dependentId ?? ''],
       isExisting: [!!existing],
@@ -451,6 +466,10 @@ export class LifeeventApplication {
       isDependentStatus: [
         (existing ? (existing.isDependent !== false ? 'dependent' : 'notDependent') : 'dependent') as DependentCoverageStatus,
       ],
+      cohabitationType: [existing?.cohabitationType ?? ('' as CohabitationType | '')],
+      annualIncome: [existing?.annualIncome ?? ''],
+      occupation: [existing?.occupation ?? ''],
+      ...disabilityStudentDefaults,
     });
 
     (['name', 'birthDate', 'relationship'] as const).forEach(fieldName => {
@@ -458,6 +477,7 @@ export class LifeeventApplication {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(() => this.validationService.refreshDependentRowValidation(group));
     });
+    setupDependentDisabilityStudentValidators(group, this.destroyRef);
 
     return group;
   }
@@ -508,7 +528,14 @@ export class LifeeventApplication {
         name: item.after.name,
         relationship: item.after.relationship as Relationship,
         birthDate: timestampFromDateInput(item.after.birthDate),
-        isDependent: item.after.isDependent ?? true, //記載がない場合は扶養として登録
+        isDependent: item.after.isDependent ?? true,
+        cohabitationType: item.after.cohabitationType,
+        annualIncome: item.after.annualIncome,
+        occupation: item.after.occupation,
+        hasDisability: item.after.hasDisability,
+        disabilityType: item.after.disabilityType,
+        isStudent: item.after.isStudent,
+        studentType: item.after.studentType,
       };
 
       const dependentEvent: Partial<Event> = {
@@ -545,23 +572,45 @@ export class LifeeventApplication {
       relationship: before.relationship ?? '',
       birthDate: before.birthDate ? this.formatDateInput(before.birthDate.toDate()) : '',
       isDependent: before.isDependent !== false,
+      cohabitationType: before.cohabitationType ?? '',
+      annualIncome: before.annualIncome ?? '',
+      occupation: before.occupation ?? '',
+      hasDisability: before.hasDisability ?? false,
+      disabilityType: before.disabilityType ?? '',
+      isStudent: before.isStudent ?? false,
+      studentType: before.studentType ?? '',
     };
     const afterPayload = {
       name: after.name,
       relationship: after.relationship,
       birthDate: after.birthDate,
       isDependent: after.isDependent,
+      cohabitationType: after.cohabitationType ?? '',
+      annualIncome: after.annualIncome ?? '',
+      occupation: after.occupation ?? '',
+      hasDisability: after.hasDisability ?? false,
+      disabilityType: after.disabilityType ?? '',
+      isStudent: after.isStudent ?? false,
+      studentType: after.studentType ?? '',
     };
     return JSON.stringify(beforePayload) !== JSON.stringify(afterPayload);
   }
 
   private toDependentPayload(raw: Record<string, unknown>): DependentFormPayload {
+    const annualIncomeRaw = raw['annualIncome'];
+    const annualIncome = annualIncomeRaw === '' || annualIncomeRaw == null
+      ? undefined
+      : Number(annualIncomeRaw);
     return {
       dependentId: String(raw['dependentId'] ?? ''),
       name: String(raw['name'] ?? '').trim(),
       relationship: raw['relationship'] as Relationship | '',
       birthDate: String(raw['birthDate'] ?? ''),
       isDependent: raw['isDependentStatus'] === 'dependent',
+      cohabitationType: (raw['cohabitationType'] || undefined) as CohabitationType | undefined,
+      annualIncome: Number.isFinite(annualIncome) ? annualIncome : undefined,
+      occupation: String(raw['occupation'] ?? '').trim() || undefined,
+      ...mapDependentDisabilityStudentFromForm(raw),
     };
   }
 

@@ -39,11 +39,21 @@ import {
   LeaveType,
   RELATIONSHIPS,
   Relationship,
+  COHABITATION_TYPES,
+  CohabitationType,
   WORK_STATUSES,
   WORK_STYLES,
   WorkStatus,
   WorkStyle,
 } from '../../../constants/model-constants';
+import { DependentDisabilityStudentFields } from '../../common/dependent-disability-student-fields/dependent-disability-student-fields';
+import {
+  formatDisabilityForDisplay,
+  formatStudentForDisplay,
+  getDependentDisabilityStudentFormDefaults,
+  mapDependentDisabilityStudentFromForm,
+  setupDependentDisabilityStudentValidators,
+} from '../../../service/common/dependent-field.util';
 
 type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
 type InsuranceStatus = 'joined' | 'notJoined' | 'lost';
@@ -77,7 +87,7 @@ type EmployeeDetailEventListItem =
 
 @Component({
   selector: 'app-employee-detail',
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, DependentDisabilityStudentFields],
   templateUrl: './employee-detail.html',
   styleUrl: './employee-detail.css',
 })
@@ -126,6 +136,7 @@ export class EmployeeDetail {
   EMPLOYMENT_CATEGORIES = EMPLOYMENT_CATEGORIES;
   WORK_STYLES = WORK_STYLES;
   RELATIONSHIPS = RELATIONSHIPS;
+  COHABITATION_TYPES = COHABITATION_TYPES;
 
   employeeSearchText = '';
 
@@ -597,6 +608,7 @@ export class EmployeeDetail {
           birthDate: timestampFromDateInput(value.birthDate),
           relationship: value.relationship as Relationship,
           isDependent: value.isDependentStatus === 'dependent',
+          ...this.mapDependentExtraFields(value),
         });
         continue;
       }
@@ -614,6 +626,7 @@ export class EmployeeDetail {
         birthDate: timestampFromDateInput(value.birthDate),
         relationship: value.relationship as Relationship,
         isDependent: true,
+        ...this.mapDependentExtraFields(value),
       });
     }
 
@@ -1008,6 +1021,48 @@ export class EmployeeDetail {
   private getSnapshotPayrollId(snapshot: InsuranceSnapshot): string | undefined {
     const payrollId = snapshot.payrollId ?? snapshot.snapshotId;
     return payrollId || undefined;
+  }
+
+  exportDependentsCsv() {
+    if (!this.selectedEmployee || this.dependents.length === 0) return;
+
+    const headers = [
+      '社員ID',
+      '扶養者ID',
+      '名前',
+      '生年月日',
+      '続柄',
+      '扶養状況',
+      '同居・別居区分',
+      '収入額（年収見込み）',
+      '職業',
+      '障害',
+      '学生',
+    ];
+    const rows = this.dependents.map(dependent => [
+      this.selectedEmployee!.employeeId!,
+      dependent.dependentId,
+      dependent.name ?? '',
+      this.commonService.formatDate(dependent.birthDate),
+      dependent.relationship ?? '',
+      this.getDependentStatusLabel(dependent.isDependent),
+      dependent.cohabitationType ?? '',
+      dependent.annualIncome != null ? String(dependent.annualIncome) : '',
+      dependent.occupation ?? '',
+      formatDisabilityForDisplay(dependent),
+      formatStudentForDisplay(dependent),
+    ]);
+
+    const csv = [headers, ...rows]
+      .map(row => row.map(value => this.escapeCsv(String(value ?? ''))).join(','))
+      .join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `dependents-${this.selectedEmployeeId}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   exportInsuranceHistoryCsv() {
@@ -1580,28 +1635,62 @@ export class EmployeeDetail {
     return isDependent !== false ? '扶養対象' : '扶養対象外';
   }
 
+  formatDisabilityForDisplay(dependent: Dependent): string {
+    return formatDisabilityForDisplay(dependent);
+  }
+
+  formatStudentForDisplay(dependent: Dependent): string {
+    return formatStudentForDisplay(dependent);
+  }
+
   private createExistingDependentForm(dependent: Dependent) {
-    return this.fb.nonNullable.group({
+    const disabilityStudentDefaults = getDependentDisabilityStudentFormDefaults(dependent);
+    const group = this.fb.nonNullable.group({
       dependentId: [dependent.dependentId],
       isExisting: [true],
       name: [dependent.name ?? '', [Validators.required]],
       birthDate: [this.formatDateForInput(dependent.birthDate), [Validators.required, this.dependentBirthDateNotFutureValidator]],
       relationship: [dependent.relationship ?? ('' as Relationship | ''), [Validators.required]],
+      cohabitationType: [dependent.cohabitationType ?? ('' as CohabitationType | '')],
+      annualIncome: [dependent.annualIncome ?? ''],
+      occupation: [dependent.occupation ?? ''],
+      ...disabilityStudentDefaults,
       isDependentStatus: [(dependent.isDependent !== false ? 'dependent' : 'notDependent') as DependentCoverageStatus],
     });
+    setupDependentDisabilityStudentValidators(group, this.destroyRef);
+    return group;
   }
 
   private createNewDependentForm() {
+    const disabilityStudentDefaults = getDependentDisabilityStudentFormDefaults();
     const group = this.fb.nonNullable.group({
       dependentId: [''],
       isExisting: [false],
       name: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
       birthDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered, this.dependentBirthDateNotFutureValidator]],
       relationship: ['' as Relationship | '', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      cohabitationType: ['' as CohabitationType | ''],
+      annualIncome: [''],
+      occupation: [''],
+      ...disabilityStudentDefaults,
       isDependentStatus: ['dependent' as DependentCoverageStatus],
     });
     this.setupDependentRowValidation(group);
+    setupDependentDisabilityStudentValidators(group, this.destroyRef);
     return group;
+  }
+
+  private mapDependentExtraFields(value: Record<string, unknown>): Partial<Dependent> {
+    const annualIncomeRaw = value['annualIncome'];
+    const annualIncome = annualIncomeRaw === '' || annualIncomeRaw == null
+      ? undefined
+      : Number(annualIncomeRaw);
+    return {
+      cohabitationType: (value['cohabitationType'] || undefined) as CohabitationType | undefined,
+      annualIncome: Number.isFinite(annualIncome) ? annualIncome : undefined,
+      occupation: String(value['occupation'] ?? '').trim() || undefined,
+      ...mapDependentDisabilityStudentFromForm(value),
+    };
   }
 
   private setupDependentRowValidation(group: FormGroup) {

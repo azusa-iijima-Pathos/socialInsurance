@@ -91,4 +91,78 @@
       </tbody>
     </table>
   </div>
+
+  <section *ngIf="listType !== 'bonus' && runs.length > 0" class="correction-collection-section">
+    <h2 class="section-title">差額適用後の保険料徴収額（{{ selectedMonthLabel }}作業分）</h2>
+    <p class="correction-collection-lead">
+      差額修正対象月の保険料確定額に、差額調整を反映した請求・控除額です。1行1従業員で表示しています。
+    </p>
+    <p *ngIf="collectionRows.length === 0" class="correction-collection-empty">
+      表示対象の保険料スナップショットが見つかりませんでした。
+    </p>
+    <div *ngIf="collectionRows.length > 0" class="correction-list-table-wrap">
+      <table class="correction-list-table correction-collection-table">
+        <thead>
+          <tr>
+            <th rowspan="2">社員ID</th>
+            <th rowspan="2">氏名</th>
+            <th colspan="2">健康保険</th>
+            <th colspan="2">介護保険</th>
+            <th colspan="2">厚生年金</th>
+            <th colspan="2">合計</th>
+          </tr>
+          <tr>
+            <th>本人</th>
+            <th>会社</th>
+            <th>本人</th>
+            <th>会社</th>
+            <th>本人</th>
+            <th>会社</th>
+            <th>本人</th>
+            <th>会社</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of collectionRows">
+            <td>{{ row.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: row.employeeId }">{{ row.employeeName }}</a>
+            </td>
+            <td class="correction-collection-cell">
+              <ng-container *ngTemplateOutlet="burdenCell; context: { $implicit: row.health.employee }"></ng-container>
+            </td>
+            <td class="correction-collection-cell">
+              <ng-container *ngTemplateOutlet="burdenCell; context: { $implicit: row.health.company }"></ng-container>
+            </td>
+            <td class="correction-collection-cell">
+              <ng-container *ngTemplateOutlet="burdenCell; context: { $implicit: row.nursing.employee }"></ng-container>
+            </td>
+            <td class="correction-collection-cell">
+              <ng-container *ngTemplateOutlet="burdenCell; context: { $implicit: row.nursing.company }"></ng-container>
+            </td>
+            <td class="correction-collection-cell">
+              <ng-container *ngTemplateOutlet="burdenCell; context: { $implicit: row.pension.employee }"></ng-container>
+            </td>
+            <td class="correction-collection-cell">
+              <ng-container *ngTemplateOutlet="burdenCell; context: { $implicit: row.pension.company }"></ng-container>
+            </td>
+            <td class="correction-collection-cell correction-collection-cell--total">
+              <ng-container *ngTemplateOutlet="burdenCell; context: { $implicit: row.total.employee }"></ng-container>
+            </td>
+            <td class="correction-collection-cell correction-collection-cell--total">
+              <ng-container *ngTemplateOutlet="burdenCell; context: { $implicit: row.total.company }"></ng-container>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
+
+<ng-template #burdenCell let-amounts>
+  <div class="correction-collection-amounts">
+    <span>今月 {{ amounts.base | number }}円</span>
+    <span class="correction-collection-amounts__diff">差額 {{ formatSignedDiff(amounts.diff) }}</span>
+    <span class="correction-collection-amounts__total">合計 {{ amounts.total | number }}円</span>
+  </div>
+</ng-template>

@@ -1,28 +1,33 @@
-<div class="im-page-shell">
-<h1 class="page-title">従業員トップページ</h1>
+<div class="im-page-shell top-page-shell">
+    <h1 class="top-page-title">従業員トップページ</h1>
 
-<div *ngIf="permission === '申請' && workingMonth" class="information-area">
-    <p>社会保険担当者様は、管理者に権限を変更してもらう必要があります。</p>
-    <p>権限変更後に再度ログインしてください。</p>
-</div>
+    <p *ngIf="guardMessage" class="im-alert-banner" role="alert">{{ guardMessage }}</p>
 
-<div *ngIf="!workingMonth">
-    <p>システム設定が完了していません。</p>
-    <p>管理者がシステム設定を完了するまでお待ちください。</p>
-</div>
-
-
-<div *ngIf="workingMonth">
-    <div *ngIf="permission !== '閲覧'">
-        <h3>申請</h3>
-        <a [routerLink]="['/lifeevent-application']">ライフイベント申請</a><br>
-        <a [routerLink]="['/my-application']">申請内容一覧</a>
+    <div *ngIf="permission === '申請' && workingMonth" class="information-area top-page-notice">
+        <p>社会保険担当者様は、管理者に権限を変更してもらう必要があります。</p>
+        <p>権限変更後に再度ログインしてください。</p>
     </div>
 
-    <div>
-        <h3>閲覧</h3>
-        <a [routerLink]="['/my-insurance-detail']">登録情報閲覧</a><br>
-        <a [routerLink]="['/company-detail']" [queryParams]="{ mode: 'view' }">会社情報閲覧</a>
+    <div *ngIf="!workingMonth" class="top-page-empty">
+        <p>システム設定が完了していません。</p>
+        <p>管理者がシステム設定を完了するまでお待ちください。</p>
     </div>
-</div>
+
+    <div class="top-page-grid top-page-grid--employee" *ngIf="workingMonth">
+        <section class="top-page-card" *ngIf="permission !== '閲覧'">
+            <h3 class="top-page-card__title">申請</h3>
+            <nav class="top-page-card__links">
+                <a [routerLink]="['/lifeevent-application']">ライフイベント申請</a>
+                <a [routerLink]="['/my-application']">申請内容一覧</a>
+            </nav>
+        </section>
+
+        <section class="top-page-card">
+            <h3 class="top-page-card__title">閲覧</h3>
+            <nav class="top-page-card__links">
+                <a [routerLink]="['/my-insurance-detail']">登録情報閲覧</a>
+                <a [routerLink]="['/company-detail']" [queryParams]="{ mode: 'view' }">会社情報閲覧</a>
+            </nav>
+        </section>
+    </div>
 </div>

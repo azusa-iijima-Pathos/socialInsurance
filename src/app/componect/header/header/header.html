@@ -17,10 +17,12 @@
                 <button type="button" class="im-btn-soft" *ngIf="permission() === '管理' || permission() === '承認'"
                     (click)="toManageTop()">管理者用ページ</button>
                 </div>
-                <div class="user-info" *ngIf="loginEmployeeId() !== null">
-                    <p>社員ID: {{ loginEmployeeId() }}</p>
-                    <p>権限: {{ permission() }}</p>
-                    <p *ngIf="workingYear() && workingMonth()"> {{ workingYear() }}年{{ workingMonth() }}月分</p>
+                <div class="header-session-panel" *ngIf="loginEmployeeId() !== null">
+                    <span class="header-session-panel__item">社員ID: {{ loginEmployeeId() }}</span>
+                    <span class="header-session-panel__item">権限: {{ permission() }}</span>
+                    <span class="header-session-panel__item" *ngIf="workingYear() && workingMonth()">
+                        {{ workingYear() }}年{{ workingMonth() }}月分
+                    </span>
                 </div>
             <button type="button" class="im-btn-soft" (click)="logout()">ログアウト</button>
         </ng-container>

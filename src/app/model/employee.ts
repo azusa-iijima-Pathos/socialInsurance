@@ -1,5 +1,5 @@
 import { Timestamp } from "@angular/fire/firestore";
-import { EmploymentCategory, InsuranceType, WorkStatus, WorkStyle } from "../constants/model-constants";
+import { EmploymentCategory, InsuranceType, WorkStatus, WorkStyle, Gender } from "../constants/model-constants";
 import { LeaveType } from "../constants/model-constants";
 
 /**
@@ -18,6 +18,9 @@ export type Employee = {
 
     /** 生年月日 */
     birthDate?: Timestamp;
+
+    /** 性別 */
+    gender?: Gender;
 
     /** 入社日 */
     hireDate?: Timestamp;

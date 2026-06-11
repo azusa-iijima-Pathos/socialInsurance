@@ -478,6 +478,13 @@ export class EmployeeEventApprovalService {
       relationship: after.relationship as Relationship,
       birthDate: after.birthDate,
       isDependent: after.isDependent !== false,
+      cohabitationType: after.cohabitationType,
+      annualIncome: after.annualIncome,
+      occupation: after.occupation,
+      hasDisability: after.hasDisability,
+      disabilityType: after.disabilityType,
+      isStudent: after.isStudent,
+      studentType: after.studentType,
     };
 
     const before = event.payload?.['before'] as Dependent | null | undefined;

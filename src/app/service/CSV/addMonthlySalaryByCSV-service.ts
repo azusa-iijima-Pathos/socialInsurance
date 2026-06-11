@@ -135,6 +135,13 @@ export class AddMonthlySalaryByCSVService {
             rowErrors.push(`${rowNumber}行目：社員ID ${employeeId} は登録済みの社員と一致していません`);
           }
 
+          if (employeeId && isEmployeeIdValid) {
+            const employee = this.employeeService.allEmployees().find(item => item.employeeId === employeeId);
+            if (employee && this.employeeService.isRetired(employee)) {
+              rowErrors.push(`${rowNumber}行目：社員ID ${employeeId} は退社済みのため、給与入力の対象外です`);
+            }
+          }
+
           if (employeeId && isEmployeeIdValid && payroll) {
             const existingPayroll = await this.payrollService.getPayroll(employeeId, payroll);
             if (existingPayroll) {

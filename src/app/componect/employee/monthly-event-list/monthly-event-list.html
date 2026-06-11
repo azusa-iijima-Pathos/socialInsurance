@@ -55,6 +55,9 @@
         </tbody>
       </table>
     </div>
+    <div class="monthly-event-list-export" *ngIf="hireEvents.length > 0">
+      <button type="button" class="im-btn-soft" (click)="exportHireCsv()">CSV出力</button>
+    </div>
   </section>
 
   <!-- 退社 -->
@@ -107,9 +110,10 @@
         </tbody>
       </table>
     </div>
+    <div class="monthly-event-list-export" *ngIf="retireEvents.length > 0 || retireRuns.length > 0">
+      <button type="button" class="im-btn-soft" (click)="exportRetireCsv()">CSV出力（承認済み）</button>
+    </div>
   </section>
-
-  <!-- 随時改定 -->
   <section class="employee-detail-section employee-detail-events">
     <h2 class="section-title">随時改定</h2>
     <div *ngIf="fixedSalaryRuns.length === 0" class="employee-detail-empty">データがありません</div>
@@ -147,20 +151,22 @@
         </tbody>
       </table>
     </div>
+    <div class="monthly-event-list-export" *ngIf="fixedSalaryRuns.length > 0">
+      <button type="button" class="im-btn-soft" (click)="exportFixedSalaryCsv()">CSV出力（承認済み）</button>
+    </div>
   </section>
 
-  <!-- 従業員からの申請 -->
+  <!-- 扶養情報変更 -->
   <section class="employee-detail-section employee-detail-events">
-    <h2 class="section-title">従業員からの申請</h2>
-    <div *ngIf="employeeApplicationEvents.length === 0" class="employee-detail-empty">データがありません</div>
-    <div class="employee-detail-events-table-wrap" *ngIf="employeeApplicationEvents.length > 0">
+    <h2 class="section-title">扶養情報変更</h2>
+    <div *ngIf="dependentChangeEvents.length === 0" class="employee-detail-empty">データがありません</div>
+    <div class="employee-detail-events-table-wrap" *ngIf="dependentChangeEvents.length > 0">
       <table class="employee-detail-events-table">
         <thead>
           <tr>
             <th></th>
             <th>社員ID</th>
             <th>氏名</th>
-            <th>種別</th>
             <th>理由</th>
             <th>事象発生日</th>
             <th>申請日</th>
@@ -170,7 +176,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let event of employeeApplicationEvents">
+          <tr *ngFor="let event of dependentChangeEvents">
             <td class="employee-detail-events-table__actions">
               <button type="button" class="im-btn-muted" *ngIf="canShowEventDetail(event)"
                 (click)="showEventDetail(event)">詳細</button>
@@ -181,7 +187,49 @@
                 {{ getEmployeeName(event.employeeId) }}
               </a>
             </td>
-            <td>{{ event.eventType }}</td>
+            <td>{{ getReasonLabel(event) }}</td>
+            <td>{{ commonService.formatDate(event.occurredDate) }}</td>
+            <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+            <td>{{ getApprovalStatus(event) }}</td>
+            <td>{{ getApproverName(event) }}</td>
+            <td>{{ getApprovalDate(event) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 勤務状況変更 -->
+  <section class="employee-detail-section employee-detail-events">
+    <h2 class="section-title">勤務状況変更</h2>
+    <div *ngIf="workStatusChangeEvents.length === 0" class="employee-detail-empty">データがありません</div>
+    <div class="employee-detail-events-table-wrap" *ngIf="workStatusChangeEvents.length > 0">
+      <table class="employee-detail-events-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>社員ID</th>
+            <th>氏名</th>
+            <th>理由</th>
+            <th>事象発生日</th>
+            <th>申請日</th>
+            <th>承認状況</th>
+            <th>承認者</th>
+            <th>承認日</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let event of workStatusChangeEvents">
+            <td class="employee-detail-events-table__actions">
+              <button type="button" class="im-btn-muted" *ngIf="canShowEventDetail(event)"
+                (click)="showEventDetail(event)">詳細</button>
+            </td>
+            <td>{{ event.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                {{ getEmployeeName(event.employeeId) }}
+              </a>
+            </td>
             <td>{{ getReasonLabel(event) }}</td>
             <td>{{ commonService.formatDate(event.occurredDate) }}</td>
             <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>

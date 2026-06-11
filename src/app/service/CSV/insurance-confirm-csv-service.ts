@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { InsuranceNoticeSummary, OfficeInsuranceSummary } from '../logic/insurance-display.service';
 
 export type InsuranceConfirmCsvRow = {
   employeeId: string;
@@ -120,6 +121,30 @@ export class InsuranceConfirmCsvService {
     this.downloadCsv(headers, body, `insurance-confirm-with-salary-${workingYear}-${String(workingMonth).padStart(2, '0')}${suffix}.csv`);
   }
 
+  exportInsuranceSummary(
+    companySummary: InsuranceNoticeSummary,
+    officeSummaries: OfficeInsuranceSummary[],
+    fileName: string,
+  ) {
+    const headers = [
+      '対象',
+      '健康保険総額',
+      '健康保険会社負担',
+      '介護保険総額',
+      '介護保険会社負担',
+      '厚生年金総額',
+      '厚生年金会社負担',
+      '会社負担合計',
+      '総額',
+    ];
+    const body = [
+      this.summaryToRow('全体', companySummary),
+      ...officeSummaries.map(office => this.summaryToRow(office.officeName, office)),
+    ];
+
+    this.downloadCsv(headers, body, fileName);
+  }
+
   exportBonusInsuranceOnly(rows: BonusInsuranceConfirmCsvRow[], payrollId: string, suffix = '') {
     const headers = [
       '従業員ID',
@@ -196,6 +221,20 @@ export class InsuranceConfirmCsvService {
     ]);
 
     this.downloadCsv(headers, body, `bonus-insurance-confirm-with-salary-${payrollId}${suffix}.csv`);
+  }
+
+  private summaryToRow(label: string, summary: InsuranceNoticeSummary): (string | number)[] {
+    return [
+      label,
+      this.formatAmount(summary.healthInsuranceNotice),
+      this.formatAmount(summary.healthInsuranceForCompany),
+      this.formatAmount(summary.nursingCareInsuranceNotice),
+      this.formatAmount(summary.nursingCareInsuranceForCompany),
+      this.formatAmount(summary.pensionInsuranceNotice),
+      this.formatAmount(summary.pensionInsuranceForCompany),
+      this.formatAmount(summary.totalInsuranceForCompany),
+      this.formatAmount(summary.totalInsuranceNotice),
+    ];
   }
 
   private downloadCsv(headers: string[], body: (string | number)[][], fileName: string) {

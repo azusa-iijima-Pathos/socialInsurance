@@ -1,0 +1,107 @@
+.employee-info-page.im-page-shell {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  min-height: calc(100vh - 56px);
+  padding: var(--im-size-24) var(--im-size-32) var(--im-size-32);
+  background: var(--im-color-gray-50);
+}
+
+.employee-info-page .page-title {
+  margin: 0 0 var(--im-size-20);
+  font-size: var(--im-font-20);
+  font-weight: 700;
+  color: var(--im-color-slate-900);
+}
+
+.employee-info-content {
+  display: grid;
+  gap: var(--im-size-20);
+}
+
+.employee-info-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-24);
+  align-items: start;
+}
+
+.employee-info-panel {
+  min-width: 0;
+}
+
+.employee-info-panel .section-title {
+  margin: 0 0 var(--im-size-12);
+}
+
+.employee-info-subheading {
+  margin-top: var(--im-size-24);
+}
+
+.employee-info-panel p {
+  margin: 0 0 var(--im-size-8);
+  line-height: 1.6;
+}
+
+.employee-info-dependent-list {
+  display: grid;
+  gap: var(--im-size-12);
+}
+
+.employee-info-dependent-card {
+  padding: var(--im-size-12);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+}
+
+.employee-info-dependent-card p:last-child {
+  margin-bottom: 0;
+}
+
+.employee-info-insurance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--im-size-12);
+  margin-top: var(--im-size-8);
+}
+
+.employee-info-insurance-card {
+  display: grid;
+  gap: var(--im-size-8);
+  padding: var(--im-size-12);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+}
+
+.employee-info-insurance-card h4 {
+  margin: 0;
+  font-size: var(--im-font-15);
+  font-weight: 700;
+  color: var(--im-color-slate-800);
+}
+
+.employee-info-insurance-card p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 960px) {
+  .employee-info-page.im-page-shell {
+    padding: var(--im-size-16);
+  }
+
+  .employee-info-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-info-insurance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 961px) and (max-width: 1200px) {
+  .employee-info-insurance-grid {
+    grid-template-columns: 1fr;
+  }
+}

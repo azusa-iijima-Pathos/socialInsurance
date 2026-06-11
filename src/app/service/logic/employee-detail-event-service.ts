@@ -250,6 +250,13 @@ export class EmployeeDetailEventService {
           birthDate: dependent.birthDate?.toDate().toISOString().slice(0, 10) ?? '',
           relationship: dependent.relationship ?? '',
           isDependent: dependent.isDependent !== false,
+          cohabitationType: dependent.cohabitationType ?? '',
+          annualIncome: dependent.annualIncome ?? '',
+          occupation: dependent.occupation ?? '',
+          hasDisability: dependent.hasDisability ?? false,
+          disabilityType: dependent.disabilityType ?? '',
+          isStudent: dependent.isStudent ?? false,
+          studentType: dependent.studentType ?? '',
         }))
         .sort((left, right) => left.dependentId.localeCompare(right.dependentId));
 

@@ -31,6 +31,7 @@ export class CompanyDetail {
   messageTimer: MessageTimer = null;
 
   company: Company | null = null;
+  headOffice: Office | null = null;
   isSocialInsuranceRequired: boolean = false;
   isSpecificApplicableOffice: boolean = false;
 
@@ -40,7 +41,9 @@ export class CompanyDetail {
 
   async ngOnInit() {
     await this.companyService.getCompany();
+    await this.officeService.getAllOffice();
     this.company = this.companyService.company();
+    this.headOffice = this.officeService.allOffices().find(office => office.officeId === '1') ?? null;
 
     if (this.company) {
       this.isSocialInsuranceRequired = this.companyLogicService.isSocialInsuranceRequired(this.company);
@@ -92,6 +95,8 @@ export class CompanyDetail {
     businessType: ['', [Validators.required]],
     employeeCount: [1, [Validators.required, Validators.min(1)]],
     headOfficePrefecture: ['', [Validators.required]],
+    officeOrganizationSymbol: ['', [Validators.required]],
+    officeNumber: [''],
     socialInsuranceRequired: [false],
     optionalApplicableOffice: [false],
     specificApplicableOffice: [false],
@@ -114,6 +119,8 @@ export class CompanyDetail {
         optionalApplicableOffice: this.company?.optionalApplicableOffice,
         specificApplicableOffice: this.company?.specificApplicableOffice,
         optionalSpecificApplicableOffice: this.company?.optionalSpecificApplicableOffice,
+        officeOrganizationSymbol: this.headOffice?.officeOrganizationSymbol ?? '',
+        officeNumber: this.headOffice?.officeNumber ?? '',
       });
     }
     this.isOpenModal = true;
@@ -152,7 +159,20 @@ export class CompanyDetail {
       return;
     }
 
-    //本社が変わっている場合は、本社の事業所を更新
+    const headOfficeUpdate: Partial<Office> = {
+      officeId: '1',
+      officeOrganizationSymbol: this.form.value.officeOrganizationSymbol!,
+      officeNumber: this.form.value.officeNumber || undefined,
+    };
+    if (this.headOffice) {
+      await this.officeService.updateOffice({
+        ...this.headOffice,
+        ...headOfficeUpdate,
+        prefecture: company.headOfficePrefecture!,
+      });
+    }
+
+    //本社の所在地が変わっている場合は、本社の事業所を更新
     if (this.company?.headOfficePrefecture !== company.headOfficePrefecture) {
       const office: Office | null = await this.officeService.getOneOffice('1');
       if (office) {
@@ -176,7 +196,9 @@ export class CompanyDetail {
     }
 
     await this.companyService.getCompany(true);
+    await this.officeService.getAllOffice(true);
     this.company = this.companyService.company();
+    this.headOffice = this.officeService.allOffices().find(office => office.officeId === '1') ?? null;
 
     if (this.company) {
       this.isSocialInsuranceRequired = this.companyLogicService.isSocialInsuranceRequired(this.company);

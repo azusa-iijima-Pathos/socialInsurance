@@ -55,3 +55,25 @@
   gap: var(--im-size-8);
   margin-left: auto;
 }
+
+.header-session-panel {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--im-size-4) var(--im-size-12);
+  min-height: var(--im-size-36);
+  padding: var(--im-size-4) var(--im-size-12);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-gray-50);
+  box-sizing: border-box;
+}
+
+.header-session-panel__item {
+  margin: 0;
+  color: var(--im-color-slate-700);
+  font-size: var(--im-font-13);
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}

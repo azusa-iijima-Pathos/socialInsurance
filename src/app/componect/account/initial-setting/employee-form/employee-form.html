@@ -75,6 +75,20 @@
         <div class="employee-form-triple">
             <div class="im-field-block im-field-row">
                 <div class="im-field-row__label">
+                    <label for="gender">性別</label>
+                </div>
+                <div class="im-field-row__control">
+                    <select id="gender" formControlName="gender">
+                        <option value="">性別を選択してください</option>
+                        <option *ngFor="let gender of GENDERS" [value]="gender">{{ gender }}</option>
+                    </select>
+                    <div class="error">
+                        <p *ngIf="form.get('gender')?.errors?.['required'] && form.get('gender')?.touched">性別は必須です</p>
+                    </div>
+                </div>
+            </div>
+            <div class="im-field-block im-field-row">
+                <div class="im-field-row__label">
                     <label for="hireDate">入社日</label>
                 </div>
                 <div class="im-field-row__control">
@@ -94,6 +108,8 @@
                     </select>
                 </div>
             </div>
+        </div>
+        <div class="employee-form-triple">
             <div class="im-field-block im-field-row" *ngIf="showLeaveTypesField()">
                 <div class="im-field-row__label">
                     <label for="leaveTypes">休職種別</label>
@@ -209,6 +225,7 @@
             <p style="font-weight: bold;">ひな形をダウンロードして、社員情報を入力してください。</p>
             <p>
                 ・日付は yyyy-mm-dd 形式です。<br>
+                ・性別は「男性/女性」から入力してください。<br>
                 ・勤務状況は「通常勤務・休職中」を選択してください。<br>
                 ・勤務状況が「休職中」の場合、休暇種別も必須入力です。<br>
                 &nbsp;&nbsp;通常勤務の場合は「なし」、休職中の場合は「産前産後/育児/療養/その他（有給）/その他（無給）」から入力してください。<br>
@@ -260,6 +277,7 @@
                             <th>社員ID</th>
                             <th>氏名</th>
                             <th>生年月日</th>
+                            <th>性別</th>
                             <th>入社日</th>
                             <th>勤務状況</th>
                             <th>休暇情報</th>
@@ -285,6 +303,7 @@
                             <td>{{ row.employeeId }}</td>
                             <td>{{ row.firstName }} {{ row.lastName }}</td>
                             <td>{{ row.birthDate }}</td>
+                            <td>{{ row.gender }}</td>
                             <td>{{ row.hireDate }}</td>
                             <td>{{ row.workStatus }}</td>
                             <td>{{ row.leaveTypes }}</td>

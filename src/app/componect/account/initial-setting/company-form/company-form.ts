@@ -215,7 +215,7 @@ export class CompanyForm {
       console.log('事業所登録失敗');
     }
 
-    this.router.navigate([`/initial-setting/${company.companyId}/company-confirm`]);
+    this.router.navigate([`/initial-setting/${companyId}/company-confirm`]);
   }
 
 }

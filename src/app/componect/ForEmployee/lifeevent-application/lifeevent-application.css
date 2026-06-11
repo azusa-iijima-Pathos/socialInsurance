@@ -16,6 +16,28 @@
   margin-bottom: var(--im-size-16);
 }
 
+.lifeevent-layout .employee-edit-field .im-radio-group,
+.lifeevent-layout .employee-edit-field .im-checkbox-option {
+  align-items: center;
+}
+
+.lifeevent-layout .employee-edit-field .im-radio-option,
+.lifeevent-layout .employee-edit-field .im-checkbox-option {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--im-size-6);
+  white-space: nowrap;
+}
+
+.lifeevent-multiple-birth-field {
+  min-height: 0;
+}
+
+.lifeevent-multiple-birth-field .im-field-row__control {
+  padding-top: var(--im-size-8);
+}
+
 .lifeevent-layout .employee-edit-actions {
   grid-template-columns: 1fr;
   max-width: 200px;

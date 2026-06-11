@@ -6,6 +6,7 @@ import { CalculationRun } from '../../../model/calculation-run';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
+import { SocialInsuranceFormCsvService } from '../../../service/CSV/social-insurance-form-csv.service';
 
 @Component({
   selector: 'app-calculation-base-pending-list',
@@ -18,6 +19,7 @@ export class CalculationBasePendingList {
   private calculationRunService = inject(CalculationRunService);
   private commonService = inject(CommonService);
   private employeeService = inject(EmployeeService);
+  private formCsvService = inject(SocialInsuranceFormCsvService);
 
   runs: CalculationRun[] = [];
   approvedGradeMap: Record<string, number> = {};
@@ -225,40 +227,7 @@ export class CalculationBasePendingList {
       return;
     }
 
-    const headers = ['社員ID', '氏名', '4月報酬', '5月報酬', '6月報酬', '4月日数', '5月日数', '6月日数', '平均報酬', '決定等級'];
-    const rows = runs.map(run => {
-      const payload = run.payload ?? {};
-      const targetPayrolls = (payload['targetPayrolls'] as { paymentYearMonth?: string; actualWorkingDays?: number; actualPaymentAmount?: number }[]) ?? [];
-      const findMonth = (month: string) => targetPayrolls.find(payroll => payroll.paymentYearMonth?.endsWith(`-${month}`));
-      const april = findMonth('04');
-      const may = findMonth('05');
-      const june = findMonth('06');
-      const employeeId = String(payload['employeeId'] ?? run.targetEmployeeIds ?? '');
-      const grade = payload['approvedGrade'] ?? payload['calculatedGrade'] ?? '';
-
-      return [
-        employeeId,
-        payload['employeeName'] ?? '',
-        april?.actualPaymentAmount ?? '',
-        may?.actualPaymentAmount ?? '',
-        june?.actualPaymentAmount ?? '',
-        april?.actualWorkingDays ?? '',
-        may?.actualWorkingDays ?? '',
-        june?.actualWorkingDays ?? '',
-        payload['averageSalary'] ?? '',
-        grade,
-      ];
-    });
-
-    const formatCell = (value: unknown) => String(value ?? '');
-    const csv = [headers.join(','), ...rows.map(row => row.map(formatCell).join(','))].join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `算定基礎_${year}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    await this.formCsvService.exportCalculationBaseCsv(runs, year);
   }
 
   private showMessage(message: string) {

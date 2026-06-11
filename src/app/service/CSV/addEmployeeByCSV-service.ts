@@ -1,7 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { Timestamp } from '@angular/fire/firestore';
 import Papa from 'papaparse';
-import { EMPLOYMENT_CATEGORIES, EmploymentCategory, LEAVE_TYPES, LeaveType, WORK_STATUSES, WORK_STYLES, WorkStatus, WorkStyle } from '../../constants/model-constants';
+import { EMPLOYMENT_CATEGORIES, EmploymentCategory, GENDERS, Gender, LEAVE_TYPES, LeaveType, WORK_STATUSES, WORK_STYLES, WorkStatus, WorkStyle } from '../../constants/model-constants';
 import { createEmployeeCsvTemplateCsv, EMPLOYEE_CSV_HEADERS, getEmployeeCsvValue, normalizeCsvHeader } from '../../CSVtemplate/employeeData-import';
 import { Employee } from '../../model/employee';
 import { EmployeeService } from '../Firestore/employee-service';
@@ -22,6 +22,7 @@ export type CsvEmployeePreviewRow = {
   firstName: string;
   lastName: string;
   birthDate: string;
+  gender: string;
   hireDate: string;
   workStatus: string;
   leaveTypes: string;
@@ -327,6 +328,7 @@ export class AddEmployeeByCSVService {
       firstName: employee?.firstName ?? this.getEmployeeCsvValueSafely(row, 'firstName'),
       lastName: employee?.lastName ?? this.getEmployeeCsvValueSafely(row, 'lastName'),
       birthDate: this.getEmployeeCsvValueSafely(row, 'birthDate'),
+      gender: employee?.gender ?? this.getEmployeeCsvValueSafely(row, 'gender'),
       hireDate: this.getEmployeeCsvValueSafely(row, 'hireDate'),
       workStatus: employee?.workStatus ?? this.getEmployeeCsvValueSafely(row, 'workStatus'),
       leaveTypes: employee?.leaveTypes ?? this.getEmployeeCsvValueSafely(row, 'leaveTypes'),
@@ -359,6 +361,7 @@ export class AddEmployeeByCSVService {
     const firstName = this.getEmployeeCsvValueSafely(row, 'firstName');
     const lastName = this.getEmployeeCsvValueSafely(row, 'lastName');
     const birthDateText = this.getEmployeeCsvValueSafely(row, 'birthDate');
+    const gender = this.getEmployeeCsvValueSafely(row, 'gender');
     const hireDateText = this.getEmployeeCsvValueSafely(row, 'hireDate');
     const birthDate = this.toTimestamp(birthDateText);
     const hireDate = this.toTimestamp(hireDateText);
@@ -394,6 +397,10 @@ export class AddEmployeeByCSVService {
 
     if (!birthDateText) {
       missingFields.push('生年月日');
+    }
+
+    if (!gender) {
+      missingFields.push('性別');
     }
 
     if (!hireDateText) {
@@ -443,6 +450,9 @@ export class AddEmployeeByCSVService {
 
     if (workStatus) {
       this.validateCsvChoice(rowNumber, '勤務状況', workStatus, WORK_STATUSES, errors);
+    }
+    if (gender) {
+      this.validateCsvChoice(rowNumber, '性別', gender, GENDERS, errors);
     }
     if (leaveTypesRaw && leaveTypesRaw !== 'なし') {
       this.validateCsvChoice(rowNumber, '休職種別', leaveTypes, LEAVE_TYPES, errors);
@@ -507,6 +517,7 @@ export class AddEmployeeByCSVService {
       firstName,
       lastName,
       birthDate: birthDate!,
+      gender: gender as Gender,
       hireDate: hireDate!,
       workStatus: workStatus as WorkStatus,
       ...(workStatus === '休職中' ? { leaveTypes: leaveTypes as LeaveType } : {}),

@@ -1,95 +1,79 @@
 import { CanActivateFn, Router } from '@angular/router';
 import { inject } from '@angular/core';
 
+type GuardMessageCode = 'sessionExpired' | 'noPermission' | 'companyMismatch';
+
+function redirectToLogin(router: Router) {
+  return router.createUrlTree(['/login'], {
+    queryParams: { message: 'sessionExpired' },
+  });
+}
+
+function redirectByPermission(router: Router, permission: string | null, message: GuardMessageCode = 'noPermission') {
+  if (!permission) {
+    return redirectToLogin(router);
+  }
+  if (permission === '管理' || permission === '承認') {
+    return router.createUrlTree(['/top-for-manage'], {
+      queryParams: { message },
+    });
+  }
+  return router.createUrlTree(['/top-for-employee'], {
+    queryParams: { message },
+  });
+}
+
+/** ログイン済み（社員連携済み or 初期設定中の UID のみ） */
 export const authGuard: CanActivateFn = (_route, _state) => {
-  // const router = inject(Router);
-  // const userId = sessionStorage.getItem('loginUserId');
+  const router = inject(Router);
+  const loginEmployeeId = sessionStorage.getItem('loginEmployeeId');
+  const loginUserUID = sessionStorage.getItem('loginUserUID');
 
-  // if (!userId) {
-  //   //ユーザIDがない場合はログイン画面に遷移
-  //   return router.createUrlTree(['/login'], {
-  //     queryParams: { message: 'sessionExpired' }
-  //   });
-  // }
-  return true;
+  if (loginEmployeeId || loginUserUID) {
+    return true;
+  }
+  return redirectToLogin(router);
 };
 
+/** 初期設定フロー（会社登録〜社員 CSV 登録） */
 export const initialSettingGuard: CanActivateFn = (_route, _state) => {
-  // const router = inject(Router);
-  // const UID = sessionStorage.getItem('loginUserUID');
+  const router = inject(Router);
+  const loginUserUID = sessionStorage.getItem('loginUserUID');
+  const loginEmployeeId = sessionStorage.getItem('loginEmployeeId');
 
-  // if (!UID) {
-  //   //UIDがない場合はログイン画面に遷移
-  //   return router.createUrlTree(['/login'], {
-  //     queryParams: { message: 'sessionExpired' }
-  //   });
-  // } else {
-  //   return true;
-  // }
-  return true;
+  if (loginUserUID || loginEmployeeId) {
+    return true;
+  }
+  return redirectToLogin(router);
 };
-
 
 export const companyGuard: CanActivateFn = (route, _state) => {
-
   const router = inject(Router);
   const sessionCompanyId = sessionStorage.getItem('companyId');
   const paramCompanyId = route.paramMap.get('companyId');
-
   const permission = sessionStorage.getItem('permission');
 
-  // //会社IDがない場合
-  // if (!sessionCompanyId) {
-  //   return router.createUrlTree(['/login'], {
-  //     queryParams: { message: 'sessionExpired' }
-  //   });
-  // }
+  if (!sessionCompanyId) {
+    return redirectToLogin(router);
+  }
 
-  // //会社IDが一致していない場合
-  // if (sessionCompanyId && paramCompanyId !== sessionCompanyId) {
-  //   //セッションのプロジェクトIDがある場合はトップ画面に遷移
-  //   if (!permission) {
-  //     return router.createUrlTree(['/login'], {
-  //       queryParams: { message: 'sessionExpired' }
-  //     });
-  //   } else if (permission === '管理' || permission === '承認') {
-  //     return router.createUrlTree(['/top-for-manage'], {
-  //       queryParams: { message: 'noPermission' }
-  //     });
-  //   } else {
-  //     return router.createUrlTree(['/top-for-employee'], {
-  //       queryParams: { message: 'noPermission' }
-  //     });
-  //   }
-  // }
+  // URL に companyId があるルートのみセッションと照合
+  if (paramCompanyId && paramCompanyId !== sessionCompanyId) {
+    return redirectByPermission(router, permission, 'companyMismatch');
+  }
 
-  // //権限必要な場合
-  // const requiredPermission = route.data?.['permission'];
-  // if (requiredPermission) {
+  const requiredPermission = route.data?.['permission'];
+  if (requiredPermission) {
+    if (!permission) {
+      return redirectToLogin(router);
+    }
 
-  //   //権限がない場合
-  //   if (!permission) {
-  //     return router.createUrlTree(['/login'], {
-  //       queryParams: { message: 'sessionExpired' }
-  //     });
-  //   }
+    if (permission === requiredPermission || permission === '管理') {
+      return true;
+    }
 
-  //   //権限が一致している場合もしくは管理権限の場合
-  //   if (permission === requiredPermission || permission === '管理') {
-  //     return true;
-  //   } else {
-  //     if (permission === '承認') {
-  //       return router.createUrlTree(['/top-for-manage'], {
-  //         queryParams: { message: 'noPermission' }
-  //       });
-  //     } else {
-  //       return router.createUrlTree(['/top-for-employee'], {
-  //         queryParams: { message: 'noPermission' }
-  //       });
-  //     }
-  //   }
-
-  // }
+    return redirectByPermission(router, permission);
+  }
 
   return true;
 };

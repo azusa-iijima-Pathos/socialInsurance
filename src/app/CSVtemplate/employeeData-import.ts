@@ -1,4 +1,4 @@
-import { WorkStatus, EmploymentCategory, WorkStyle, LeaveType } from '../constants/model-constants';
+import { WorkStatus, EmploymentCategory, WorkStyle, LeaveType, Gender } from '../constants/model-constants';
 
 /**
  * 社員情報初期登録画面（個別登録、CSV一括登録）
@@ -11,6 +11,7 @@ export type EmployeeCsvRow = {
     firstName: string;
     lastName: string;
     birthDate: string;
+    gender: string;
     hireDate: string;
     workStatus: WorkStatus;
     leaveTypes: LeaveType;
@@ -35,6 +36,7 @@ export const EMPLOYEE_CSV_COLUMNS: EmployeeCsvColumn[] = [
     { key: 'firstName', label: '姓', example: '山田' },
     { key: 'lastName', label: '名', example: '太郎' },
     { key: 'birthDate', label: '生年月日（yyyy-mm-dd）', example: '1990-01-01' },
+    { key: 'gender', label: '性別（男性/女性）', example: '男性' },
     { key: 'hireDate', label: '入社日（yyyy-mm-dd）', example: '2024-04-01' },
     { key: 'workStatus', label: '勤務状況（通常勤務/休職中/退社済み）', example: '通常勤務' },
     { key: 'leaveTypes', label: '休暇種別（なし/産前産後/育児/療養/その他（有給）/その他（無給））', example: 'なし' },

@@ -11,6 +11,7 @@ import { CorrectionLogicService } from '../../../service/logic/correction-logic.
 import { EmployeeEventDisplayService } from '../../../service/logic/employee-event-display.service';
 import { EmployeeEventApprovalService } from '../../../service/logic/employee-event-approval.service';
 import { getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { SocialInsuranceFormCsvService } from '../../../service/CSV/social-insurance-form-csv.service';
 import { Event } from '../../../model/event';
 
 @Component({
@@ -28,6 +29,7 @@ export class MonthlyEventList {
   private correctionLogicService = inject(CorrectionLogicService);
   private employeeEventDisplayService = inject(EmployeeEventDisplayService);
   private employeeEventApprovalService = inject(EmployeeEventApprovalService);
+  private formCsvService = inject(SocialInsuranceFormCsvService);
   commonService = inject(CommonService);
 
   monthOptions = this.correctionLogicService.getPastYearMonthOptions(24);
@@ -38,7 +40,8 @@ export class MonthlyEventList {
   retireEvents: EmployeeEventItem[] = [];
   fixedSalaryRuns: SystemCalculationRunItem[] = [];
   retireRuns: SystemCalculationRunItem[] = [];
-  employeeApplicationEvents: EmployeeEventItem[] = [];
+  dependentChangeEvents: EmployeeEventItem[] = [];
+  workStatusChangeEvents: EmployeeEventItem[] = [];
   otherEvents: EmployeeEventItem[] = [];
   otherSystemRuns: SystemCalculationRunItem[] = [];
 
@@ -89,18 +92,25 @@ export class MonthlyEventList {
     // 随時改定（calculationRun の固定給変更のみ）
     this.fixedSalaryRuns = sortRuns(systemRuns.filter(run => run.eventType === '固定給変更'));
 
-    // 従業員からの申請
-    this.employeeApplicationEvents = events
-      .filter(event => event.applicantType === '社員' && event.eventType !== '一定年齢到達' && event.eventType !== '入社')
+    const isOtherSectionEvent = (event: EmployeeEventItem) =>
+      event.eventType !== '入社' && event.eventType !== '退社';
+
+    // 扶養情報変更
+    this.dependentChangeEvents = events
+      .filter(event => event.eventType === '扶養情報変更')
       .sort(compareEventsByAppliedDateDesc);
 
-    // その他（入社・退社・従業員申請を除く）
+    // 勤務状況変更
+    this.workStatusChangeEvents = events
+      .filter(event => event.eventType === '勤務状況変更')
+      .sort(compareEventsByAppliedDateDesc);
+
+    // その他（入社・退社・扶養情報変更・勤務状況変更を除く）
     this.otherEvents = events
       .filter(event =>
-        event.eventType !== '入社'
-        && event.eventType !== '退社'
-        && event.applicantType !== '社員'
-        && (event.eventType === '一定年齢到達' || event.applicantType !== 'システム'),
+        isOtherSectionEvent(event)
+        && event.eventType !== '扶養情報変更'
+        && event.eventType !== '勤務状況変更',
       )
       .sort(compareEventsByAppliedDateDesc);
 
@@ -176,6 +186,54 @@ export class MonthlyEventList {
     return event.approval?.approvedDate
       ? this.commonService.formatDateTime(event.approval.approvedDate)
       : '—';
+  }
+
+  async exportHireCsv() {
+    if (this.hireEvents.length === 0) {
+      alert('入社イベントがありません');
+      return;
+    }
+    await this.formCsvService.exportHireEventsCsv(this.hireEvents, this.selectedMonthKey);
+  }
+
+  async exportRetireCsv() {
+    const approvedEvents = this.retireEvents.filter(item => item.approval?.approvalStatus === '承認済み');
+    const approvedRuns = this.retireRuns.filter(item => item.approval?.approvalStatus === '承認済み');
+    if (approvedEvents.length === 0 && approvedRuns.length === 0) {
+      alert('承認済みの退社イベントがありません');
+      return;
+    }
+    await this.formCsvService.exportApprovedRetireEventsCsv(this.retireEvents, this.retireRuns, this.selectedMonthKey);
+  }
+
+  async exportFixedSalaryCsv() {
+    const approvedRuns = this.fixedSalaryRuns.filter(item => item.approval?.approvalStatus === '承認済み');
+    if (approvedRuns.length === 0) {
+      alert('承認済みの随時改定がありません');
+      return;
+    }
+
+    const enrichedRuns = await Promise.all(approvedRuns.map(async run => {
+      const eventView = this.calculationRunService.toEventView(run);
+      const draft = await this.employeeEventApprovalService.buildFixedSalaryApprovalDraft(eventView);
+      const storedSummary = (run.payload?.['revisionSummary'] ?? {}) as Record<string, unknown>;
+      if (!draft) return run;
+
+      return {
+        ...run,
+        payload: {
+          ...run.payload,
+          revisionSummary: {
+            currentGrade: storedSummary['currentGrade'] ?? draft.currentGrade,
+            approvedGrade: storedSummary['approvedGrade'] ?? draft.approvedGrade,
+            averageSalary: storedSummary['averageSalary'] ?? draft.averageSalary,
+          },
+          targetPayrolls: run.payload?.['targetPayrolls'] ?? draft.targetPayrolls,
+        },
+      };
+    }));
+
+    await this.formCsvService.exportApprovedFixedSalaryCsv(enrichedRuns, this.selectedMonthKey);
   }
 
 }
