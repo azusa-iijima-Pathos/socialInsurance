@@ -3,7 +3,7 @@ import { CrudService } from '../common/crud-service';
 import { Event } from '../../model/event';
 import { CompanyService } from './company-service';
 import { EmployeeService } from './employee-service';
-import { buildEventId, getWorkingYearMonth, isEventAtOrBeforeWorkingMonth } from '../logic/event-id-service';
+import { buildEventId, getWorkingYearMonth, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth } from '../logic/event-id-service';
 import { ApplicantType, EmployeeEventType } from '../../constants/model-constants';
 
 export type EmployeeEventItem = Event & { employeeId: string };
@@ -149,6 +149,33 @@ export class EventService {
       const events = await this.getEmployeeEventsUpToWorkingMonth(employee.employeeId);
       for (const event of events) {
         if (event.approval?.approvalStatus !== '申請中') continue;
+        results.push({ ...event, employeeId: employee.employeeId });
+      }
+    }
+
+    return results.sort(compareEventsByAppliedDateDesc);
+  }
+
+  /** 全社員のイベント（指定作業月・全承認状況） */
+  async getAllEventsForTargetMonth(targetYear: number, targetMonth: number): Promise<EmployeeEventItem[]> {
+    await this.employeeService.getAllEmployees();
+    const working = getWorkingYearMonth();
+    const results: EmployeeEventItem[] = [];
+
+    for (const employee of this.employeeService.allEmployees()) {
+      const events = await this.getEmployeeEvents(employee.employeeId);
+      for (const event of events) {
+        if (!event.eventId) continue;
+        if (!isEventInTargetMonth(
+          event.eventId,
+          targetYear,
+          targetMonth,
+          working.year,
+          working.month,
+          event.appliedDate as { toDate?: () => Date; seconds?: number } | undefined,
+        )) {
+          continue;
+        }
         results.push({ ...event, employeeId: employee.employeeId });
       }
     }

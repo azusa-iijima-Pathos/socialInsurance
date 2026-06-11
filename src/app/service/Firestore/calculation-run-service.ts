@@ -6,7 +6,7 @@ import { EmployeeService } from './employee-service';
 import { EmployeeLogicService } from '../logic/employee-logic-service';
 import { EmployeeEventType } from '../../constants/model-constants';
 import { Event } from '../../model/event';
-import { getWorkingYearMonth, isEventAtOrBeforeWorkingMonth, buildAdHocRevisionRunId, YearMonth } from '../logic/event-id-service';
+import { getWorkingYearMonth, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth, buildAdHocRevisionRunId, YearMonth } from '../logic/event-id-service';
 import { MonthlyInsuranceDiff, MonthlyInsuranceComparisonRow } from '../logic/correction-logic.service';
 
 export type SystemCalculationRunItem = CalculationRun & {
@@ -417,6 +417,28 @@ export class CalculationRunService {
       .filter(run => run.type === '差額調整' && run.approval?.approvalStatus === '申請中')
       .filter(run => run.runId && isEventAtOrBeforeWorkingMonth(run.runId, year, month))
       .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  /** 指定作業月のシステム計算結果（全承認状況） */
+  async getSystemRunsForTargetMonth(targetYear: number, targetMonth: number): Promise<SystemCalculationRunItem[]> {
+    const working = getWorkingYearMonth();
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.type === 'イベント' || run.type === '随時改定')
+      .filter(run =>
+        run.runId
+        && isEventInTargetMonth(
+          run.runId,
+          targetYear,
+          targetMonth,
+          working.year,
+          working.month,
+          run.detectedDate as { toDate?: () => Date; seconds?: number } | undefined,
+        ),
+      )
+      .map(run => this.toSystemItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => (right.detectedDate?.toMillis() ?? 0) - (left.detectedDate?.toMillis() ?? 0));
   }
 
   async allocateSequentialRunId(baseId: string): Promise<string> {

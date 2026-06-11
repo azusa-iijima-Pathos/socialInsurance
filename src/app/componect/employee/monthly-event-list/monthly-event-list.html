@@ -1,0 +1,264 @@
+<div class="im-page-shell">
+  <h1 class="page-title">月別イベント一覧</h1>
+
+  <div class="information-area">
+    <p>作業月を選択すると、その月に紐づくイベントを一覧表示します。</p>
+    <p>申請中・承認済み・却下を含むすべてのイベントを確認できます。</p>
+  </div>
+
+  <div class="im-correction-toolbar monthly-event-list-toolbar">
+    <label>対象月
+      <select [(ngModel)]="selectedMonthKey" (change)="onMonthChange()">
+        <option *ngFor="let option of monthOptions" [value]="option.year + '-' + option.month">
+          {{ option.label }}
+        </option>
+      </select>
+    </label>
+  </div>
+
+  <div *ngIf="!hasAnyEvents()" class="employee-detail-empty im-empty-hint">
+    {{ selectedMonthLabel }}のイベントはありません
+  </div>
+
+  <!-- 一定年齢到達 -->
+  <section class="employee-detail-section employee-detail-events" *ngIf="reachAgeEvents.length > 0">
+    <h2 class="section-title">一定年齢到達</h2>
+    <div class="employee-detail-events-table-wrap">
+      <table class="employee-detail-events-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>社員ID</th>
+            <th>氏名</th>
+            <th>生年月日</th>
+            <th>到達年齢</th>
+            <th>申請日</th>
+            <th>承認状況</th>
+            <th>承認者</th>
+            <th>承認日</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let event of reachAgeEvents">
+            <td class="employee-detail-events-table__actions">
+              <button type="button" class="im-btn-muted" (click)="showEventDetail(event)">詳細</button>
+            </td>
+            <td>{{ event.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                {{ getEmployeeName(event.employeeId) }}
+              </a>
+            </td>
+            <td>{{ commonService.formatDate(event.payload?.['employee']?.birthDate ?? null) }}</td>
+            <td>{{ event.reachAgeType }}</td>
+            <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+            <td>{{ getApprovalStatus(event) }}</td>
+            <td>{{ getApproverName(event) }}</td>
+            <td>{{ getApprovalDate(event) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 随時改定（固定給変更） -->
+  <section class="employee-detail-section employee-detail-events" *ngIf="fixedSalaryRuns.length > 0">
+    <h2 class="section-title">随時改定（固定給変更）</h2>
+    <div class="employee-detail-events-table-wrap">
+      <table class="employee-detail-events-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>社員ID</th>
+            <th>氏名</th>
+            <th>固定給変更日</th>
+            <th>申請日</th>
+            <th>承認状況</th>
+            <th>承認者</th>
+            <th>承認日</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let run of fixedSalaryRuns">
+            <td class="employee-detail-events-table__actions">
+              <button type="button" class="im-btn-muted" (click)="showSystemRunDetail(run)">詳細</button>
+            </td>
+            <td>{{ run.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                {{ getEmployeeName(run.employeeId) }}
+              </a>
+            </td>
+            <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
+            <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
+            <td>{{ getApprovalStatus(run) }}</td>
+            <td>{{ commonService.getEmployeeName(run.approval?.approvedBy ?? '') || '—' }}</td>
+            <td>{{ run.approval?.approvedDate ? commonService.formatDateTime(run.approval?.approvedDate) : '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 退社処理 -->
+  <section class="employee-detail-section employee-detail-events" *ngIf="retireRuns.length > 0">
+    <h2 class="section-title">退社処理</h2>
+    <div class="employee-detail-events-table-wrap">
+      <table class="employee-detail-events-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>社員ID</th>
+            <th>氏名</th>
+            <th>退社予定日</th>
+            <th>申請日</th>
+            <th>承認状況</th>
+            <th>承認者</th>
+            <th>承認日</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let run of retireRuns">
+            <td class="employee-detail-events-table__actions">
+              <button type="button" class="im-btn-muted" (click)="showSystemRunDetail(run)">詳細</button>
+            </td>
+            <td>{{ run.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                {{ getEmployeeName(run.employeeId) }}
+              </a>
+            </td>
+            <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
+            <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
+            <td>{{ getApprovalStatus(run) }}</td>
+            <td>{{ commonService.getEmployeeName(run.approval?.approvedBy ?? '') || '—' }}</td>
+            <td>{{ run.approval?.approvedDate ? commonService.formatDateTime(run.approval?.approvedDate) : '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 従業員からの申請 -->
+  <section class="employee-detail-section employee-detail-events" *ngIf="employeeApplicationEvents.length > 0">
+    <h2 class="section-title">従業員からの申請</h2>
+    <div class="employee-detail-events-table-wrap">
+      <table class="employee-detail-events-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>社員ID</th>
+            <th>氏名</th>
+            <th>種別</th>
+            <th>理由</th>
+            <th>事象発生日</th>
+            <th>申請日</th>
+            <th>承認状況</th>
+            <th>承認者</th>
+            <th>承認日</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let event of employeeApplicationEvents">
+            <td class="employee-detail-events-table__actions">
+              <button type="button" class="im-btn-muted" (click)="showEventDetail(event)">詳細</button>
+            </td>
+            <td>{{ event.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                {{ getEmployeeName(event.employeeId) }}
+              </a>
+            </td>
+            <td>{{ event.eventType }}</td>
+            <td>{{ getReasonLabel(event) }}</td>
+            <td>{{ commonService.formatDate(event.occurredDate) }}</td>
+            <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+            <td>{{ getApprovalStatus(event) }}</td>
+            <td>{{ getApproverName(event) }}</td>
+            <td>{{ getApprovalDate(event) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- その他 -->
+  <section class="employee-detail-section employee-detail-events" *ngIf="otherEvents.length > 0 || otherSystemRuns.length > 0">
+    <h2 class="section-title">その他</h2>
+    <div class="employee-detail-events-table-wrap">
+      <table class="employee-detail-events-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>社員ID</th>
+            <th>氏名</th>
+            <th>種別</th>
+            <th>事象発生日</th>
+            <th>申請日</th>
+            <th>承認状況</th>
+            <th>承認者</th>
+            <th>承認日</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let event of otherEvents">
+            <td class="employee-detail-events-table__actions">
+              <button type="button" class="im-btn-muted" (click)="showEventDetail(event)">詳細</button>
+            </td>
+            <td>{{ event.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                {{ getEmployeeName(event.employeeId) }}
+              </a>
+            </td>
+            <td>{{ event.eventType }}</td>
+            <td>{{ commonService.formatDate(event.occurredDate) }}</td>
+            <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+            <td>{{ getApprovalStatus(event) }}</td>
+            <td>{{ getApproverName(event) }}</td>
+            <td>{{ getApprovalDate(event) }}</td>
+          </tr>
+          <tr *ngFor="let run of otherSystemRuns">
+            <td class="employee-detail-events-table__actions">
+              <button type="button" class="im-btn-muted" (click)="showSystemRunDetail(run)">詳細</button>
+            </td>
+            <td>{{ run.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                {{ getEmployeeName(run.employeeId) }}
+              </a>
+            </td>
+            <td>{{ run.eventType }}</td>
+            <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
+            <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
+            <td>{{ getApprovalStatus(run) }}</td>
+            <td>{{ commonService.getEmployeeName(run.approval?.approvedBy ?? '') || '—' }}</td>
+            <td>{{ run.approval?.approvedDate ? commonService.formatDateTime(run.approval?.approvedDate) : '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- イベント詳細モーダル（従業員詳細と同じ） -->
+<div class="employee-edit-modal" *ngIf="detailModalOpen && detailModalEvent">
+  <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
+    <div class="employee-edit-modal__header">
+      <h2>イベント詳細</h2>
+    </div>
+    <div class="employee-approval-modal__body">
+      <p>{{ detailModalEvent.eventType }} {{ detailModalEvent.lifeEventType ? '(' + detailModalEvent.lifeEventType + ')' : '' }}</p>
+      <p>発生日：{{ commonService.formatDate(detailModalEvent.occurredDate) }}</p>
+      <p>内容</p>
+      <ul>
+        <li *ngFor="let line of getEmployeeEventChangeLines(detailModalEvent)">{{ line }}</li>
+      </ul>
+      <p>ステータス：{{ detailModalEvent.approval?.approvalStatus ?? '' }}</p>
+      <p>承認者：{{ commonService.getEmployeeName(detailModalEvent.approval?.approvedBy ?? '') }}</p>
+    </div>
+    <div class="employee-edit-actions">
+      <button type="button" class="im-btn-soft" (click)="closeDetail()">閉じる</button>
+    </div>
+  </div>
+</div>

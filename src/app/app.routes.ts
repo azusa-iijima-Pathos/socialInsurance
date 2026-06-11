@@ -21,6 +21,7 @@ import { HireEntry } from './componect/employee/hire-entry/hire-entry';
 import { RetireEntry } from './componect/employee/retire-entry/retire-entry';
 import { ReachAge } from './componect/employee/reach-age/reach-age';
 import { SystemApplicationList } from './componect/employee/system-application-list/system-application-list';
+import { MonthlyEventList } from './componect/employee/monthly-event-list/monthly-event-list';
 import { TopForEmployee } from './componect/top/top-for-employee/top-for-employee';
 import { CompanyDetail } from './componect/company/company-detail/company-detail';
 import { OfficeDetail } from './componect/office/office-detail/office-detail';
@@ -115,6 +116,9 @@ export const routes: Routes = [
         canActivate: [authGuard, companyGuard], data: { permission: '承認' }
     },
     { path: 'system-application-list', component: SystemApplicationList, title: '今月の申請一覧（システム） ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'monthly-event-list', component: MonthlyEventList, title: '月別イベント一覧 ｜ 社会保険管理システム' ,
         canActivate: [authGuard, companyGuard], data: { permission: '承認' }
     },
     { path: 'retroactive-correction', component: RetroactiveCorrection, title: '遡及修正 ｜ 社会保険管理システム' ,

@@ -173,6 +173,28 @@ function getAppliedDateYearMonth(
   return null;
 }
 
+/** イベントID（または申請日）が指定作業月と一致するか */
+export function isEventInTargetMonth(
+  eventId: string,
+  targetYear: number,
+  targetMonth: number,
+  workingYear: number,
+  workingMonth: number,
+  appliedDate?: { toDate?: () => Date; seconds?: number } | null,
+): boolean {
+  const parsed = parseEventYearMonth(eventId, workingYear, workingMonth);
+  if (parsed) {
+    return parsed.year === targetYear && parsed.month === targetMonth;
+  }
+
+  const applied = getAppliedDateYearMonth(appliedDate);
+  if (applied) {
+    return applied.year === targetYear && applied.month === targetMonth;
+  }
+
+  return false;
+}
+
 export function getFixedSalarySystemOccurredDate(working?: YearMonth): Date {
   const current = working ?? getWorkingYearMonth();
   const future = addMonths(current.year, current.month, 3);
