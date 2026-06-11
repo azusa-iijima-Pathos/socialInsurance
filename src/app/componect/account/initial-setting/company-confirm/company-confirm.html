@@ -28,7 +28,7 @@
                 </div>
             </div>
 
-            <div class="company-confirm-triple">
+            <div class="company-confirm-pair">
                 <div class="company-confirm-field">
                     <span>事業種</span>
                     <strong>{{ company.businessType }}</strong>
@@ -37,9 +37,20 @@
                     <span>常時従業員数</span>
                     <strong>{{ company.employeeCount | number }}人</strong>
                 </div>
+            </div>
+
+            <div class="company-confirm-triple">
                 <div class="company-confirm-field">
                     <span>本社所在地</span>
                     <strong>{{ company.headOfficePrefecture }}</strong>
+                </div>
+                <div class="company-confirm-field">
+                    <span>事業所整理記号</span>
+                    <strong>{{ headOffice?.officeOrganizationSymbol || '—' }}</strong>
+                </div>
+                <div class="company-confirm-field">
+                    <span>事業所番号</span>
+                    <strong>{{ headOffice?.officeNumber || '—' }}</strong>
                 </div>
             </div>
         </div>

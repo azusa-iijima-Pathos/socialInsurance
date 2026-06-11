@@ -19,6 +19,7 @@
 }
 
 .company-confirm-main-row,
+.company-confirm-pair,
 .company-confirm-triple,
 .company-confirm-insurance-row {
   display: grid;
@@ -28,6 +29,10 @@
 
 .company-confirm-main-row {
   grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(240px, 2fr);
+}
+
+.company-confirm-pair {
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
 }
 
 .company-confirm-triple {
@@ -89,6 +94,7 @@
 
 @media (max-width: 900px) {
   .company-confirm-main-row,
+  .company-confirm-pair,
   .company-confirm-triple,
   .company-confirm-insurance-row {
     grid-template-columns: 1fr;

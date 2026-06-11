@@ -16,6 +16,7 @@ import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { EventService } from '../../../service/Firestore/event-service';
 import { OfficeService } from '../../../service/Firestore/office-service';
 import { EmployeeLogicService } from '../../../service/logic/employee-logic-service';
+import { InsuranceFormService } from '../../../service/logic/insurance-form.service';
 
 type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
 type InsuranceStatus = 'joined' | 'notJoined';
@@ -39,6 +40,7 @@ export class HireEntry {
   private companyService = inject(CompanyService);
   private employeeLogicService = inject(EmployeeLogicService);
   private validationService = inject(ValidationService);
+  private insuranceFormService = inject(InsuranceFormService);
 
   WORK_STATUSES = WORK_STATUSES;
   LEAVE_TYPES = LEAVE_TYPES;
@@ -52,8 +54,8 @@ export class HireEntry {
 
   // 表示用の加入判定
   autoInsuranceJudgement: InsuranceJudgement | null = null;
-  autoGradeJudgement: number| null = null;
-  
+  autoGradeJudgement: number | null = null;
+
   private messageTimer: MessageTimer = null;
 
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? '';
@@ -66,8 +68,8 @@ export class HireEntry {
     lastName: ['', [Validators.required]],
     birthDate: ['', [Validators.required, this.validationService.birthDateValidator]],
     hireDate: ['', [Validators.required]],
-    workStatus: ['通常勤務', [Validators.required]],
-    leaveTypes: [''],
+    // workStatus: ['通常勤務', [Validators.required]],
+    // leaveTypes: [''],
     employmentContract: this.fb.nonNullable.group({
       employmentCategory: ['正社員', [Validators.required]],
       workStyle: ['フルタイム', [Validators.required]],
@@ -79,6 +81,7 @@ export class HireEntry {
     }),
     insurance: this.fb.nonNullable.group({
       currentGrade: [0, [Validators.required, Validators.min(0), Validators.max(50)]],
+      basicPensionNumber: ['', [Validators.pattern('^[a-zA-Z0-9]*$')]],
       healthInsurance: this.fb.nonNullable.group({
         joined: ['notJoined' as InsuranceStatus, [Validators.required]],
         acquiredDate: [''],
@@ -105,6 +108,18 @@ export class HireEntry {
 
     if (this.dependents.length === 0) {
       this.addDependent();
+
+      this.form.controls.employmentContract.controls.employmentCategory.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(category => {
+          const workStyleControl =
+            this.form.controls.employmentContract.controls.workStyle;
+          if (category === 'パート') {
+            workStyleControl.setValue('パート', { emitEvent: false });
+          } else {
+            workStyleControl.setValue('フルタイム', { emitEvent: false });
+          }
+        });
     }
 
     // 加入判定では会社が特定適用事業所かどうかを使う
@@ -112,10 +127,11 @@ export class HireEntry {
 
     // 入力内容に応じて、必須/任意/disabled を切り替える
     this.setupTransportationExpensesValidation();
-    this.setupLeaveTypesValidation();
+    // this.setupLeaveTypesValidation();
     this.setupInsuranceDetailControls('healthInsurance');
     this.setupInsuranceDetailControls('nursingCareInsurance');
     this.setupInsuranceDetailControls('employeePensionInsurance');
+    this.setupInsuranceDependencyRules();
 
     // フォーム変更時に「表示用」の自動判定だけ更新する。入力値には反映しない。
     this.form.valueChanges
@@ -172,17 +188,17 @@ export class HireEntry {
     this.form.reset();
     this.clearMessage();
     this.updateTransportationExpensesValidation();
-    this.updateLeaveTypesValidation();
+    // this.updateLeaveTypesValidation();
     this.updateInsuranceDetailControls('notJoined', 'healthInsurance');
     this.updateInsuranceDetailControls('notJoined', 'nursingCareInsurance');
     this.updateInsuranceDetailControls('notJoined', 'employeePensionInsurance');
     this.resetDependents();
   }
 
-  // 休職種別の表示/非表示
-  showLeaveTypesField() {
-    return this.form.controls.workStatus.value === '休職中';
-  }
+  // // 休職種別の表示/非表示
+  // showLeaveTypesField() {
+  //   return this.form.controls.workStatus.value === '休職中';
+  // }
 
   // 通勤手当の表示/非表示
   showTransportationExpensesField() {
@@ -224,10 +240,7 @@ export class HireEntry {
       lastName: this.form.value.lastName!,
       birthDate: timestampFromDateInput(this.form.value.birthDate!),
       hireDate: timestampFromDateInput(this.form.value.hireDate!),
-      workStatus: this.form.value.workStatus! as WorkStatus,
-      ...(this.form.value.workStatus === '休職中'
-        ? { leaveTypes: this.form.value.leaveTypes! as LeaveType }
-        : {}),
+      workStatus: "通常勤務" as WorkStatus,
       employmentContract: this.createEmploymentContractFromForm(),
       insurance: this.createInsuranceInfo(),
     };
@@ -259,6 +272,7 @@ export class HireEntry {
     const insurance = this.form.controls.insurance;
     return {
       currentGrade: insurance.controls.currentGrade.value,
+      basicPensionNumber: insurance.controls.basicPensionNumber.value.trim() || undefined,
       healthInsurance: this.createInsuranceDetailFromForm('healthInsurance'),
       nursingCareInsurance: this.createInsuranceDetailFromForm('nursingCareInsurance'),
       employeePensionInsurance: this.createInsuranceDetailFromForm('employeePensionInsurance'),
@@ -331,29 +345,29 @@ export class HireEntry {
       .subscribe(() => this.updateTransportationExpensesValidation());
   }
 
-  // 休職種別の入力可否を切り替える
-  private setupLeaveTypesValidation() {
-    // 勤務状況が休職中のときだけ、休職種別を必須にする
-    this.updateLeaveTypesValidation();
-    this.form.controls.workStatus.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.updateLeaveTypesValidation());
-    this.form.controls.hireDate.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.setAcquiredDateFromHireDate());
-  }
+  // // 休職種別の入力可否を切り替える
+  // private setupLeaveTypesValidation() {
+  //   // 勤務状況が休職中のときだけ、休職種別を必須にする
+  //   this.updateLeaveTypesValidation();
+  //   this.form.controls.workStatus.valueChanges
+  //     .pipe(takeUntilDestroyed(this.destroyRef))
+  //     .subscribe(() => this.updateLeaveTypesValidation());
+  //   this.form.controls.hireDate.valueChanges
+  //     .pipe(takeUntilDestroyed(this.destroyRef))
+  //     .subscribe(() => this.setAcquiredDateFromHireDate());
+  // }
 
-  // 休職種別の必須チェックを切り替える
-  private updateLeaveTypesValidation() {
-    // 勤務状況に応じて休職種別の必須チェックを切り替える
-    const leaveTypesControl = this.form.controls.leaveTypes;
-    const isLeaveTypesRequired = this.form.controls.workStatus.value === '休職中';
-    leaveTypesControl.setValidators(isLeaveTypesRequired ? [Validators.required] : null);
-    if (!isLeaveTypesRequired) {
-      leaveTypesControl.setValue('', { emitEvent: false });
-    }
-    leaveTypesControl.updateValueAndValidity({ emitEvent: false });
-  }
+  // // 休職種別の必須チェックを切り替える
+  // private updateLeaveTypesValidation() {
+  //   // 勤務状況に応じて休職種別の必須チェックを切り替える
+  //   const leaveTypesControl = this.form.controls.leaveTypes;
+  //   const isLeaveTypesRequired = this.form.controls.workStatus.value === '休職中';
+  //   leaveTypesControl.setValidators(isLeaveTypesRequired ? [Validators.required] : null);
+  //   if (!isLeaveTypesRequired) {
+  //     leaveTypesControl.setValue('', { emitEvent: false });
+  //   }
+  //   leaveTypesControl.updateValueAndValidity({ emitEvent: false });
+  // }
 
   // 通勤手当の入力可否を切り替える
   private updateTransportationExpensesValidation() {
@@ -376,7 +390,6 @@ export class HireEntry {
 
   // 保険情報の入力可否を切り替える
   private setupInsuranceDetailControls(insuranceName: InsuranceName) {
-    // 加入/未加入の選択に応じて取得日・会社負担率を切り替える
     const insuranceGroup = this.form.controls.insurance.controls[insuranceName];
     this.updateInsuranceDetailControls(insuranceGroup.controls.joined.value, insuranceName);
     insuranceGroup.controls.joined.valueChanges
@@ -409,6 +422,22 @@ export class HireEntry {
       acquiredDateControl.setValue(this.form.controls.hireDate.value, { emitEvent: false });
     }
     this.form.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private setupInsuranceDependencyRules() {
+    const insuranceForm = this.form.controls.insurance;
+    insuranceForm.setValidators(control => this.insuranceFormService.healthInsuranceDependencyValidator(control));
+    insuranceForm.controls.healthInsurance.controls.joined.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(status => {
+        this.insuranceFormService.syncSubInsuranceStatusesWithHealth(insuranceForm, status);
+      });
+  }
+
+  isSubInsuranceJoinedDisabled(): boolean {
+    return this.insuranceFormService.isSubInsuranceJoinedDisabled(
+      this.form.controls.insurance.controls.healthInsurance.controls.joined.value,
+    );
   }
 
   // 加入中の保険の取得日が空なら入社日を入れる
@@ -468,15 +497,15 @@ export class HireEntry {
     };
   }
 
-  // 生年月日をTimestampに変換する
-  private createBirthDateTimestamp(): Timestamp | undefined {
-    // 生年月日が未入力/不正な場合は、未加入ではなく判定不能にするため undefined を返す
-    const value = this.form.controls.birthDate.value;
-    if (!value || this.form.controls.birthDate.invalid) return undefined;
+  // // 生年月日をTimestampに変換する
+  // private createBirthDateTimestamp(): Timestamp | undefined {
+  //   // 生年月日が未入力/不正な場合は、未加入ではなく判定不能にするため undefined を返す
+  //   const value = this.form.controls.birthDate.value;
+  //   if (!value || this.form.controls.birthDate.invalid) return undefined;
 
-    const date = new Date(`${value}T00:00:00`);
-    return Number.isNaN(date.getTime()) ? undefined : Timestamp.fromDate(date);
-  }
+  //   const date = new Date(`${value}T00:00:00`);
+  //   return Number.isNaN(date.getTime()) ? undefined : Timestamp.fromDate(date);
+  // }
 
   // 数値に変換する
   private toNumberOrUndefined(value: unknown): number | undefined {

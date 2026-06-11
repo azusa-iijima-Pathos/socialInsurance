@@ -1,0 +1,17 @@
+.office-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.85fr);
+  gap: var(--im-size-24);
+  align-items: start;
+}
+
+.office-detail-list,
+.office-detail-register {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .office-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}

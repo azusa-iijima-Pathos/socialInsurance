@@ -221,8 +221,12 @@ export class EmployeeDetailEventService {
     after: Employee | Record<string, unknown>,
     loginEmployeeId: string,
   ): Promise<string | null> {
+    let occurredDate = Timestamp.now();
+    if (eventType === '退社') {
+      occurredDate = after.resignationDate as Timestamp;
+    }
     return this.eventService.createEventWithBaseId(employeeId, buildCurrentWorkMonthEventId(eventType), {
-      occurredDate: Timestamp.now(),
+      occurredDate: occurredDate,
       eventType,
       appliedDate: Timestamp.now(),
       applicantType: '管理者',

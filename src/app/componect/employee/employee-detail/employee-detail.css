@@ -375,6 +375,13 @@
   gap: var(--im-size-16);
 }
 
+.employee-insurance-grade-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-12);
+  align-items: start;
+}
+
 .employee-insurance-form-group {
   display: grid;
   gap: var(--im-size-8);

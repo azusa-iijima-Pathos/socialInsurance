@@ -19,8 +19,15 @@
     font-weight: bold;
 }
 
+.hire-entry-grade-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    grid-column: 1 / -1;
+}
+
 .hire-entry-grade-field {
-    max-width: 360px;
+    max-width: none;
 }
 
 .hire-entry-auto-judgement {

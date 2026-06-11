@@ -9,19 +9,23 @@
     <thead>
       <tr>
         <th>事業所名</th>
+        <th>事業所整理記号</th>
+        <th>事業所番号</th>
         <th>所在地</th>
         <th>登録日</th>
-        <th *ngIf="permission === '管理'"></th>
+        <th *ngIf="permission === '管理'" class="office-list-table__actions-header">操作</th>
       </tr>
     </thead>
     <tbody>
       <tr *ngFor="let office of allOffices()">
         <td>{{ office.name }}</td>
+        <td>{{ office.officeOrganizationSymbol || '—' }}</td>
+        <td>{{ office.officeNumber || '—' }}</td>
         <td>{{ office.prefecture }}</td>
         <td>{{ commonService.formatDate(office.createdAt) }}</td>
-        <td *ngIf="permission === '管理'">
-          <button class="im-btn-primary" (click)="editOffice(office)">編集</button>
-          <button class="im-btn-soft im-btn-soft--danger" (click)="deleteOffice(office)">削除</button>
+        <td *ngIf="permission === '管理'" class="office-list-table__actions">
+          <button type="button" class="im-btn-primary" (click)="editOffice(office)">編集</button>
+          <button type="button" class="im-btn-soft im-btn-soft--danger" (click)="deleteOffice(office)">削除</button>
         </td>
       </tr>
     </tbody>
@@ -37,12 +41,29 @@
       <div class="im-field-block">
         <label for="name">事業所名</label>
         <input type="text" id="name" formControlName="name">
+        <div class="error">
+          <p *ngIf="form.get('name')?.errors?.['required'] && form.get('name')?.touched">事業所名は必須です</p>
+        </div>
+      </div>
+      <div class="im-field-block">
+        <label for="officeOrganizationSymbol">事業所整理記号</label>
+        <input type="text" id="officeOrganizationSymbol" formControlName="officeOrganizationSymbol">
+        <div class="error">
+          <p *ngIf="form.get('officeOrganizationSymbol')?.errors?.['required'] && form.get('officeOrganizationSymbol')?.touched">事業所整理記号は必須です</p>
+        </div>
+      </div>
+      <div class="im-field-block">
+        <label for="officeNumber">事業所番号</label>
+        <input type="text" id="officeNumber" formControlName="officeNumber">
       </div>
       <div class="im-field-block">
         <label for="prefecture">所在地</label>
         <select id="prefecture" formControlName="prefecture">
           <option *ngFor="let prefecture of PREFECTURES" [value]="prefecture">{{ prefecture }}</option>
         </select>
+        <div class="error">
+          <p *ngIf="form.get('prefecture')?.errors?.['required'] && form.get('prefecture')?.touched">所在地は必須です</p>
+        </div>
       </div>
       <div class="office-edit-modal__actions">
         <button type="button" class="im-btn-soft" (click)="closeModal()">キャンセル</button>

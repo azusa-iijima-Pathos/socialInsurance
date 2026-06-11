@@ -389,6 +389,16 @@ export class CalculationRunService {
       .sort((left, right) => right.runId.localeCompare(left.runId));
   }
 
+  /** 社員の随時改定計算結果（全承認状況） */
+  async getAdHocRevisionRunsForEmployee(employeeId: string): Promise<SystemCalculationRunItem[]> {
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.type === '随時改定' && String(run.targetEmployeeIds ?? '') === employeeId)
+      .map(run => this.toSystemItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => (right.detectedDate?.toMillis() ?? 0) - (left.detectedDate?.toMillis() ?? 0));
+  }
+
   /** 社員の申請中システム計算結果 */
   async getPendingSystemRunsForEmployee(employeeId: string): Promise<SystemCalculationRunItem[]> {
     const { year, month } = getWorkingYearMonth();
@@ -457,14 +467,28 @@ export class CalculationRunService {
     return `${baseId}_${maxSeq + 1}`;
   }
 
-  async markRunApproved(runId: string, loginEmployeeId: string): Promise<boolean> {
-    return this.updateCalculationRun(runId, {
+  async markRunApproved(
+    runId: string,
+    loginEmployeeId: string,
+    payloadExtension?: Record<string, unknown>,
+  ): Promise<boolean> {
+    const update: Partial<CalculationRun> = {
       approval: {
         approvalStatus: '承認済み',
         approvedDate: Timestamp.now(),
         approvedBy: loginEmployeeId,
       },
-    });
+    };
+
+    if (payloadExtension) {
+      const existing = await this.getCalculationRunById(runId);
+      update.payload = {
+        ...existing?.payload,
+        ...payloadExtension,
+      };
+    }
+
+    return this.updateCalculationRun(runId, update);
   }
 
   async markRunRejected(runId: string, loginEmployeeId: string): Promise<boolean> {

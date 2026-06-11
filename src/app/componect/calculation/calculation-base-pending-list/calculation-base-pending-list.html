@@ -97,7 +97,7 @@
     <p *ngFor="let error of calculationBaseEditErrors">{{ error }}</p>
 </div>
 <div *ngIf="runs.length > 0 && canEditDisplayedYear" class="calculation-base-actions">
-    <button *ngIf="!editMode" type="button" (click)="editApprovedGrades()" class="im-btn-primary">等級修正</button>
+    <button *ngIf="!editMode && !isApplied" type="button" (click)="editApprovedGrades()" class="im-btn-primary">等級修正</button>
     <button *ngIf="editMode" type="button" (click)="saveApprovedGrades()" class="im-btn-primary">修正内容を一括保存</button>
     <button *ngIf="!editMode && !isInternallyApproved && !isApplied" type="button" (click)="approveRuns()"
         class="im-btn-primary">社内一括承認</button>

@@ -40,6 +40,8 @@
                                 社員IDが存在しません</p>
                         </div>
                     </div>
+                </div>
+                <div class="add-insurance-info-basic-row">
                     <div class="add-insurance-info-form-group add-insurance-info-grade-field">
                         <label for="currentGrade">標準報酬等級</label>
                         <input type="number" id="currentGrade" formControlName="currentGrade">
@@ -54,6 +56,15 @@
                                 標準報酬等級は50以下です</p>
                         </div>
 
+                    </div>
+                    <div class="add-insurance-info-form-group add-insurance-info-grade-field">
+                        <label for="basicPensionNumber">基礎年金番号</label>
+                        <input type="text" id="basicPensionNumber" formControlName="basicPensionNumber">
+                        <div class="error">
+                            <p
+                                *ngIf="form.get('basicPensionNumber')?.errors?.['pattern'] && form.get('basicPensionNumber')?.touched">
+                                半角英数字で入力してください</p>
+                        </div>
                     </div>
                 </div>
                 <div class="add-insurance-info-form-group" formGroupName="healthInsurance">
@@ -77,6 +88,7 @@
                         <div class="add-insurance-info-form-group">
                             <label for="healthInsuranceNumber">健康保険番号</label>
                             <input type="text" id="healthInsuranceNumber" formControlName="number">
+                            <p>※介護保険番号も同一の番号で登録されます</p>
                             <div class="error">
                                 <p
                                     *ngIf="form.get('healthInsurance.number')?.errors?.['required'] && form.get('healthInsurance.number')?.touched">
@@ -147,16 +159,9 @@
                     <div class="insurance-detail-fields"
                         [class.insurance-detail-fields--disabled]="form.get('nursingCareInsurance.joined')?.value === 'notJoined'">
                         <div class="add-insurance-info-form-group">
-                            <label for="nursingCareInsuranceNumber">介護保険番号</label>
-                            <input type="text" id="nursingCareInsuranceNumber" formControlName="number">
-                            <div class="error">
-                                <p
-                                    *ngIf="form.get('nursingCareInsurance.number')?.errors?.['required'] && form.get('nursingCareInsurance.number')?.touched">
-                                    介護保険番号は必須です</p>
-                                <p
-                                    *ngIf="form.get('nursingCareInsurance.number')?.errors?.['pattern'] && form.get('nursingCareInsurance.number')?.touched">
-                                    半角で入力してください</p>
-                            </div>
+                            <label>保険番号</label>
+                            <p>{{ form.get('healthInsurance.number')?.value || '—' }}</p>
+                            <p>※健康保険番号と同一です</p>
                         </div>
                         <div class="add-insurance-info-form-group">
                             <label for="nursingCareInsuranceAcquiredDate">介護保険取得日</label>

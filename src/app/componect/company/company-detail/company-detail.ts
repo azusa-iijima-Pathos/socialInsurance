@@ -47,26 +47,21 @@ export class CompanyDetail {
       this.isSpecificApplicableOffice = this.companyLogicService.isSpecificApplicableOffice(this.company);
     }
 
-    this.form.get('socialInsuranceRequired')?.valueChanges.subscribe(value => {
+    this.form.valueChanges.subscribe(() => {
+      this.updateNoInsuranceMessage();
+    });
 
+    this.form.get('socialInsuranceRequired')?.valueChanges.subscribe(value => {
       if (value) {
         this.form.patchValue({
           optionalApplicableOffice: false
         });
-
         this.form.get('optionalApplicableOffice')?.disable();
       } else {
         this.form.get('optionalApplicableOffice')?.enable();
-        this.form.get('optionalApplicableOffice')?.valueChanges.subscribe(value2 => {
-          if (!value2) {
-            this.noInsuranceMessage = '社会保険にも任意適用事業所にも加入していません。どちらかを選択してください。';
-            this.commonService.showTimedMessage(this.noInsuranceMessage, value => this.noInsuranceMessage = value, this.messageTimer);
-          }
-        });
       }
-
     });
-
+    
     this.form.get('specificApplicableOffice')?.valueChanges.subscribe(value => {
       if (value) {
         this.form.patchValue({
@@ -78,7 +73,16 @@ export class CompanyDetail {
       }
     });
 
+  }
 
+  private updateNoInsuranceMessage() {
+    const social = this.form.get('socialInsuranceRequired')?.value;
+    const optional = this.form.get('optionalApplicableOffice')?.value;
+  
+    this.noInsuranceMessage =
+      !social && !optional
+        ? '社会保険にも任意適用事業所にも加入していません。どちらかを選択してください。'
+        : '';
   }
 
   private fb = inject(FormBuilder);
@@ -135,9 +139,9 @@ export class CompanyDetail {
       headOfficePrefecture: this.form.value.headOfficePrefecture! as Prefecture,
       employeeCount: Number(this.form.value.employeeCount!),
       socialInsuranceRequired: this.form.value.socialInsuranceRequired!,
-      optionalApplicableOffice: this.form.value.optionalApplicableOffice!,
+      optionalApplicableOffice: this.form.value.optionalApplicableOffice ?? false,
       specificApplicableOffice: this.form.value.specificApplicableOffice!,
-      optionalSpecificApplicableOffice: this.form.value.optionalSpecificApplicableOffice!,
+      optionalSpecificApplicableOffice: this.form.value.optionalSpecificApplicableOffice ?? false,
     };
 
     //会社情報を更新

@@ -138,20 +138,32 @@ export class RetroactiveCorrection {
     return this.filterEmployees(this.employeeService.allEmployees().filter(employee => employee.workStatus === '退社済み'));
   }
 
-  async selectEmployee() {
-    await this.onEmployeeChange();
-  }
+  // async selectEmployee() {
+  //   await this.onEmployeeChange();
+  // }
 
   setActiveTab(tab: RetroactiveTab) {
     this.activeTab = tab;
     this.previewModalOpen = false;
   }
 
+  selectedEmployeeId = '';
+  async onEmployeeIdChange(employeeId: string) {
+    this.selectedEmployeeId = employeeId;
+    this.form.patchValue({ employeeId }, { emitEvent: false });
+    if (!employeeId) {
+      this.selectedEmployee = null;
+      return;
+    }
+    await this.onEmployeeChange();
+  }
+
+
   /**
    * 社員情報を取得し、フォームに設定する
    */
   async onEmployeeChange() {
-    const employeeId = this.form.value.employeeId;
+    const employeeId = this.selectedEmployeeId;
     if (!employeeId) {
       this.selectedEmployee = null;
       this.leaveStartFromEvent = null;
@@ -241,9 +253,15 @@ export class RetroactiveCorrection {
   }
 
   private async validateBeforeSubmit(): Promise<boolean> {
+    if (this.selectedEmployeeId) {
+      this.form.patchValue({ employeeId: this.selectedEmployeeId }, { emitEvent: false });
+    }
     this.form.markAllAsTouched();
 
-    if (this.form.controls.employeeId.invalid) return false;
+    if (this.form.controls.employeeId.invalid) {
+      this.showMessage('社員を選択してください');
+      return false;
+    }
     if (this.activeTab !== 'leave') {
       if (this.form.controls.applyDate.invalid) return false;
 

@@ -226,7 +226,13 @@ export class EmployeeEventApprovalService {
     if (!employeeUpdated) return false;
 
     return runId
-      ? this.calculationRunService.markRunApproved(runId, loginEmployeeId)
+      ? this.calculationRunService.markRunApproved(runId, loginEmployeeId, {
+        revisionSummary: {
+          currentGrade: draft.currentGrade,
+          approvedGrade: draft.approvedGrade,
+          averageSalary: draft.averageSalary,
+        },
+      })
       : this.markEventApproved(employeeId, event, loginEmployeeId);
   }
 
@@ -256,6 +262,7 @@ export class EmployeeEventApprovalService {
         draft.nursingAcquiredDate,
         draft.nursingLostDate,
         employee.insurance?.nursingCareInsurance,
+        employee.insurance?.healthInsurance?.number,
       ),
       employeePensionInsurance: this.buildInsuranceDetailFromDraft(
         draft.pensionStatus,
@@ -349,8 +356,10 @@ export class EmployeeEventApprovalService {
     const changeDate = Timestamp.fromDate(birthdayThisYear);
 
     let updateEmployee: Partial<Employee> = {};
+    let shouldClearDependents = false;
     switch (event.reachAgeType) {
-      case '40歳':
+      case '40歳': {
+        const healthNumber = employee.insurance?.healthInsurance?.number;
         updateEmployee = {
           employeeId,
           insurance: {
@@ -358,10 +367,15 @@ export class EmployeeEventApprovalService {
             nursingCareInsurance: {
               joined: true,
               acquiredDate: changeDate,
+              ...(healthNumber ? { number: healthNumber } : {}),
+              companyBurdenRate: employee.insurance?.nursingCareInsurance?.companyBurdenRate
+                ?? employee.insurance?.healthInsurance?.companyBurdenRate
+                ?? 50,
             },
           },
         };
         break;
+      }
       case '65歳':
         updateEmployee = {
           employeeId,
@@ -389,15 +403,14 @@ export class EmployeeEventApprovalService {
         };
         break;
       case '75歳':
+        shouldClearDependents = true;
         updateEmployee = {
           employeeId,
           insurance: {
-            ...employee.insurance,
-            healthInsurance: {
-              ...employee.insurance?.healthInsurance,
-              joined: false,
-              lostDate: changeDate,
-            },
+            currentGrade: employee.insurance?.currentGrade ?? 0,
+            healthInsurance: this.buildLostInsuranceDetail(employee.insurance?.healthInsurance, changeDate),
+            nursingCareInsurance: this.buildLostInsuranceDetail(employee.insurance?.nursingCareInsurance, changeDate),
+            employeePensionInsurance: this.buildLostInsuranceDetail(employee.insurance?.employeePensionInsurance, changeDate),
           },
         };
         break;
@@ -407,6 +420,11 @@ export class EmployeeEventApprovalService {
 
     const employeeUpdated = await this.employeeService.updateEmployee(updateEmployee);
     if (!employeeUpdated) return false;
+
+    if (shouldClearDependents) {
+      const dependentsUpdated = await this.setAllDependentsNotDependent(employeeId);
+      if (!dependentsUpdated) return false;
+    }
 
     return this.markEventApproved(employeeId, event, loginEmployeeId);
   }
@@ -573,6 +591,7 @@ export class EmployeeEventApprovalService {
     acquiredDate: string,
     lostDate: string,
     existing?: InsuranceDetail,
+    sharedNumber?: string,
   ): InsuranceDetail {
     if (status === 'notJoined') {
       return { joined: false };
@@ -583,8 +602,9 @@ export class EmployeeEventApprovalService {
       companyBurdenRate: existing?.companyBurdenRate ?? 50,
     };
 
-    if (existing?.number) {
-      detail.number = existing.number;
+    const number = existing?.number ?? (status === 'joined' ? sharedNumber : undefined);
+    if (number) {
+      detail.number = number;
     }
 
     if (status === 'joined' && acquiredDate) {

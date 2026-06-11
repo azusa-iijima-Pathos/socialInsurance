@@ -16,22 +16,18 @@
     </label>
   </div>
 
-  <div *ngIf="!hasAnyEvents()" class="employee-detail-empty im-empty-hint">
-    {{ selectedMonthLabel }}のイベントはありません
-  </div>
-
-  <!-- 一定年齢到達 -->
-  <section class="employee-detail-section employee-detail-events" *ngIf="reachAgeEvents.length > 0">
-    <h2 class="section-title">一定年齢到達</h2>
-    <div class="employee-detail-events-table-wrap">
+  <!-- 入社 -->
+  <section class="employee-detail-section employee-detail-events">
+    <h2 class="section-title">入社</h2>
+    <div *ngIf="hireEvents.length === 0" class="employee-detail-empty">データがありません</div>
+    <div class="employee-detail-events-table-wrap" *ngIf="hireEvents.length > 0">
       <table class="employee-detail-events-table">
         <thead>
           <tr>
             <th></th>
             <th>社員ID</th>
             <th>氏名</th>
-            <th>生年月日</th>
-            <th>到達年齢</th>
+            <th>入社日</th>
             <th>申請日</th>
             <th>承認状況</th>
             <th>承認者</th>
@@ -39,9 +35,10 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let event of reachAgeEvents">
+          <tr *ngFor="let event of hireEvents">
             <td class="employee-detail-events-table__actions">
-              <button type="button" class="im-btn-muted" (click)="showEventDetail(event)">詳細</button>
+              <button type="button" class="im-btn-muted" *ngIf="canShowEventDetail(event)"
+                (click)="showEventDetail(event)">詳細</button>
             </td>
             <td>{{ event.employeeId }}</td>
             <td>
@@ -49,8 +46,7 @@
                 {{ getEmployeeName(event.employeeId) }}
               </a>
             </td>
-            <td>{{ commonService.formatDate(event.payload?.['employee']?.birthDate ?? null) }}</td>
-            <td>{{ event.reachAgeType }}</td>
+            <td>{{ commonService.formatDate(event.occurredDate) }}</td>
             <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
             <td>{{ getApprovalStatus(event) }}</td>
             <td>{{ getApproverName(event) }}</td>
@@ -61,10 +57,63 @@
     </div>
   </section>
 
-  <!-- 随時改定（固定給変更） -->
-  <section class="employee-detail-section employee-detail-events" *ngIf="fixedSalaryRuns.length > 0">
-    <h2 class="section-title">随時改定（固定給変更）</h2>
-    <div class="employee-detail-events-table-wrap">
+  <!-- 退社 -->
+  <section class="employee-detail-section employee-detail-events">
+    <h2 class="section-title">退社</h2>
+    <div *ngIf="retireEvents.length === 0 && retireRuns.length === 0" class="employee-detail-empty">データがありません</div>
+    <div class="employee-detail-events-table-wrap" *ngIf="retireEvents.length > 0 || retireRuns.length > 0">
+      <table class="employee-detail-events-table">
+        <thead>
+          <tr>
+            <th>社員ID</th>
+            <th>氏名</th>
+            <th>種別</th>
+            <th>事象発生日</th>
+            <th>申請日</th>
+            <th>承認状況</th>
+            <th>承認者</th>
+            <th>承認日</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let event of retireEvents">
+            <td>{{ event.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                {{ getEmployeeName(event.employeeId) }}
+              </a>
+            </td>
+            <td>{{ event.eventType }}</td>
+            <td>{{ commonService.formatDate(event.occurredDate) }}</td>
+            <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
+            <td>{{ getApprovalStatus(event) }}</td>
+            <td>{{ getApproverName(event) }}</td>
+            <td>{{ getApprovalDate(event) }}</td>
+          </tr>
+          <tr *ngFor="let run of retireRuns">
+            <td>{{ run.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                {{ getEmployeeName(run.employeeId) }}
+              </a>
+            </td>
+            <td>{{ run.eventType }}</td>
+            <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
+            <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
+            <td>{{ getApprovalStatus(run) }}</td>
+            <td>{{ commonService.getEmployeeName(run.approval?.approvedBy ?? '') || '—' }}</td>
+            <td>{{ run.approval?.approvedDate ? commonService.formatDateTime(run.approval?.approvedDate) : '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 随時改定 -->
+  <section class="employee-detail-section employee-detail-events">
+    <h2 class="section-title">随時改定</h2>
+    <div *ngIf="fixedSalaryRuns.length === 0" class="employee-detail-empty">データがありません</div>
+    <div class="employee-detail-events-table-wrap" *ngIf="fixedSalaryRuns.length > 0">
       <table class="employee-detail-events-table">
         <thead>
           <tr>
@@ -100,49 +149,11 @@
     </div>
   </section>
 
-  <!-- 退社処理 -->
-  <section class="employee-detail-section employee-detail-events" *ngIf="retireRuns.length > 0">
-    <h2 class="section-title">退社処理</h2>
-    <div class="employee-detail-events-table-wrap">
-      <table class="employee-detail-events-table">
-        <thead>
-          <tr>
-            <th></th>
-            <th>社員ID</th>
-            <th>氏名</th>
-            <th>退社予定日</th>
-            <th>申請日</th>
-            <th>承認状況</th>
-            <th>承認者</th>
-            <th>承認日</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let run of retireRuns">
-            <td class="employee-detail-events-table__actions">
-              <button type="button" class="im-btn-muted" (click)="showSystemRunDetail(run)">詳細</button>
-            </td>
-            <td>{{ run.employeeId }}</td>
-            <td>
-              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
-                {{ getEmployeeName(run.employeeId) }}
-              </a>
-            </td>
-            <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
-            <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
-            <td>{{ getApprovalStatus(run) }}</td>
-            <td>{{ commonService.getEmployeeName(run.approval?.approvedBy ?? '') || '—' }}</td>
-            <td>{{ run.approval?.approvedDate ? commonService.formatDateTime(run.approval?.approvedDate) : '—' }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
   <!-- 従業員からの申請 -->
-  <section class="employee-detail-section employee-detail-events" *ngIf="employeeApplicationEvents.length > 0">
+  <section class="employee-detail-section employee-detail-events">
     <h2 class="section-title">従業員からの申請</h2>
-    <div class="employee-detail-events-table-wrap">
+    <div *ngIf="employeeApplicationEvents.length === 0" class="employee-detail-empty">データがありません</div>
+    <div class="employee-detail-events-table-wrap" *ngIf="employeeApplicationEvents.length > 0">
       <table class="employee-detail-events-table">
         <thead>
           <tr>
@@ -161,7 +172,8 @@
         <tbody>
           <tr *ngFor="let event of employeeApplicationEvents">
             <td class="employee-detail-events-table__actions">
-              <button type="button" class="im-btn-muted" (click)="showEventDetail(event)">詳細</button>
+              <button type="button" class="im-btn-muted" *ngIf="canShowEventDetail(event)"
+                (click)="showEventDetail(event)">詳細</button>
             </td>
             <td>{{ event.employeeId }}</td>
             <td>
@@ -183,9 +195,10 @@
   </section>
 
   <!-- その他 -->
-  <section class="employee-detail-section employee-detail-events" *ngIf="otherEvents.length > 0 || otherSystemRuns.length > 0">
+  <section class="employee-detail-section employee-detail-events">
     <h2 class="section-title">その他</h2>
-    <div class="employee-detail-events-table-wrap">
+    <div *ngIf="otherEvents.length === 0 && otherSystemRuns.length === 0" class="employee-detail-empty">データがありません</div>
+    <div class="employee-detail-events-table-wrap" *ngIf="otherEvents.length > 0 || otherSystemRuns.length > 0">
       <table class="employee-detail-events-table">
         <thead>
           <tr>
@@ -203,7 +216,8 @@
         <tbody>
           <tr *ngFor="let event of otherEvents">
             <td class="employee-detail-events-table__actions">
-              <button type="button" class="im-btn-muted" (click)="showEventDetail(event)">詳細</button>
+              <button type="button" class="im-btn-muted" *ngIf="canShowEventDetail(event)"
+                (click)="showEventDetail(event)">詳細</button>
             </td>
             <td>{{ event.employeeId }}</td>
             <td>
@@ -211,7 +225,7 @@
                 {{ getEmployeeName(event.employeeId) }}
               </a>
             </td>
-            <td>{{ event.eventType }}</td>
+            <td>{{ getOtherEventTypeLabel(event) }}</td>
             <td>{{ commonService.formatDate(event.occurredDate) }}</td>
             <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
             <td>{{ getApprovalStatus(event) }}</td>
@@ -241,7 +255,7 @@
   </section>
 </div>
 
-<!-- イベント詳細モーダル（従業員詳細と同じ） -->
+<!-- イベント詳細モーダル -->
 <div class="employee-edit-modal" *ngIf="detailModalOpen && detailModalEvent">
   <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
     <div class="employee-edit-modal__header">

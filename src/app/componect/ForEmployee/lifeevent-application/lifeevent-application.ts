@@ -15,7 +15,7 @@ import { CommonService, MessageTimer } from '../../../service/common/common-serv
 import { CREATE_MESSAGES } from '../../../constants/constants';
 import { ValidationService } from '../../../service/common/validation-service';
 import { CompanyService } from '../../../service/Firestore/company-service';
-import { getWorkMonthForDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { buildEventId, getWorkMonthForDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { Router } from '@angular/router';
 
 type LifeEventTab = 'marriage' | 'birth' | 'name' | 'dependent';
@@ -33,7 +33,11 @@ type DependentFormPayload = {
   selector: 'app-lifeevent-application',
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './lifeevent-application.html',
-  styleUrl: './lifeevent-application.css',
+  styleUrls: [
+    './lifeevent-application.css',
+    '../../employee/employee-detail/employee-detail.css',
+    '../../correction/retroactive-correction/retroactive-correction.css',
+  ],
 })
 export class LifeeventApplication {
 
@@ -242,10 +246,8 @@ export class LifeeventApplication {
         }
       }
 
-      const occurredDate = leaveStart || this.birthForm.get('childBirthDate')!.value;
       const expectedBirthDate = parseDateInputValue(this.birthForm.get('childBirthDate')!.value);
       const leaveEvent: Partial<Event> = {
-        occurredDate: timestampFromDateInput(occurredDate),
         eventType: '勤務状況変更',
         lifeEventType,
         appliedDate: Timestamp.now(),
@@ -253,7 +255,24 @@ export class LifeeventApplication {
         approval: { approvalStatus: '申請中' },
         payload: { before: this.employee, after: afterEmployee, expectedBirthDate: Timestamp.fromDate(expectedBirthDate), isMultipleBirth: this.birthForm.get('isMultipleBirth')!.value ?? false },
       };
-      if (await this.eventService.createEvent(this.loginEmployeeId, leaveEvent)) {
+
+      let leaveCreated = false;
+      if (leaveTypes && leaveStart) {
+        leaveEvent.occurredDate = timestampFromDateInput(leaveStart);
+        await this.companyService.getCompany();
+        const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+        const leaveEventBaseId = buildEventId('勤務状況変更', '社員', {
+          occurredDate: parseDateInputValue(leaveStart),
+          targetPeriodStart,
+        });
+        leaveCreated = !!(await this.eventService.createEventWithBaseId(this.loginEmployeeId, leaveEventBaseId, leaveEvent));
+      } else {
+        const occurredDate = leaveStart || this.birthForm.get('childBirthDate')!.value;
+        leaveEvent.occurredDate = timestampFromDateInput(occurredDate);
+        leaveCreated = !!(await this.eventService.createEvent(this.loginEmployeeId, leaveEvent));
+      }
+
+      if (leaveCreated) {
         created++;
       } else {
         this.resetBirthForm();
@@ -302,7 +321,7 @@ export class LifeeventApplication {
 
     if (this.nameChangeForm.get('name')!.value === (this.employee?.firstName ?? '')) {
       this.showMessage('変更内容がありません');
-      this.nameChangeForm.patchValue({ name: this.employee?.firstName ?? '' });
+      this.resetNameChangeForm();
       return;
     }
 
@@ -321,9 +340,7 @@ export class LifeeventApplication {
 
     const result = await this.eventService.createEvent(this.loginEmployeeId, nameEvent);
     this.showMessage(result ? '申請しました' : `申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
-    if (result) {
-      this.nameChangeForm.patchValue({ name: this.employee?.firstName ?? '' });
-    }
+    this.resetNameChangeForm();
   }
 
   /** 扶養変更申請 */
@@ -585,20 +602,37 @@ export class LifeeventApplication {
       occurredDate: '',
     });
     this.initMarriageDependents();
+    this.clearFormState(this.marriageForm);
   }
 
   private resetBirthForm() {
     this.birthForm.patchValue({
       type: '出産',
       leaveTypes: '産前産後',
+      isMultipleBirth: false,
       resignationDate: '',
       childBirthDate: '',
     });
+    this.birthForm.get('resignationDate')?.clearValidators();
+    this.birthForm.get('resignationDate')?.updateValueAndValidity({ emitEvent: false });
     this.initBirthDependents();
+    this.dateValidMessage = '';
+    this.clearFormState(this.birthForm);
+  }
+
+  private resetNameChangeForm() {
+    this.nameChangeForm.patchValue({ name: this.employee?.firstName ?? '' });
+    this.clearFormState(this.nameChangeForm);
   }
 
   private resetDependentChangeForm() {
     this.initDependentChangeDependents();
+    this.clearFormState(this.dependentChangeForm);
+  }
+
+  private clearFormState(form: FormGroup) {
+    form.markAsUntouched();
+    form.markAsPristine();
   }
 
   private showMessage(message: string) {

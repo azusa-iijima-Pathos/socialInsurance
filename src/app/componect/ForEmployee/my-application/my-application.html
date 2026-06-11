@@ -6,8 +6,10 @@
     </div>
   </div>
 
-  <div *ngIf="events.length === 0" class="im-empty-hint">
+  <div *ngIf="events.length === 0" style="text-align: center; margin-top: 20px;">
     <p>申請はありません</p>
+    <p>ライフイベント申請から行ってください</p>
+    <button class="im-btn-primary" (click)="toLifeeventApplication()">ライフイベント申請へ</button>
   </div>
 
   <section class="im-section-block" *ngIf="unapprovedEvents.length > 0">

@@ -1,6 +1,7 @@
-import { Injectable } from '@angular/core';
+import { DestroyRef, Injectable } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormGroup, ValidationErrors, Validators } from '@angular/forms';
-import { InsuranceDetail } from '../../model/employee';
+import { EmployeeInsurance, InsuranceDetail } from '../../model/employee';
 import { Timestamp } from '@angular/fire/firestore';
 import { timestampFromDateInput } from '../common/date-input.util';
 
@@ -82,6 +83,18 @@ export class InsuranceFormService {
     return healthStatus !== 'joined';
   }
 
+  isInsuranceNumberRequired(status: InsuranceStatus): boolean {
+    return status === 'lost';
+  }
+
+  isInsuranceNumberMissing(detail?: InsuranceDetail, sharedNumber?: string): boolean {
+    if (!detail) return false;
+    const status = this.getStatusValue(detail);
+    if (status === 'notJoined') return false;
+    const number = sharedNumber || detail.number;
+    return !number;
+  }
+
   healthInsuranceDependencyValidator = (control: AbstractControl): ValidationErrors | null => {
     const healthStatus = control.get('healthInsurance.joined')?.value as InsuranceStatus | undefined;
     const nursingStatus = control.get('nursingCareInsurance.joined')?.value as InsuranceStatus | undefined;
@@ -92,6 +105,54 @@ export class InsuranceFormService {
     }
     return null;
   };
+
+  /** 介護保険番号を健康保険番号に合わせ、厚生年金番号を必要に応じて自動入力する */
+  syncSharedInsuranceNumbers(form: FormGroup, forcePensionNumber = false) {
+    const healthNumber = String(form.get('healthInsurance.number')?.value ?? '');
+    const nursingStatus = form.get('nursingCareInsurance.joined')?.value as InsuranceStatus | undefined;
+    if (nursingStatus === 'joined' || nursingStatus === 'lost') {
+      form.get('nursingCareInsurance.number')?.setValue(healthNumber, { emitEvent: false });
+    }
+
+    const pensionStatus = form.get('employeePensionInsurance.joined')?.value as InsuranceStatus | undefined;
+    const pensionNumberControl = form.get('employeePensionInsurance.number');
+    if ((pensionStatus === 'joined' || pensionStatus === 'lost') && pensionNumberControl) {
+      if (forcePensionNumber || !pensionNumberControl.value) {
+        pensionNumberControl.setValue(healthNumber, { emitEvent: false });
+      }
+    }
+  }
+
+  setupSharedInsuranceNumberSync(form: FormGroup, destroyRef: DestroyRef) {
+    form.get('healthInsurance.number')?.valueChanges
+      .pipe(takeUntilDestroyed(destroyRef))
+      .subscribe(() => this.syncSharedInsuranceNumbers(form));
+
+    form.get('nursingCareInsurance.joined')?.valueChanges
+      .pipe(takeUntilDestroyed(destroyRef))
+      .subscribe(() => this.syncSharedInsuranceNumbers(form));
+
+    form.get('employeePensionInsurance.joined')?.valueChanges
+      .pipe(takeUntilDestroyed(destroyRef))
+      .subscribe(status => this.syncSharedInsuranceNumbers(form, status === 'joined'));
+  }
+
+  createEmployeeInsuranceForSave(
+    form: FormGroup,
+    options: { currentGrade: number; basicPensionNumber?: string },
+  ): Partial<EmployeeInsurance> {
+    this.syncSharedInsuranceNumbers(form);
+
+    const basicPensionNumber = String(options.basicPensionNumber ?? '').trim();
+
+    return {
+      currentGrade: options.currentGrade,
+      ...(basicPensionNumber ? { basicPensionNumber } : {}),
+      healthInsurance: this.createDetailFromForm(form.get('healthInsurance')!.getRawValue() as InsuranceFormValue),
+      nursingCareInsurance: this.createDetailFromForm(form.get('nursingCareInsurance')!.getRawValue() as InsuranceFormValue),
+      employeePensionInsurance: this.createDetailFromForm(form.get('employeePensionInsurance')!.getRawValue() as InsuranceFormValue),
+    };
+  }
 
   syncSubInsuranceStatusesWithHealth(
     form: FormGroup,
@@ -127,7 +188,7 @@ export class InsuranceFormService {
     if (!numberControl || !acquiredDateControl || !lostDateControl || !companyBurdenRateControl) return;
 
     numberControl.setValidators(
-      needsInsuranceDetail
+      this.isInsuranceNumberRequired(status)
         ? [Validators.required, Validators.pattern('^[a-zA-Z0-9]+$')]
         : [Validators.pattern('^[a-zA-Z0-9]+$')],
     );

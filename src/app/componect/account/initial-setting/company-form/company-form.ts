@@ -49,6 +49,8 @@ export class CompanyForm {
     businessType: ['', [Validators.required]],
     employeeCount: ['', [Validators.required, Validators.pattern('^[0-9]+$')]],
     headOfficePrefecture: ['', [Validators.required]],
+    officeOrganizationSymbol: ['', [Validators.required]],
+    officeNumber: [''],
     //社会保険加入義務(手動用)
     socialInsuranceRequired: [false, [Validators.required]],
     optionalApplicableOffice: [false, [Validators.required]],
@@ -205,6 +207,8 @@ export class CompanyForm {
       companyId: company.companyId!,
       name: '本社',
       prefecture: company.headOfficePrefecture!,
+      officeOrganizationSymbol: this.form.value.officeOrganizationSymbol!,
+      officeNumber: this.form.value.officeNumber!,
     };
     const officeResult = await this.officeService.registerOffice(office);
     if (!officeResult) {

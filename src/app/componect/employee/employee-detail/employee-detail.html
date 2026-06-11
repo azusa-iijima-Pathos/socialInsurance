@@ -14,6 +14,7 @@
             <input id="employeeDetailSearch" type="text" class="employee-detail-search-card__input"
                 [(ngModel)]="employeeSearchText" placeholder="社員ID・氏名で絞り込み">
             <label class="employee-detail-search-card__label" for="employeeDetailSelect">社員選択</label>
+            
             <select id="employeeDetailSelect" class="employee-detail-search-card__select"
                 [(ngModel)]="selectedEmployeeId" (ngModelChange)="onEmployeeIdChange($event)">
                 <option value="">従業員を選択してください</option>
@@ -28,8 +29,6 @@
                     </option>
                 </optgroup>
             </select>
-            <button type="button" class="im-btn-primary employee-detail-search-card__button"
-                (click)="selectEmployee()">検索</button>
         </div>
     </section>
 
@@ -146,8 +145,12 @@
                             <dd>{{ selectedEmployee.insurance?.currentGrade ?? '未登録' }}</dd>
                         </div>
                         <div class="employee-detail-info-grid__item">
-                            <dt>自動計算<small>　※雇用契約情報より算出</small></dt>
+                            <dt>自動計算</dt>
                             <dd>{{ autoInsuranceGrade ? autoInsuranceGrade : '等級判定不能' }}</dd>
+                        </div>
+                        <div class="employee-detail-info-grid__item">
+                            <dt>基礎年金番号</dt>
+                            <dd>{{ selectedEmployee.insurance?.basicPensionNumber || '未登録' }}</dd>
                         </div>
                     </dl>
                 </div>
@@ -165,7 +168,7 @@
                             *ngIf="showInsuranceDetail(selectedEmployee.insurance?.healthInsurance)">
                             <div class="employee-detail-info-grid__item">
                                 <dt>番号</dt>
-                                <dd>{{ selectedEmployee.insurance?.healthInsurance?.number! }}</dd>
+                                <dd>{{ selectedEmployee.insurance?.healthInsurance?.number?? '未登録' }}</dd>
                             </div>
                             <div class="employee-detail-info-grid__item">
                                 <dt>取得日</dt>
@@ -188,7 +191,7 @@
 
                     <article class="employee-detail-insurance-card">
                         <h3>介護保険</h3>
-                        <span *ngIf="isInsuranceNumberMissing(selectedEmployee.insurance?.nursingCareInsurance)"
+                        <span *ngIf="isInsuranceNumberMissing(selectedEmployee.insurance?.nursingCareInsurance, selectedEmployee.insurance?.healthInsurance?.number)"
                             class="employee-detail-insurance-card__missing-number">保険番号未取得</span>
                         <p class="employee-detail-insurance-card__status">{{
                             getInsuranceStatus(selectedEmployee.insurance?.nursingCareInsurance) }}</p>
@@ -198,7 +201,7 @@
                             *ngIf="showInsuranceDetail(selectedEmployee.insurance?.nursingCareInsurance)">
                             <div class="employee-detail-info-grid__item">
                                 <dt>番号</dt>
-                                <dd>{{ selectedEmployee.insurance?.nursingCareInsurance?.number! }}</dd>
+                                <dd>{{ selectedEmployee.insurance?.healthInsurance?.number || selectedEmployee.insurance?.nursingCareInsurance?.number ?? '未登録' }}</dd>
                             </div>
                             <div class="employee-detail-info-grid__item">
                                 <dt>取得日</dt>
@@ -232,7 +235,7 @@
                             *ngIf="showInsuranceDetail(selectedEmployee.insurance?.employeePensionInsurance)">
                             <div class="employee-detail-info-grid__item">
                                 <dt>番号</dt>
-                                <dd>{{ selectedEmployee.insurance?.employeePensionInsurance?.number! }}</dd>
+                                <dd>{{ selectedEmployee.insurance?.employeePensionInsurance?.number?? '未登録' }}</dd>
                             </div>
                             <div class="employee-detail-info-grid__item">
                                 <dt>取得日</dt>
@@ -330,7 +333,7 @@
         </section>
 
         <h2>イベント一覧</h2>
-        <section class="employee-detail-section employee-detail-events" *ngIf="employeeEvents.length > 0">
+        <section class="employee-detail-section employee-detail-events" *ngIf="eventListItems.length > 0">
             <div class="employee-detail-events-table-wrap">
                 <table class="employee-detail-events-table">
                     <thead>
@@ -347,33 +350,33 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr *ngFor="let employeeEvent of employeeEvents">
+                        <tr *ngFor="let item of eventListItems">
                             <td class="employee-detail-events-table__actions">
-                                <ng-container *ngIf="isPendingEvent(employeeEvent) && !isRetiredEmployee()">
+                                <ng-container *ngIf="isPendingListItem(item) && !isRetiredEmployee()">
                                     <button type="button" class="im-btn-primary im-btn-sm"
-                                        (click)="onApproveEvent(employeeEvent)">確認</button>
+                                        (click)="onApproveListItem(item)">確認</button>
                                     <button type="button" class="im-btn-soft im-btn-sm"
-                                        (click)="onRejectEvent(employeeEvent)">却下</button>
+                                        (click)="onRejectListItem(item)">却下</button>
                                 </ng-container>
-                                <ng-container *ngIf="!isPendingEvent(employeeEvent) ">
+                                <ng-container *ngIf="canShowEventDetail(item)">
                                     <button type="button" class="im-btn-muted"
-                                        (click)="showDetail(employeeEvent)">詳細</button>
+                                        (click)="showListItemDetail(item)">詳細</button>
                                 </ng-container>
                             </td>
-                            <td>{{ employeeEvent.eventType }}</td>
-                            <td>{{ employeeEvent.lifeEventType ?? employeeEvent.reachAgeType ?? '—' }}</td>
-                            <td> {{ getApplicantLabel(employeeEvent) }}</td>
-                            <td>{{ commonService.formatDateTime(employeeEvent.appliedDate) }}</td>
-                            <td>{{ commonService.formatDate(employeeEvent.occurredDate) }}</td>
-                            <td>{{ employeeEvent.approval?.approvalStatus ?? '' }}</td>
-                            <td>{{ commonService.getEmployeeName(getApproverLabel(employeeEvent)) }}</td>
-                            <td>{{ getApprovalDateLabel(employeeEvent) }}</td>
+                            <td>{{ getEventListItemType(item) }}</td>
+                            <td>{{ getEventListItemReason(item) }}</td>
+                            <td>{{ getEventListItemApplicant(item) }}</td>
+                            <td>{{ getEventListItemAppliedDate(item) }}</td>
+                            <td>{{ getEventListItemOccurredDate(item) }}</td>
+                            <td>{{ getEventListItemApprovalStatus(item) }}</td>
+                            <td>{{ getEventListItemApprover(item) }}</td>
+                            <td>{{ getEventListItemApprovalDate(item) }}</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </section>
-        <section class="employee-detail-section employee-detail-events" *ngIf="employeeEvents.length === 0">
+        <section class="employee-detail-section employee-detail-events" *ngIf="eventListItems.length === 0">
             <p class="employee-detail-empty">イベントはありません</p>
         </section>
         </div>
@@ -618,6 +621,19 @@
                         </div>
                     </div>
                 </div>
+                <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                    <div class="im-field-row__label">
+                        <label for="detailBasicPensionNumber">基礎年金番号</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="text" id="detailBasicPensionNumber" formControlName="basicPensionNumber">
+                        <div class="error">
+                            <p
+                                *ngIf="insuranceForm.get('basicPensionNumber')?.errors?.['pattern'] && insuranceForm.get('basicPensionNumber')?.touched">
+                                半角英数字で入力してください</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="employee-insurance-form-group" formGroupName="healthInsurance">
@@ -728,17 +744,10 @@
                     [class.insurance-detail-fields--disabled]="insuranceForm.get('nursingCareInsurance.joined')?.value === 'notJoined'">
                     <div class="employee-insurance-detail-grid">
                         <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
-                            <div class="im-field-row__label"><label for="detailNursingNumber">介護保険番号</label></div>
+                            <div class="im-field-row__label"><label>保険番号</label></div>
                             <div class="im-field-row__control">
-                                <input type="text" id="detailNursingNumber" formControlName="number">
-                                <div class="error">
-                                    <p
-                                        *ngIf="insuranceForm.get('nursingCareInsurance.number')?.errors?.['required'] && insuranceForm.get('nursingCareInsurance.number')?.touched">
-                                        介護保険番号は必須です</p>
-                                    <p
-                                        *ngIf="insuranceForm.get('nursingCareInsurance.number')?.errors?.['pattern'] && insuranceForm.get('nursingCareInsurance.number')?.touched">
-                                        半角で入力してください</p>
-                                </div>
+                                <p>{{ insuranceForm.get('healthInsurance.number')?.value || '—' }}</p>
+                                <p class="employee-detail-field-note">※健康保険番号と同一です</p>
                             </div>
                         </div>
                         <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
@@ -1189,4 +1198,9 @@
             <button type="button" class="im-btn-soft" (click)="detailModalOpen = false">閉じる</button>
         </div>
     </div>
+</div>
+
+<div *ngIf="!selectedEmployee" style="text-align: center; margin-top: 16px; color: var(--im-color-black);">
+    <p>社員が選択されていません</p>
+    <p>上のプルダウンから社員を選択してください</p>
 </div>

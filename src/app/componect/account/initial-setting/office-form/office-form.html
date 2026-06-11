@@ -32,6 +32,25 @@
                 </div>
                 <div class="im-field-block im-field-row">
                     <div class="im-field-row__label">
+                        <label for="officeOrganizationSymbol">事業所整理記号</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="text" id="officeOrganizationSymbol" formControlName="officeOrganizationSymbol">
+                        <div class="error">
+                            <p *ngIf="form.get('officeOrganizationSymbol')?.errors?.['required'] && form.get('officeOrganizationSymbol')?.touched">事業所整理記号は必須です</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
+                        <label for="officeNumber">事業所番号</label>
+                    </div>
+                    <div class="im-field-row__control">
+                            <input type="text" id="officeNumber" formControlName="officeNumber">
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row">
+                    <div class="im-field-row__label">
                         <label for="prefecture">所在地(都道府県)</label>
                     </div>
                     <div class="im-field-row__control">
@@ -57,3 +76,6 @@
         </section>
     </div>
 </div>
+<br>
+<br>
+

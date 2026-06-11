@@ -1,7 +1,7 @@
 <div class="im-page-shell">
 <h1 class="page-title">従業員トップページ</h1>
 
-<div *ngIf="permission === '申請'" class="information-area">
+<div *ngIf="permission === '申請' && workingMonth" class="information-area">
     <p>社会保険担当者様は、管理者に権限を変更してもらう必要があります。</p>
     <p>権限変更後に再度ログインしてください。</p>
 </div>

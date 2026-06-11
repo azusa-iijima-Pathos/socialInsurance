@@ -23,13 +23,15 @@
     </label>
   </div>
 
-  <div *ngIf="runs.length === 0" class="correction-list-empty im-empty-hint">
+  <div *ngIf="runs.length === 0" style="text-align: center; margin-top: 20px;">
     選択中の月に行われた差額調整データはありません。
   </div>
 
-  <div *ngIf="runs.length > 0" class="correction-list-table-wrap">
-    <button type="button" class="im-btn-soft" (click)="exportCsv()" [disabled]="runs.length === 0" style="margin-bottom: 10px; margin-right: auto;">
+  <div *ngIf="runs.length > 0" style="display: flex; gap: 10px; margin-bottom: 10px; justify-content: flex-end;">
+    <button type="button" class="im-btn-soft" (click)="exportCsv()" [disabled]="runs.length === 0">
       CSV出力</button>
+  </div>
+  <div *ngIf="runs.length > 0" class="correction-list-table-wrap">
     <table class="correction-list-table">
       <thead>
         <tr>
@@ -58,7 +60,8 @@
       <tbody>
         <tr *ngFor="let run of runs">
           <td>{{ getEmployeeId(run) }}</td>
-          <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: getEmployeeId(run) }">{{ getEmployeeName(run) }}</a></td>
+          <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: getEmployeeId(run) }">{{
+              getEmployeeName(run) }}</a></td>
           <td>{{ getAdjustMonth(run) }}</td>
           <td *ngIf="listType !== 'bonus'">{{ getGrade(run) }}</td>
           <td *ngIf="listType === 'bonus'">

@@ -20,7 +20,8 @@
                     </p>
                     <p *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">
                         半角で入力してください</p>
-                    <p *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">
+                    <p
+                        *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">
                         社員IDが正しくありません</p>
                 </div>
             </div>
@@ -32,20 +33,6 @@
             </div>
             <div class="im-field-row__control">
                 <p>{{ commonService.getEmployeeName(form.get('employeeId')?.value ?? '') }}</p>
-            </div>
-        </div>
-
-        <div class="im-field-block im-field-row">
-            <div class="im-field-row__label">
-                <label for="workStatus">退職</label>
-            </div>
-            <div class="im-field-row__control">
-                <label for="workStatus1">
-                    <input type="radio" id="workStatus1" formControlName="workStatus" value="退社予定">
-                    退社予定</label>
-                <label for="workStatus2">
-                    <input type="radio" id="workStatus2" formControlName="workStatus" value="退社済み">
-                    退社済み</label>
             </div>
         </div>
 
@@ -69,6 +56,22 @@
                 </p>
             </div>
         </div>
+
+        <div class="im-field-block im-field-row">
+            <div class="im-field-row__label">
+                <label for="workStatus">退職</label>
+            </div>
+            <div class="im-field-row__control">
+                <label for="workStatus1">
+                    <input type="radio" id="workStatus1" formControlName="workStatus" [value]="'退社予定'" >
+                    退社予定</label>
+                <label for="workStatus2">
+                    <input type="radio" id="workStatus2" formControlName="workStatus" [value]="'退社済み'" >
+                    退社済み</label>
+            </div>
+        </div>
+
+
         <button type="submit" class="im-btn-soft">登録</button>
     </form>
 </div>

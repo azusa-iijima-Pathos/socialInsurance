@@ -1,255 +1,353 @@
-<div class="im-page-shell">
-<h1 class="page-title">ライフイベント申請</h1>
-
-<div class="information-area">
-    <p>下のタブより申請項目を選択してください。</p>
-    <p>氏名・扶養の変更もしくは産休・育休の取得予定がある場合のみ申請してください。</p>
-</div>
-
-<div style="display: flex; justify-content: flex-end;">
-    <button class="im-btn-soft" (click)="toMyApplication()">申請内容一覧へ▶</button>
-</div>
-
-
-
-<nav class="lifeevent-tabs">
-    <button type="button" class="lifeevent-tabs__btn" [class.lifeevent-tabs__btn--active]="activeTab === 'marriage'"
-        (click)="setActiveTab('marriage')">結婚/離婚</button>
-    <button type="button" class="lifeevent-tabs__btn" [class.lifeevent-tabs__btn--active]="activeTab === 'birth'"
-        (click)="setActiveTab('birth')">産前産後/育児</button>
-    <button type="button" class="lifeevent-tabs__btn" [class.lifeevent-tabs__btn--active]="activeTab === 'name'"
-        (click)="setActiveTab('name')">氏名変更</button>
-    <button type="button" class="lifeevent-tabs__btn" [class.lifeevent-tabs__btn--active]="activeTab === 'dependent'"
-        (click)="setActiveTab('dependent')">扶養変更</button>
-</nav>
-
-<div *ngIf="message" class="im-action-message">{{ message }}</div>
-
-<!-- 結婚/離婚 -->
-<section *ngIf="activeTab === 'marriage'" class="lifeevent-panel">
-    <h2>結婚/離婚申請</h2>
-    <form [formGroup]="marriageForm" (ngSubmit)="submitMarriageForm()">
-        <div>
-            <label><input type="radio" formControlName="type" value="結婚"> 結婚</label>
-            <label><input type="radio" formControlName="type" value="離婚"> 離婚</label>
+<div class="employee-detail-layout lifeevent-layout im-page-shell">
+    <header class="employee-detail-header">
+        <h1 class="page-title">ライフイベント申請</h1>
+        <div class="information-area">
+            <p>下のタブより申請項目を選択してください。</p>
+            <p>氏名・扶養の変更もしくは産休・育休の取得予定がある場合のみ申請してください。</p>
         </div>
-        <div>
-            <label for="marriageOccurredDate">発生日</label>
-            <input id="marriageOccurredDate" type="date" formControlName="occurredDate">
-            <div class="error">
-                <p
-                    *ngIf="marriageForm.get('occurredDate')?.errors?.['required'] && marriageForm.get('occurredDate')?.touched">
-                    発生日は必須です</p>
-            </div>
-        </div>
-        <div>
-            <label for="marriageName">姓</label>
-            <input id="marriageName" formControlName="name">
-            <div class="error">
-                <p *ngIf="marriageForm.get('name')?.errors?.['required'] && marriageForm.get('name')?.touched">姓は必須です
-                </p>
-            </div>
-        </div>
-        <div formArrayName="dependents">
-            <p>扶養情報</p>
-            <div *ngFor="let dependent of marriageDependents.controls; let i = index" [formGroupName]="i"
-                class="lifeevent-dependent-row">
-                <label>氏名 <input formControlName="name">
-                    <div class="error">
-                        <p *ngIf="dependent.get('name')?.errors?.['required'] && dependent.get('name')?.touched">氏名は必須です
-                        </p>
-                    </div>
-                </label>
-                <label>続柄
-                    <select formControlName="relationship">
-                        <option value="">選択</option>
-                        <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}
-                        </option>
-                    </select>
-                    <div class="error">
-                        <p
-                            *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">
-                            続柄は必須です</p>
-                    </div>
-                </label>
-                <label>生年月日 <input type="date" formControlName="birthDate">
-                    <div class="error">
-                        <p
-                            *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">
-                            生年月日は必須です</p>
-                        <p
-                            *ngIf="dependent.get('birthDate')?.errors?.['invalidBirthDate'] && dependent.get('birthDate')?.touched">
-                            日付が正しくありません</p>
-                    </div>
-                </label>
-                <div>
-                    <span>現在の扶養状況</span>
-                    <label><input type="radio" formControlName="isDependentStatus" value="dependent"> 扶養</label>
-                    <label><input type="radio" formControlName="isDependentStatus" value="notDependent"> 扶養ではない</label>
-                </div>
-            </div>
-            <button type="button" (click)="addDependent(1)">扶養追加</button>
-        </div>
-        <button type="submit">申請</button>
-    </form>
-</section>
+    </header>
 
-<!-- 産前産後/育児 -->
-<section *ngIf="activeTab === 'birth'" class="lifeevent-panel">
-    <h2>産前産後/育児申請</h2>
-    <div class="information-area">
-        <p>休職する場合、事前申請のみ可能です。（事後申請は担当者にご連絡してください。）</p>
-        <p>産前産後休職は、出産予定日の42日前から産後56日まで取得可能です。多胎妊娠の場合は、98日前から可能になります。</p>
-        <p>育児休職は、子どもが生まれてから1歳になる前日まで取得可能です。（理由がある場合は最大2歳まで延長可能です。）</p>
+    <div class="lifeevent-header-actions">
+        <button type="button" class="im-btn-soft" (click)="toMyApplication()">申請内容一覧へ▶</button>
     </div>
-    <form [formGroup]="birthForm" (ngSubmit)="submitBirthForm()">
-        <div>
-            <label><input type="radio" formControlName="type" value="出産"> 出産(子どもが生まれる予定)</label>
-            <label><input type="radio" formControlName="type" value="育児"> 育児(子どもが生まれた)</label>
-        </div>
-        <div>
-            <label for="childBirthDate">{{ birthForm.get('type')?.value === '出産' ? '出産予定日' : '子どもの生年月日' }}</label>
-            <input id="childBirthDate" type="date" formControlName="childBirthDate">
-            <div class="error">
-                <p
-                    *ngIf="birthForm.get('childBirthDate')?.errors?.['required'] && birthForm.get('childBirthDate')?.touched">
-                    {{ birthForm.get('type')?.value === '出産' ? '出産予定日' : '子どもの生年月日' }}は必須です</p>
-                <!-- 子どもの誕生日のときのみバリデーション -->
-                <p *ngIf="birthForm.errors?.['invalidBirthDate'] && birthForm.get('childBirthDate')?.touched">
-                    日付が正しくありません</p>
-            </div>
-        </div>
-        <div *ngIf="birthForm.get('type')?.value === '出産'">
-            <label><input type="checkbox" formControlName="isMultipleBirth"> 多胎妊娠</label>
-        </div>
-        <div>
-            <label for="leaveTypes">休職種別</label>
-            <select id="leaveTypes" formControlName="leaveTypes">
-                <option value="産前産後">産前産後</option>
-                <option value="育児">育児</option>
-                <option value="なし">休職なし</option>
-            </select>
-            <div class="error">
-                <p *ngIf="birthForm.errors?.['invalidLeaveType'] && birthForm.get('leaveTypes')?.touched">休職種別が正しくありません
-                </p>
-            </div>
-        </div>
-        <div *ngIf="birthForm.get('leaveTypes')?.value !== 'なし'">
-            <label for="resignationDate">休職開始日</label>
-            <input id="resignationDate" type="date" formControlName="resignationDate">
-            <div class="error">
-                <p
-                    *ngIf="birthForm.get('resignationDate')?.errors?.['required'] && birthForm.get('resignationDate')?.touched">
-                    休職開始日は必須です</p>
-                <!-- 事前申請のみ可 -->
-                <p
-                    *ngIf="birthForm.get('resignationDate')?.errors?.['invalidDate'] && birthForm.get('resignationDate')?.touched">
-                    日付が正しくありません</p>
-                <p *ngIf="birthForm.errors?.['invalidLeaveDate'] && birthForm.get('resignationDate')?.touched">
-                    休職対象期間ではありません。</p>
-                <p *ngIf="dateValidMessage">{{ dateValidMessage }}</p>
-            </div>
-        </div>
-        <div *ngIf="birthForm.get('type')?.value === '育児'" formArrayName="dependents">
-            <p>扶養情報</p>
-            <div *ngFor="let dependent of birthDependents.controls; let i = index" [formGroupName]="i">
-                <label>氏名 <input formControlName="name">
-                    <div class="error">
-                        <p
-                            *ngIf="birthDependents.get('name')?.errors?.['required'] && birthDependents.get('name')?.touched">
-                            氏名は必須です
-                        </p>
-                    </div>
-                </label>
-                <label>続柄
-                    <select formControlName="relationship">
-                        <option value="">選択</option>
-                        <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}
-                        </option>
-                    </select>
-                    <div class="error">
-                        <p
-                            *ngIf="birthDependents.get('relationship')?.errors?.['required'] && birthDependents.get('relationship')?.touched">
-                            続柄は必須です</p>
-                    </div>
-                </label>
-                <label>生年月日 <input type="date" formControlName="birthDate">
-                    <div class="error">
-                        <p
-                            *ngIf="birthDependents.get('birthDate')?.errors?.['required'] && birthDependents.get('birthDate')?.touched">
-                            生年月日は必須です</p>
-                        <p
-                            *ngIf="birthDependents.get('birthDate')?.errors?.['invalidBirthDate'] && birthDependents.get('birthDate')?.touched">
-                            日付が正しくありません</p>
-                    </div>
-                </label>
-            </div>
-            <button type="button" (click)="addDependent(2)">扶養追加</button>
-        </div>
-        <button type="submit">申請</button>
-    </form>
-</section>
 
-<!-- 氏名変更 -->
-<section *ngIf="activeTab === 'name'" class="lifeevent-panel">
-    <h2>氏名変更申請</h2>
-    <form [formGroup]="nameChangeForm" (ngSubmit)="submitNameChangeForm()">
-        <div>
-            <label for="nameChangeName">姓</label>
-            <input id="nameChangeName" formControlName="name">
-            <div class="error">
-                <p *ngIf="nameChangeForm.get('name')?.errors?.['required'] && nameChangeForm.get('name')?.touched">
-                    氏名は必須です</p>
-            </div>
-        </div>
-        <button type="submit">申請</button>
-    </form>
-</section>
+    <div *ngIf="message" class="im-action-message">{{ message }}</div>
 
-<!-- 扶養変更 -->
-<section *ngIf="activeTab === 'dependent'" class="lifeevent-panel">
-    <h2>扶養情報変更申請</h2>
-    <form [formGroup]="dependentChangeForm" (ngSubmit)="submitDependentChangeForm()">
-        <div formArrayName="dependents">
-            <div *ngFor="let dependent of dependentChangeDependents.controls; let i = index" [formGroupName]="i"
-                class="lifeevent-dependent-row">
-                <label>氏名 <input formControlName="name">
-                    <div class="error">
-                        <p *ngIf="dependent.get('name')?.errors?.['required'] && dependent.get('name')?.touched">氏名は必須です
-                        </p>
+    <nav class="retroactive-tabs">
+        <button type="button" class="retroactive-tabs__btn" [class.retroactive-tabs__btn--active]="activeTab === 'marriage'"
+            (click)="setActiveTab('marriage')">結婚/離婚</button>
+        <button type="button" class="retroactive-tabs__btn" [class.retroactive-tabs__btn--active]="activeTab === 'birth'"
+            (click)="setActiveTab('birth')">産前産後/育児</button>
+        <button type="button" class="retroactive-tabs__btn" [class.retroactive-tabs__btn--active]="activeTab === 'name'"
+            (click)="setActiveTab('name')">氏名変更</button>
+        <button type="button" class="retroactive-tabs__btn" [class.retroactive-tabs__btn--active]="activeTab === 'dependent'"
+            (click)="setActiveTab('dependent')">扶養変更</button>
+    </nav>
+
+    <!-- 結婚/離婚 -->
+    <section *ngIf="activeTab === 'marriage'" class="employee-detail-section">
+        <div class="employee-detail-section__header">
+            <h2>結婚/離婚申請</h2>
+        </div>
+        <form class="employee-edit-form retroactive-form" [formGroup]="marriageForm" (ngSubmit)="submitMarriageForm()">
+            <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                <div class="im-field-row__label"><span>申請種別</span></div>
+                <div class="im-field-row__control">
+                    <div class="im-radio-group">
+                        <label class="im-radio-option">
+                            <input type="radio" formControlName="type" value="結婚">
+                            <span>結婚</span>
+                        </label>
+                        <label class="im-radio-option">
+                            <input type="radio" formControlName="type" value="離婚">
+                            <span>離婚</span>
+                        </label>
                     </div>
-                </label>
-                <label>続柄
-                    <select formControlName="relationship">
-                        <option value="">選択</option>
-                        <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}
-                        </option>
-                    </select>
-                    <div class="error">
-                        <p
-                            *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">
-                            続柄は必須です</p>
-                    </div>
-                </label>
-                <label>生年月日 <input type="date" formControlName="birthDate">
-                    <div class="error">
-                        <p
-                            *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">
-                            生年月日は必須です</p>
-                        <p
-                            *ngIf="dependent.get('birthDate')?.errors?.['invalidBirthDate'] && dependent.get('birthDate')?.touched">
-                            日付が正しくありません</p>
-                    </div>
-                </label>
-                <div>
-                    <span>現在の扶養状況</span>
-                    <label><input type="radio" formControlName="isDependentStatus" value="dependent"> 扶養</label>
-                    <label><input type="radio" formControlName="isDependentStatus" value="notDependent"> 扶養ではない</label>
                 </div>
             </div>
-            <button type="button" (click)="addDependent(3)">扶養追加</button>
+
+            <div class="retroactive-inline-grid">
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><label for="marriageOccurredDate">発生日</label></div>
+                    <div class="im-field-row__control">
+                        <input id="marriageOccurredDate" type="date" formControlName="occurredDate">
+                        <div class="error">
+                            <p *ngIf="marriageForm.get('occurredDate')?.errors?.['required'] && marriageForm.get('occurredDate')?.touched">
+                                発生日は必須です</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><label for="marriageName">姓</label></div>
+                    <div class="im-field-row__control">
+                        <input id="marriageName" type="text" formControlName="name">
+                        <div class="error">
+                            <p *ngIf="marriageForm.get('name')?.errors?.['required'] && marriageForm.get('name')?.touched">姓は必須です</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="employee-edit-section-title">扶養情報</h3>
+            <div class="employee-dependent-list" formArrayName="dependents">
+                <div class="employee-dependent-row" *ngFor="let dependent of marriageDependents.controls; let i = index"
+                    [formGroupName]="i">
+                    <div class="employee-dependent-row__fields">
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentName' + i">扶養者名前</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [id]="'marriageDependentName' + i" formControlName="name">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('name')?.errors?.['required'] && dependent.get('name')?.touched">氏名は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentRelationship' + i">続柄</label></div>
+                            <div class="im-field-row__control">
+                                <select [id]="'marriageDependentRelationship' + i" formControlName="relationship">
+                                    <option value="">続柄を選択してください</option>
+                                    <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}</option>
+                                </select>
+                                <div class="error">
+                                    <p *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">続柄は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentBirthDate' + i">生年月日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'marriageDependentBirthDate' + i" formControlName="birthDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">生年月日は必須です</p>
+                                    <p *ngIf="dependent.get('birthDate')?.errors?.['invalidBirthDate'] && dependent.get('birthDate')?.touched">日付が正しくありません</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide employee-dependent-status-field"
+                            *ngIf="dependent.get('isExisting')?.value">
+                            <div class="im-field-row__label"><span>現在の扶養状況</span></div>
+                            <div class="im-field-row__control">
+                                <div class="im-radio-group">
+                                    <label class="im-radio-option">
+                                        <input type="radio" formControlName="isDependentStatus" value="dependent">
+                                        <span>扶養対象</span>
+                                    </label>
+                                    <label class="im-radio-option">
+                                        <input type="radio" formControlName="isDependentStatus" value="notDependent">
+                                        <span>扶養対象外</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="im-btn-soft employee-detail-add-dependent" (click)="addDependent(1)">扶養情報を追加</button>
+
+            <div class="employee-edit-actions">
+                <button type="submit" class="im-btn-primary">申請</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- 産前産後/育児 -->
+    <section *ngIf="activeTab === 'birth'" class="employee-detail-section">
+        <div class="employee-detail-section__header">
+            <h2>産前産後/育児申請</h2>
         </div>
-        <button type="submit">申請</button>
-    </form>
-</section>
+        <div class="information-area">
+            <p>休職する場合、事前申請のみ可能です。（事後申請は担当者にご連絡してください。）</p>
+            <p>産前産後休職は、出産予定日の42日前から産後56日まで取得可能です。多胎妊娠の場合は、98日前から可能になります。</p>
+            <p>育児休職は、子どもが生まれてから1歳になる前日まで取得可能です。（理由がある場合は最大2歳まで延長可能です。）</p>
+        </div>
+        <form class="employee-edit-form retroactive-form" [formGroup]="birthForm" (ngSubmit)="submitBirthForm()">
+            <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                <div class="im-field-row__label"><span>申請種別</span></div>
+                <div class="im-field-row__control">
+                    <div class="im-radio-group">
+                        <label class="im-radio-option">
+                            <input type="radio" formControlName="type" value="出産">
+                            <span>出産(子どもが生まれる予定)</span>
+                        </label>
+                        <label class="im-radio-option">
+                            <input type="radio" formControlName="type" value="育児">
+                            <span>育児(子どもが生まれた)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="retroactive-inline-grid">
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label">
+                        <label for="childBirthDate">{{ birthForm.get('type')?.value === '出産' ? '出産予定日' : '子どもの生年月日' }}</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input id="childBirthDate" type="date" formControlName="childBirthDate">
+                        <div class="error">
+                            <p *ngIf="birthForm.get('childBirthDate')?.errors?.['required'] && birthForm.get('childBirthDate')?.touched">
+                                {{ birthForm.get('type')?.value === '出産' ? '出産予定日' : '子どもの生年月日' }}は必須です</p>
+                            <p *ngIf="birthForm.errors?.['invalidBirthDate'] && birthForm.get('childBirthDate')?.touched">
+                                {{ birthForm.errors?.['invalidBirthDate'] }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="birthForm.get('type')?.value === '出産'">
+                    <div class="im-field-row__label"><span>多胎妊娠</span></div>
+                    <div class="im-field-row__control">
+                        <label class="im-checkbox-option">
+                            <input type="checkbox" formControlName="isMultipleBirth">
+                            <span>多胎妊娠</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><label for="leaveTypes">休職種別</label></div>
+                    <div class="im-field-row__control">
+                        <select id="leaveTypes" formControlName="leaveTypes">
+                            <option value="産前産後">産前産後</option>
+                            <option value="育児">育児</option>
+                            <option value="なし">休職なし</option>
+                        </select>
+                        <div class="error">
+                            <p *ngIf="birthForm.errors?.['invalidLeaveType'] && birthForm.get('leaveTypes')?.touched">休職種別が正しくありません</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="birthForm.get('leaveTypes')?.value !== 'なし'">
+                    <div class="im-field-row__label"><label for="resignationDate">休職開始日</label></div>
+                    <div class="im-field-row__control">
+                        <input id="resignationDate" type="date" formControlName="resignationDate">
+                        <div class="error">
+                            <p *ngIf="birthForm.get('resignationDate')?.errors?.['required'] && birthForm.get('resignationDate')?.touched">
+                                休職開始日は必須です</p>
+                            <p *ngIf="birthForm.errors?.['invalidLeaveStartDate'] && birthForm.get('resignationDate')?.touched">
+                                {{ birthForm.errors?.['invalidLeaveStartDate'] }}</p>
+                            <p *ngIf="dateValidMessage">{{ dateValidMessage }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <ng-container *ngIf="birthForm.get('type')?.value === '育児'">
+                <h3 class="employee-edit-section-title">扶養情報</h3>
+                <div class="employee-dependent-list" formArrayName="dependents">
+                    <div class="employee-dependent-row" *ngFor="let dependent of birthDependents.controls; let i = index"
+                        [formGroupName]="i">
+                        <div class="employee-dependent-row__fields">
+                            <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                                <div class="im-field-row__label"><label [for]="'birthDependentName' + i">扶養者名前</label></div>
+                                <div class="im-field-row__control">
+                                    <input type="text" [id]="'birthDependentName' + i" formControlName="name">
+                                    <div class="error">
+                                        <p *ngIf="dependent.get('name')?.errors?.['required'] && dependent.get('name')?.touched">氏名は必須です</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                                <div class="im-field-row__label"><label [for]="'birthDependentRelationship' + i">続柄</label></div>
+                                <div class="im-field-row__control">
+                                    <select [id]="'birthDependentRelationship' + i" formControlName="relationship">
+                                        <option value="">続柄を選択してください</option>
+                                        <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}</option>
+                                    </select>
+                                    <div class="error">
+                                        <p *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">続柄は必須です</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                                <div class="im-field-row__label"><label [for]="'birthDependentBirthDate' + i">生年月日</label></div>
+                                <div class="im-field-row__control">
+                                    <input type="date" [id]="'birthDependentBirthDate' + i" formControlName="birthDate">
+                                    <div class="error">
+                                        <p *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">生年月日は必須です</p>
+                                        <p *ngIf="dependent.get('birthDate')?.errors?.['invalidBirthDate'] && dependent.get('birthDate')?.touched">日付が正しくありません</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="im-btn-soft employee-detail-add-dependent" (click)="addDependent(2)">扶養情報を追加</button>
+            </ng-container>
+
+            <div class="employee-edit-actions">
+                <button type="submit" class="im-btn-primary">申請</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- 氏名変更 -->
+    <section *ngIf="activeTab === 'name'" class="employee-detail-section">
+        <div class="employee-detail-section__header">
+            <h2>氏名変更申請</h2>
+        </div>
+        <form class="employee-edit-form retroactive-form" [formGroup]="nameChangeForm" (ngSubmit)="submitNameChangeForm()">
+            <div class="retroactive-inline-grid">
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><label for="nameChangeName">姓</label></div>
+                    <div class="im-field-row__control">
+                        <input id="nameChangeName" type="text" formControlName="name">
+                        <div class="error">
+                            <p *ngIf="nameChangeForm.get('name')?.errors?.['required'] && nameChangeForm.get('name')?.touched">氏名は必須です</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="employee-edit-actions">
+                <button type="submit" class="im-btn-primary">申請</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- 扶養変更 -->
+    <section *ngIf="activeTab === 'dependent'" class="employee-detail-section">
+        <div class="employee-detail-section__header">
+            <h2>扶養情報変更申請</h2>
+        </div>
+        <form class="employee-edit-form retroactive-form" [formGroup]="dependentChangeForm" (ngSubmit)="submitDependentChangeForm()">
+            <div class="employee-dependent-list" formArrayName="dependents">
+                <div class="employee-dependent-row" *ngFor="let dependent of dependentChangeDependents.controls; let i = index"
+                    [formGroupName]="i">
+                    <div class="employee-dependent-row__fields">
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeName' + i">扶養者名前</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [id]="'dependentChangeName' + i" formControlName="name">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('name')?.errors?.['required'] && dependent.get('name')?.touched">氏名は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeRelationship' + i">続柄</label></div>
+                            <div class="im-field-row__control">
+                                <select [id]="'dependentChangeRelationship' + i" formControlName="relationship">
+                                    <option value="">続柄を選択してください</option>
+                                    <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}</option>
+                                </select>
+                                <div class="error">
+                                    <p *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">続柄は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeBirthDate' + i">生年月日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'dependentChangeBirthDate' + i" formControlName="birthDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">生年月日は必須です</p>
+                                    <p *ngIf="dependent.get('birthDate')?.errors?.['invalidBirthDate'] && dependent.get('birthDate')?.touched">日付が正しくありません</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide employee-dependent-status-field"
+                            *ngIf="dependent.get('isExisting')?.value">
+                            <div class="im-field-row__label"><span>現在の扶養状況</span></div>
+                            <div class="im-field-row__control">
+                                <div class="im-radio-group">
+                                    <label class="im-radio-option">
+                                        <input type="radio" formControlName="isDependentStatus" value="dependent"
+                                            [disabled]="!canRegisterDependent()">
+                                        <span>扶養対象</span>
+                                    </label>
+                                    <label class="im-radio-option">
+                                        <input type="radio" formControlName="isDependentStatus" value="notDependent">
+                                        <span>扶養対象外</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="im-btn-soft employee-detail-add-dependent" (click)="addDependent(3)">扶養情報を追加</button>
+
+            <div class="employee-edit-actions">
+                <button type="submit" class="im-btn-primary">申請</button>
+            </div>
+        </form>
+    </section>
 </div>

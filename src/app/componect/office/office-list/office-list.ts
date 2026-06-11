@@ -50,6 +50,8 @@ export class OfficeList {
 
   form = this.fb.group({
     name: ['', [Validators.required]],
+    officeOrganizationSymbol: ['', [Validators.required]],
+    officeNumber: [''],
     prefecture: ['', [Validators.required]],
   });
 
@@ -58,6 +60,8 @@ export class OfficeList {
   editOffice(office: Office) {
     this.form.patchValue({
       name: office.name,
+      officeOrganizationSymbol: office.officeOrganizationSymbol ?? '',
+      officeNumber: office.officeNumber ?? '',
       prefecture: office.prefecture,
     });
     this.selectedOfficeId = office.officeId;
@@ -87,6 +91,8 @@ export class OfficeList {
     const office: Partial<Office> = {
       officeId: this.selectedOfficeId,
       name: this.form.value.name!,
+      officeOrganizationSymbol: this.form.value.officeOrganizationSymbol!,
+      officeNumber: this.form.value.officeNumber!,
       prefecture: this.form.value.prefecture! as Prefecture,
     };
     const result = await this.officeService.updateOffice(office);

@@ -72,8 +72,18 @@ export class TopForManage {
   getBonusPaymentYear(month: number): number {
     const workingYear = Number(this.workingYear);
     const workingMonth = Number(this.workingMonth);
-    return month >= workingMonth ? workingYear : workingYear + 1;
+    // 1〜3月の作業月は常に当年
+    if (workingMonth >= 1 && workingMonth <= 3) {
+      return workingYear;
+    }
+    // 4〜12月の作業月
+    if (month >= 4 && month <= 12) {
+      return workingYear;
+    }
+    // 1〜3月のボーナス月
+    return workingYear + 1;
   }
+
 
   //前月の年を取得
   getPreviousInsuranceOutputYear(): number {
@@ -128,7 +138,7 @@ export class TopForManage {
 
   private async seedInsuranceRatesForYear(
     year: string,
-    rates: { id: string; [key: string]: string | number }[],
+    rates: { id: string;[key: string]: string | number }[],
     period: { effectiveFrom: string; effectiveTo: string },
   ) {
     const batch = writeBatch(this.firestore);

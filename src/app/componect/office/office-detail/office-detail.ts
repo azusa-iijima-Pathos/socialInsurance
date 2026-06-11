@@ -26,6 +26,8 @@ PREFECTURES = PREFECTURES;
 
 form = this.fb.group({
   name: ['', [Validators.required]],
+  officeOrganizationSymbol: ['', [Validators.required]],
+  officeNumber: [''],
   prefecture: ['', [Validators.required]],
 });
 
@@ -39,6 +41,8 @@ async registerOffice() {
   }
   const office: Partial<Office> = {
     name: this.form.value.name!,
+    officeOrganizationSymbol: this.form.value.officeOrganizationSymbol!,
+    officeNumber: this.form.value.officeNumber!,
     prefecture: this.form.value.prefecture! as Prefecture,
   };
   const result = await this.officeService.registerOffice(office);

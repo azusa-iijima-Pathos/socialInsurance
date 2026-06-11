@@ -5,7 +5,7 @@ import { CommonModule } from '@angular/common';
 import { ValidationService } from '../../../service/common/validation-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { EmployeeInsurance, InsuranceDetail } from '../../../model/employee';
+import { EmployeeInsurance } from '../../../model/employee';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { AddInsuranceCsv } from '../add-insurance-csv/add-insurance-csv';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -45,6 +45,7 @@ export class AddInsuranceInfo {
   form = this.fb.nonNullable.group({
     employeeId: ['', [Validators.required, Validators.pattern('^[a-zA-Z0-9]+$')], [this.validationService.correctEmployeeId]],
     currentGrade: [0, [Validators.required, Validators.min(0), Validators.max(50)]],
+    basicPensionNumber: ['', [Validators.pattern('^[a-zA-Z0-9]*$')]],
 
     healthInsurance: this.fb.nonNullable.group({
       joined: ['notJoined' as InsuranceStatus, [Validators.required]],
@@ -77,6 +78,7 @@ export class AddInsuranceInfo {
     this.setupInsuranceDetailControls('nursingCareInsurance');
     this.setupInsuranceDetailControls('employeePensionInsurance');
     this.setupInsuranceDependencyRules();
+    this.insuranceFormService.setupSharedInsuranceNumberSync(this.form, this.destroyRef);
   }
 
   private setupInsuranceDependencyRules() {
@@ -117,10 +119,6 @@ export class AddInsuranceInfo {
     return this.insuranceFormService.getControlErrorMessage(this.form.get(controlPath), label);
   }
 
-  private createInsuranceDetailFromForm(insuranceName: InsuranceName): InsuranceDetail {
-    return this.insuranceFormService.createDetailFromForm(this.form.controls[insuranceName].getRawValue());
-  }
-
   private syncSubInsuranceStatusesWithHealth(healthStatus: InsuranceStatus) {
     this.insuranceFormService.syncSubInsuranceStatusesWithHealth(this.form, healthStatus);
   }
@@ -132,18 +130,19 @@ export class AddInsuranceInfo {
   }
 
   async onSubmit() {
+    this.insuranceFormService.syncSharedInsuranceNumbers(this.form);
+    this.form.updateValueAndValidity({ emitEvent: false });
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.commonService.showTimedMessage('保険情報の入力内容を確認してください', value => this.message = value, this.messageTimer);
       return;
     }
 
-    const insuranceInfo: Partial<EmployeeInsurance> = {
+    const insuranceInfo = this.insuranceFormService.createEmployeeInsuranceForSave(this.form, {
       currentGrade: this.getCurrentGradeForSave(),
-      healthInsurance: this.createInsuranceDetailFromForm('healthInsurance'),
-      nursingCareInsurance: this.createInsuranceDetailFromForm('nursingCareInsurance'),
-      employeePensionInsurance: this.createInsuranceDetailFromForm('employeePensionInsurance'),
-    };
+      basicPensionNumber: this.form.controls.basicPensionNumber.value,
+    });
 
     const result = await this.employeeService.updateEmployeeInsurance(this.form.value.employeeId!, insuranceInfo);
 

@@ -142,7 +142,7 @@ export class InsuranceConfirm {
     this.insuranceDraftMap = {};
 
     this.payrollId = `${this.workingYear}-${String(this.workingMonth).padStart(2, '0')}`;
-    this.editButtonDisabled = this.isOutputMode || await this.insuranceSnapshotService.hasInsuranceSnapshot(this.payrollId);
+    // this.editButtonDisabled = this.isOutputMode || await this.insuranceSnapshotService.hasInsuranceSnapshot(this.payrollId);
     await this.payrollService.getAllPayrollListForMonth(this.payrollId);
     this.payrollData = this.payrollService.allPayrollListForMonth().find(item => item.payrollId === this.payrollId)?.payrollList ?? [];
 
@@ -515,7 +515,7 @@ export class InsuranceConfirm {
   }
 
   editInsurance() {
-    if (this.editButtonDisabled) return;
+    // if (this.editButtonDisabled) return;
     this.editMode = true;
     this.insuranceEditErrors = this.validateInsuranceDrafts();
   }
@@ -596,10 +596,10 @@ export class InsuranceConfirm {
     );
   }
 
-  editButtonDisabled = false;
+  isDone:boolean = false;
   //保険料をFirestoreに保存する。作業月を移動・編集ボタンを押せなくする
   async confirmInsurance() {
-    if (this.editButtonDisabled) return;
+    // if (this.editButtonDisabled) return;
     //Windows標準確認ポップを表示
     const confirmed = window.confirm(
       '確定すると、現在作業している月の給与・勤務実績、保険料の変更ができません。\n' +
@@ -636,7 +636,7 @@ export class InsuranceConfirm {
     sessionStorage.setItem('workingYear', newWorkingYear.toString());
 
     //編集・移動ボタンを押せなくする
-    this.editButtonDisabled = true;
+    this.isDone = true;
   }
 
   private async saveInsuranceSnapshots(): Promise<boolean> {

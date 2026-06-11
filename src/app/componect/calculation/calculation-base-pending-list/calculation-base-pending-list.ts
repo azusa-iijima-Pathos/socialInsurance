@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { CalculationRun } from '../../../model/calculation-run';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
+import { EmployeeService } from '../../../service/Firestore/employee-service';
 
 @Component({
   selector: 'app-calculation-base-pending-list',
@@ -16,6 +17,7 @@ export class CalculationBasePendingList {
 
   private calculationRunService = inject(CalculationRunService);
   private commonService = inject(CommonService);
+  private employeeService = inject(EmployeeService);
 
   runs: CalculationRun[] = [];
   approvedGradeMap: Record<string, number> = {};
@@ -211,6 +213,7 @@ export class CalculationBasePendingList {
 
     const result = await this.calculationRunService.applyApprovedCalculationBaseResults(this.displayYear);
     this.showMessage(result ? '社内承認済みの算定基礎結果を反映しました' : '算定基礎結果の反映に失敗しました');
+    this.employeeService.getAllEmployees(true);
     await this.loadRuns();
   }
 

@@ -18,6 +18,12 @@ export type Office = {
     /** 住所(都道府県) */
     prefecture?: Prefecture;
 
+    /** 事業所整理記号 */
+    officeOrganizationSymbol?: string;
+
+    /** 事業所番号 */
+    officeNumber?: string;
+
     /** 削除フラグ */
     isDeleted?: boolean;
 

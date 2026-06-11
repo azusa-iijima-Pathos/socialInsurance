@@ -32,6 +32,8 @@ export class OfficeForm {
 
   form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(20)], [this.validationService.validateOfficeName]],
+    officeOrganizationSymbol: ['', [Validators.required]],
+    officeNumber: [''],
     prefecture: ['', [Validators.required]],
   });
 
@@ -51,6 +53,8 @@ export class OfficeForm {
     }
     const office: Partial<Office> = {
       name: this.form.value.name!,
+      officeOrganizationSymbol: this.form.value.officeOrganizationSymbol!,
+      officeNumber: this.form.value.officeNumber!,
       prefecture: this.form.value.prefecture! as Prefecture,
     };
     const result = await this.officeService.registerOffice(office);

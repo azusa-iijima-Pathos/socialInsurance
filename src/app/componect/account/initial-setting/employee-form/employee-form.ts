@@ -92,9 +92,30 @@ export class EmployeeForm {
     await this.employeeService.getAllEmployees();
     this.setupTransportationExpensesValidation();
     this.setupLeaveTypesValidation();
-
+    this.setupWorkStyleAutoSelection();
+    
     //編集権限確認（パラムとセッションの一致確認、トップ権限か確認）
 
+  }
+
+  private setupWorkStyleAutoSelection() {
+    const employmentContract = this.form.controls.employmentContract;
+  
+    employmentContract.controls.employmentCategory.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(category => {
+  
+        const workStyleControl = employmentContract.controls.workStyle;
+  
+        if (category === 'パート') {
+          workStyleControl.setValue('パート', { emitEvent: false });
+        } else if (
+          workStyleControl.value === 'パート'
+        ) {
+          // パート以外に戻した時だけフルタイムへ
+          workStyleControl.setValue('フルタイム', { emitEvent: false });
+        }
+      });
   }
 
 

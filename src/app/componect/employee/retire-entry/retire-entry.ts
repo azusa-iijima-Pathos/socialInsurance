@@ -38,7 +38,22 @@ export class RetireEntry {
   async ngOnInit() {
     await this.employeeService.getAllEmployees();
     this.form.setValidators([this.retireDateValidator]);
-  }
+    
+      this.form.get('occurredDate')?.valueChanges.subscribe(date => {
+        if (!date) return;
+        const today = new Date();
+        const target = new Date(date);
+        today.setHours(0, 0, 0, 0);
+        target.setHours(0, 0, 0, 0);
+        const status: WorkStatus =
+          target <= today ? '退社済み' : '退社予定';
+        this.form.patchValue(
+          { workStatus: status },
+          { emitEvent: false } // 無限ループ防止
+        );
+      });
+    }
+
 
   async registerRetireEntry() {
     this.message = '';

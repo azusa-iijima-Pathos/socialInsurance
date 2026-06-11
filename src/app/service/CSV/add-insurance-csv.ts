@@ -14,11 +14,21 @@ type CsvRow = Record<string, unknown>;
 type InsuranceCsvKey =
   | 'employeeId'
   | 'currentGrade'
-  | `${InsuranceName}Joined`
-  | `${InsuranceName}Number`
-  | `${InsuranceName}AcquiredDate`
-  | `${InsuranceName}LostDate`
-  | `${InsuranceName}CompanyBurdenRate`;
+  | 'basicPensionNumber'
+  | 'healthInsuranceJoined'
+  | 'healthInsuranceNumber'
+  | 'healthInsuranceAcquiredDate'
+  | 'healthInsuranceLostDate'
+  | 'healthInsuranceCompanyBurdenRate'
+  | 'nursingCareInsuranceJoined'
+  | 'nursingCareInsuranceAcquiredDate'
+  | 'nursingCareInsuranceLostDate'
+  | 'nursingCareInsuranceCompanyBurdenRate'
+  | 'employeePensionInsuranceJoined'
+  | 'employeePensionInsuranceNumber'
+  | 'employeePensionInsuranceAcquiredDate'
+  | 'employeePensionInsuranceLostDate'
+  | 'employeePensionInsuranceCompanyBurdenRate';
 
 export type CsvInsurancePreviewRow = {
   rowNumber: number;
@@ -61,7 +71,6 @@ export class AddInsuranceCsv {
     healthInsuranceLostDate: '健康保険喪失日（yyyy-mm-dd）',
     healthInsuranceCompanyBurdenRate: '健康保険会社負担率',
     nursingCareInsuranceJoined: '介護保険加入（1:加入 0:未加入 2:喪失）',
-    nursingCareInsuranceNumber: '介護保険番号',
     nursingCareInsuranceAcquiredDate: '介護保険取得日（yyyy-mm-dd）',
     nursingCareInsuranceLostDate: '介護保険喪失日（yyyy-mm-dd）',
     nursingCareInsuranceCompanyBurdenRate: '介護保険会社負担率',
@@ -70,13 +79,14 @@ export class AddInsuranceCsv {
     employeePensionInsuranceAcquiredDate: '厚生年金取得日（yyyy-mm-dd）',
     employeePensionInsuranceLostDate: '厚生年金喪失日（yyyy-mm-dd）',
     employeePensionInsuranceCompanyBurdenRate: '厚生年金会社負担率',
+    basicPensionNumber: '基礎年金番号',
   };
 
   createCsvTemplate() {
     const headers = Object.values(this.headers);
     return [
       headers.join(','),
-      'E001,10,1,H12345,2026-04-01,,50,0,,,,,2,P12345,2026-04-01,2026-04-30,50',
+      'E001,10,1,H12345,2026-04-01,,50,0,,,,,1,H12345,2026-04-01,,50,B12345',
       '入力内容）',
       '',
     ].join('\r\n');
@@ -226,11 +236,35 @@ export class AddInsuranceCsv {
   }
 
   private toInsuranceFromCsvRow(row: CsvRow, rowNumber: number, currentGrade: number, errors: string[]): Partial<EmployeeInsurance> {
+    const healthInsurance = this.toInsuranceDetail(row, rowNumber, 'healthInsurance', '健康保険', errors);
+    const healthInsuranceNumber = healthInsurance.number ?? '';
+    const nursingCareInsurance = this.toInsuranceDetail(
+      row,
+      rowNumber,
+      'nursingCareInsurance',
+      '介護保険',
+      errors,
+      healthInsuranceNumber,
+    );
+    const employeePensionInsurance = this.toInsuranceDetail(
+      row,
+      rowNumber,
+      'employeePensionInsurance',
+      '厚生年金',
+      errors,
+      healthInsuranceNumber,
+    );
+    const basicPensionNumber = this.getCsvValue(row, 'basicPensionNumber');
+    if (basicPensionNumber && !/^[a-zA-Z0-9]+$/.test(basicPensionNumber)) {
+      errors.push(`${rowNumber}行目：基礎年金番号は半角英数字で入力してください`);
+    }
+
     return {
       currentGrade,
-      healthInsurance: this.toInsuranceDetail(row, rowNumber, 'healthInsurance', '健康保険', errors),
-      nursingCareInsurance: this.toInsuranceDetail(row, rowNumber, 'nursingCareInsurance', '介護保険', errors),
-      employeePensionInsurance: this.toInsuranceDetail(row, rowNumber, 'employeePensionInsurance', '厚生年金', errors),
+      ...(basicPensionNumber ? { basicPensionNumber } : {}),
+      healthInsurance,
+      nursingCareInsurance,
+      employeePensionInsurance,
     };
   }
 
@@ -240,12 +274,18 @@ export class AddInsuranceCsv {
     insuranceName: InsuranceName,
     label: string,
     errors: string[],
+    sharedHealthInsuranceNumber = '',
   ): InsuranceDetail {
     const joinedText = this.getCsvValue(row, `${insuranceName}Joined`);
     const status = this.toInsuranceStatus(joinedText);
     const needsInsuranceDetail = status === 'joined' || status === 'lost';
     const needsLostDate = status === 'lost';
-    const number = this.getCsvValue(row, `${insuranceName}Number`);
+    let number = insuranceName === 'nursingCareInsurance'
+      ? sharedHealthInsuranceNumber
+      : this.getCsvValue(row, `${insuranceName}Number`);
+    if (insuranceName === 'employeePensionInsurance' && !number && sharedHealthInsuranceNumber) {
+      number = sharedHealthInsuranceNumber;
+    }
     const acquiredDateText = this.getCsvValue(row, `${insuranceName}AcquiredDate`);
     const lostDateText = this.getCsvValue(row, `${insuranceName}LostDate`);
     const companyBurdenRateText = this.getCsvValue(row, `${insuranceName}CompanyBurdenRate`);
@@ -258,8 +298,11 @@ export class AddInsuranceCsv {
     if (!isStatusValid) return { joined: false };
 
     if (needsInsuranceDetail) {
-      if (!number) errors.push(`${rowNumber}行目：${label}番号が未入力です`);
-      if (number && !/^[a-zA-Z0-9]+$/.test(number)) errors.push(`${rowNumber}行目：${label}番号は半角英数字で入力してください`);
+      const numberLabel = insuranceName === 'nursingCareInsurance'
+        ? '健康保険番号（介護保険と共通）'
+        : `${label}番号`;
+      if (status === 'lost' && !number) errors.push(`${rowNumber}行目：${numberLabel}が未入力です`);
+      if (number && !/^[a-zA-Z0-9]+$/.test(number)) errors.push(`${rowNumber}行目：${numberLabel}は半角英数字で入力してください`);
       if (!acquiredDateText) errors.push(`${rowNumber}行目：${label}取得日が未入力です`);
       if (acquiredDateText && !acquiredDate) errors.push(`${rowNumber}行目：${label}取得日の日付形式が正しくありません`);
       if (needsLostDate && !lostDateText) errors.push(`${rowNumber}行目：${label}喪失日が未入力です`);

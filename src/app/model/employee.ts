@@ -79,6 +79,9 @@ export type EmployeeInsurance = {
     /** 現在の等級 */
     currentGrade?: number;
 
+    /** 基礎年金番号 */
+    basicPensionNumber?: string;
+
     /** 健康保険 */
     healthInsurance?: InsuranceDetail;
 

@@ -40,7 +40,7 @@
             </div>
         </div>
 
-        <div class="company-form-triple">
+        <div class="company-form-pair">
             <div class="im-field-block im-field-row company-basic-field">
                 <div class="im-field-row__label">
                     <label for="businessType">事業種</label>
@@ -68,7 +68,9 @@
                     </div>
                 </div>
             </div>
+        </div>
 
+        <div class="company-form-triple">
             <div class="im-field-block im-field-row company-basic-field">
                 <div class="im-field-row__label">
                     <label for="headOfficePrefecture">本社所在地(都道府県)</label>
@@ -81,6 +83,27 @@
                     <div class="error">
                         <p *ngIf="form.get('headOfficePrefecture')?.errors?.['required'] && form.get('headOfficePrefecture')?.touched">本社住所は必須です</p>
                     </div>
+                </div>
+            </div>
+
+            <div class="im-field-block im-field-row company-basic-field">
+                <div class="im-field-row__label">
+                    <label for="officeOrganizationSymbol">本社事業所整理記号</label>
+                </div>
+                <div class="im-field-row__control">
+                    <input type="text" id="officeOrganizationSymbol" formControlName="officeOrganizationSymbol">
+                    <div class="error">
+                        <p *ngIf="form.get('officeOrganizationSymbol')?.errors?.['required'] && form.get('officeOrganizationSymbol')?.touched">事業所整理記号は必須です</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="im-field-block im-field-row company-basic-field">
+                <div class="im-field-row__label">
+                    <label for="officeNumber">本社事業所番号</label>
+                </div>
+                <div class="im-field-row__control">
+                    <input type="text" id="officeNumber" formControlName="officeNumber">
                 </div>
             </div>
         </div>
