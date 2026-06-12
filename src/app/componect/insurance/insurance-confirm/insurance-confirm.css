@@ -33,6 +33,17 @@ td {
     padding-top: 0.15rem;
 }
 
+.insurance-confirm-grade-cell {
+    white-space: normal;
+}
+
+.insurance-confirm-grade-note {
+    display: block;
+    margin-top: 0.2rem;
+    color: #8a8a8a;
+    font-size: 0.75rem;
+}
+
 .insurance-confirm-edit-input {
     width: 7rem;
     max-width: 100%;

@@ -285,41 +285,47 @@
     </div>
 </div>
 
+<div class="employee-edit-modal add-insurance-working-month-modal" *ngIf="mode === 'initial' && isShowModal"
+    (click)="closeWorkingMonthModal()">
+    <div class="employee-edit-modal__panel" (click)="$event.stopPropagation()">
+        <div class="employee-edit-modal__header">
+            <h2>{{ isComplete ? '作業月設定' : '給与設定が必要です' }}</h2>
+        </div>
 
-<section *ngIf="mode === 'initial' && isShowModal">
+        <div *ngIf="!isComplete" class="add-insurance-working-month-modal__body">
+            <p>給与設定が完了していません。給与設定を行ってください。</p>
+            <div class="add-insurance-working-month-modal__actions">
+                <button type="button" class="im-btn-primary" (click)="toSetting()">給与設定へ</button>
+                <button type="button" class="im-btn-soft" (click)="closeWorkingMonthModal()">キャンセル</button>
+            </div>
+        </div>
 
-    <div *ngIf="!isComplete" style="text-align: center;">
-        <p>給与設定が完了していません。給与設定を行ってください。</p>
-        <div style="display: flex; margin-top: 10px; justify-content: center; gap: 10px;">
-            <button type="button" class="im-btn-primary" (click)="toSetting()">給与設定へ</button>
-            <button type="button" class="im-btn-soft" (click)="isShowModal = false">キャンセル</button>
+        <div *ngIf="isComplete" class="add-insurance-working-month-modal__body">
+            <p>何年何月分の給与から保険料計算を開始するか設定してください。</p>
+            <form [formGroup]="workingMonthForm" (ngSubmit)="setWorkingMonthAndGoTop()">
+                <div class="add-insurance-working-month-modal__fields">
+                    <label class="add-insurance-working-month-modal__field" for="initialWorkingYear">
+                        <span>年</span>
+                        <input type="number" id="initialWorkingYear" formControlName="workingYear" min="1900" max="9999">
+                    </label>
+                    <label class="add-insurance-working-month-modal__field" for="initialWorkingMonth">
+                        <span>月</span>
+                        <input type="number" id="initialWorkingMonth" formControlName="workingMonth" min="1" max="12">
+                    </label>
+                </div>
+                <div class="error">
+                    <p *ngIf="workingMonthForm.get('workingYear')?.invalid && workingMonthForm.get('workingYear')?.touched">
+                        作業年は1900年から9999年の範囲で入力してください
+                    </p>
+                    <p *ngIf="workingMonthForm.get('workingMonth')?.invalid && workingMonthForm.get('workingMonth')?.touched">
+                        作業月は1月から12月の範囲で入力してください
+                    </p>
+                </div>
+                <div class="add-insurance-working-month-modal__actions">
+                    <button type="submit" class="im-btn-primary">設定してシステム利用を開始する</button>
+                    <button type="button" class="im-btn-soft" (click)="closeWorkingMonthModal()">キャンセル</button>
+                </div>
+            </form>
         </div>
     </div>
-
-    <div *ngIf="isComplete">
-        <h3>作業月設定</h3>
-        <p>何年何月分の給与から保険料計算を開始するか設定してください。</p>
-        <form [formGroup]="workingMonthForm" (ngSubmit)="setWorkingMonthAndGoTop()">
-            <label for="initialWorkingYear">
-                <input type="number" id="initialWorkingYear" formControlName="workingYear" min="1900"
-                    max="9999">年</label>
-            <label for="initialWorkingMonth">
-                <input type="number" id="initialWorkingMonth" formControlName="workingMonth" min="1"
-                    max="12">月</label><br>
-            <div style="display: flex; justify-content: flex-end; margin-top: 10px; gap: 10px;">
-                <button type="submit" class="im-btn-primary">設定してシステム利用を開始する</button>
-                <button type="button" class="im-btn-soft" (click)="isShowModal = false">キャンセル</button>
-            </div>
-            <div class="error">
-                <p *ngIf="workingMonthForm.get('workingYear')?.invalid && workingMonthForm.get('workingYear')?.touched">
-                    作業年は1900年から9999年の範囲で入力してください
-                </p>
-                <p
-                    *ngIf="workingMonthForm.get('workingMonth')?.invalid && workingMonthForm.get('workingMonth')?.touched">
-                    作業月は1月から12月の範囲で入力してください
-                </p>
-            </div>
-        </form>
-    </div>
-
-</section>
+</div>

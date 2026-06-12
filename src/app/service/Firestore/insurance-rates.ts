@@ -55,11 +55,21 @@ export class InsuranceRates {
     }
   }
 
-  /** 等級から標準報酬月額を取得 */
-  async getStandardMonthlyAmount(year: string, grade: number, targetYearMonth: string): Promise<number | undefined> {
-    await this.getRemunerationData(year);
-    return this.getApplicableRemunerationData(year, targetYearMonth)
+  /** 等級から標準報酬月額を取得（targetYearMonth の適用期間に合うマスタ年を自動選択） */
+  async getStandardMonthlyAmount(_year: string, grade: number, targetYearMonth: string): Promise<number | undefined> {
+    const masterYear = await this.resolveRemunerationYearForMonth(targetYearMonth);
+    return (this.remunerationData[masterYear] ?? [])
       .find(item => Number(item.grade) === grade)?.standardMonthlyAmount;
+  }
+
+  /** 対象年月に適用される標準報酬月額マスタの年（例: 2026-01 → 2025） */
+  async resolveRemunerationMasterYearForMonth(targetYearMonth: string): Promise<string> {
+    return this.resolveRemunerationYearForMonth(targetYearMonth);
+  }
+
+  /** 対象年月に適用される保険料率マスタの年 */
+  async resolveRateMasterYearForMonth(targetYearMonth: string): Promise<string> {
+    return this.resolveRateYearForMonth(targetYearMonth);
   }
 
   getApplicableRemunerationData(year: string, targetYearMonth: string): StandardMonthlyRemuneration[] {
@@ -72,6 +82,33 @@ export class InsuranceRates {
     return this.isApplicable(this.ratePeriod[year], targetYearMonth)
       ? (this.rateData[year] ?? [])
       : [];
+  }
+
+  private async resolveRemunerationYearForMonth(targetYearMonth: string): Promise<string> {
+    const calendarYear = Number(targetYearMonth.split('-')[0]);
+    // 協会けんぽの改定は3月始まりのため、対象年と前年の適用期間を確認
+    for (let year = calendarYear; year >= calendarYear - 1; year--) {
+      const yearStr = String(year);
+      await this.loadRemunerationData(yearStr);
+      if ((this.remunerationData[yearStr]?.length ?? 0) > 0
+        && this.isApplicable(this.remunerationPeriod[yearStr], targetYearMonth)) {
+        return yearStr;
+      }
+    }
+    return this.resolveRemunerationYear(String(calendarYear));
+  }
+
+  private async resolveRateYearForMonth(targetYearMonth: string): Promise<string> {
+    const calendarYear = Number(targetYearMonth.split('-')[0]);
+    for (let year = calendarYear; year >= calendarYear - 1; year--) {
+      const yearStr = String(year);
+      await this.loadRateData(yearStr);
+      if ((this.rateData[yearStr]?.length ?? 0) > 0
+        && this.isApplicable(this.ratePeriod[yearStr], targetYearMonth)) {
+        return yearStr;
+      }
+    }
+    return this.resolveRateYear(String(calendarYear));
   }
 
   private async resolveRemunerationYear(requestedYear: string): Promise<string> {

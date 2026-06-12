@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Firestore, collection, collectionGroup, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, collectionData, Timestamp, query, where, WithFieldValue, DocumentData } from '@angular/fire/firestore';
+import { stripUndefinedValues } from './firestore-data.util';
 
 
 @Injectable({
@@ -13,11 +14,11 @@ export class CrudService {
   async create<T extends WithFieldValue<DocumentData>>(path: string, data: Partial<T>) {
     try {
       const ref = doc(this.firestore, path);
-      await setDoc(ref, {
+      await setDoc(ref, stripUndefinedValues({
         ...data,
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      }));
       return true;
     } catch (e) {
       console.error(e);
@@ -123,10 +124,10 @@ export class CrudService {
   async update<T>(path: string, data: Partial<T>): Promise<boolean> {
     try {
       const ref = doc(this.firestore, path);
-      await updateDoc(ref, {
+      await updateDoc(ref, stripUndefinedValues({
         ...data,
         updatedAt: new Date(),
-      });
+      }));
       return true;
     } catch (e) {
       console.error(e);

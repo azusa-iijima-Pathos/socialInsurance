@@ -6,7 +6,7 @@ import { EmployeeService } from './employee-service';
 import { EmployeeLogicService } from '../logic/employee-logic-service';
 import { EmployeeEventType } from '../../constants/model-constants';
 import { Event } from '../../model/event';
-import { getWorkingYearMonth, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth, buildAdHocRevisionRunId, YearMonth } from '../logic/event-id-service';
+import { addMonths, getWorkingYearMonth, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth, buildAdHocRevisionRunId, parseEventYearMonth, YearMonth } from '../logic/event-id-service';
 import { MonthlyInsuranceDiff, MonthlyInsuranceComparisonRow } from '../logic/correction-logic.service';
 
 export type SystemCalculationRunItem = CalculationRun & {
@@ -465,6 +465,52 @@ export class CalculationRunService {
     }
 
     return `${baseId}_${maxSeq + 1}`;
+  }
+
+  /** 作業月の前月までに改定月が到来した、未適用の承認済み随時改定 */
+  async getApplicableApprovedAdHocRevisionRuns(employeeId?: string): Promise<SystemCalculationRunItem[]> {
+    const working = getWorkingYearMonth();
+    if (!working.year || !working.month) return [];
+
+    const cutoff = addMonths(working.year, working.month, -1);
+    const cutoffKey = cutoff.year * 12 + cutoff.month;
+
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.type === '随時改定')
+      .filter(run => run.approval?.approvalStatus === '承認済み')
+      .filter(run => {
+        const empId = String(run.targetEmployeeIds ?? run.payload?.['employeeId'] ?? '');
+        if (employeeId && empId !== employeeId) return false;
+        const revisionMonth = run.runId
+          ? parseEventYearMonth(run.runId, working.year, working.month)
+          : null;
+        if (!revisionMonth) return false;
+        return revisionMonth.year * 12 + revisionMonth.month <= cutoffKey;
+      })
+      .map(run => this.toSystemItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => {
+        const leftMonth = parseEventYearMonth(left.runId!, working.year, working.month)!;
+        const rightMonth = parseEventYearMonth(right.runId!, working.year, working.month)!;
+        return leftMonth.year * 12 + leftMonth.month - (rightMonth.year * 12 + rightMonth.month);
+      });
+  }
+
+  async markRunApplied(runId: string, loginEmployeeId: string): Promise<boolean> {
+    const existing = await this.getCalculationRunById(runId);
+    return this.updateCalculationRun(runId, {
+      approval: {
+        approvalStatus: '適用済み',
+        approvedDate: existing?.approval?.approvedDate ?? Timestamp.now(),
+        approvedBy: existing?.approval?.approvedBy ?? loginEmployeeId,
+      },
+      payload: {
+        ...existing?.payload,
+        appliedDate: Timestamp.now(),
+        appliedBy: loginEmployeeId,
+      },
+    });
   }
 
   async markRunApproved(

@@ -169,12 +169,17 @@ export class CompanyForm {
       });
     }
 
-    //会社情報を登録用に変換
+    const value = this.form.getRawValue();
     const company: Partial<Company> = {
-      ...this.form.value,
-      businessType: this.form.value.businessType! as BusinessType,
-      headOfficePrefecture: this.form.value.headOfficePrefecture! as Prefecture,
-      employeeCount: Number(this.form.value.employeeCount!),
+      isCorporation: value.isCorporation,
+      name: value.name,
+      businessType: value.businessType as BusinessType,
+      headOfficePrefecture: value.headOfficePrefecture as Prefecture,
+      employeeCount: Number(value.employeeCount),
+      socialInsuranceRequired: value.socialInsuranceRequired,
+      optionalApplicableOffice: value.optionalApplicableOffice,
+      specificApplicableOffice: value.specificApplicableOffice,
+      optionalSpecificApplicableOffice: value.optionalSpecificApplicableOffice,
     };
 
     //会社情報を登録
@@ -207,8 +212,8 @@ export class CompanyForm {
       companyId: company.companyId!,
       name: '本社',
       prefecture: company.headOfficePrefecture!,
-      officeOrganizationSymbol: this.form.value.officeOrganizationSymbol!,
-      officeNumber: this.form.value.officeNumber!,
+      officeOrganizationSymbol: value.officeOrganizationSymbol,
+      officeNumber: value.officeNumber,
     };
     const officeResult = await this.officeService.registerOffice(office);
     if (!officeResult) {

@@ -191,6 +191,51 @@ app-add-insurance-csv {
   .add-insurance-info-grade-field {
     width: 100%;
   }
+}
 
+.add-insurance-working-month-modal__body {
+  display: grid;
+  gap: var(--im-size-16);
+}
 
+.add-insurance-working-month-modal__body > p {
+  margin: 0;
+  color: var(--im-color-slate-700);
+  line-height: 1.5;
+}
+
+.add-insurance-working-month-modal__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-12);
+  align-items: end;
+}
+
+.add-insurance-working-month-modal__field {
+  display: grid;
+  gap: var(--im-size-6);
+  min-width: 8rem;
+  color: var(--im-color-slate-900);
+  font-weight: 600;
+}
+
+.add-insurance-working-month-modal__field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--im-size-8) var(--im-size-12);
+  border: 1px solid var(--im-color-gray-300);
+  border-radius: var(--im-radius-12);
+}
+
+.add-insurance-working-month-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--im-size-10);
+}
+
+.add-insurance-working-month-modal .error p {
+  margin: 0;
+  color: var(--im-color-red-800);
+  font-size: var(--im-font-13);
 }

@@ -93,12 +93,17 @@
   </div>
 
   <section *ngIf="listType !== 'bonus' && runs.length > 0" class="correction-collection-section">
-    <h2 class="section-title">差額適用後の保険料徴収額（{{ selectedMonthLabel }}作業分）</h2>
+    <div class="correction-collection-header">
+      <h2 class="section-title">差額適用後の保険料徴収額（{{ selectedMonthLabel }}作業分）</h2>
+      <button type="button" class="im-btn-soft" (click)="exportCollectionCsv()"
+        [disabled]="collectionRows.length === 0">CSV出力</button>
+    </div>
     <p class="correction-collection-lead">
-      差額修正対象月の保険料確定額に、差額調整を反映した請求・控除額です。1行1従業員で表示しています。
+      {{ selectedMonthLabel }}の確定保険料に、その作業月で行った差額調整の合計を上乗せした徴収・控除額です（修正対象月に関係なく、作業月単位で集計）。<br>
+      保険料を確定後に今月の保険料に反映します。
     </p>
     <p *ngIf="collectionRows.length === 0" class="correction-collection-empty">
-      表示対象の保険料スナップショットが見つかりませんでした。
+      表示対象の従業員がいません。
     </p>
     <div *ngIf="collectionRows.length > 0" class="correction-list-table-wrap">
       <table class="correction-list-table correction-collection-table">

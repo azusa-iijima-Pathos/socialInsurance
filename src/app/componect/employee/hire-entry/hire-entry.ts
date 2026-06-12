@@ -32,7 +32,7 @@ type InsuranceJudgement = { isHealthInsuranceRequired?: boolean, isNursingCareIn
   selector: 'app-hire-entry',
   imports: [CommonModule, ReactiveFormsModule, DependentDisabilityStudentFields],
   templateUrl: './hire-entry.html',
-  styleUrl: './hire-entry.css',
+  styleUrls: ['./hire-entry.css', '../employee-detail/employee-detail.css'],
 })
 export class HireEntry {
 
@@ -282,7 +282,9 @@ export class HireEntry {
     const insurance = this.form.controls.insurance;
     return {
       currentGrade: insurance.controls.currentGrade.value,
-      basicPensionNumber: insurance.controls.basicPensionNumber.value.trim() || undefined,
+      ...(insurance.controls.basicPensionNumber.value.trim()
+        ? { basicPensionNumber: insurance.controls.basicPensionNumber.value.trim() }
+        : {}),
       healthInsurance: this.createInsuranceDetailFromForm('healthInsurance'),
       nursingCareInsurance: this.createInsuranceDetailFromForm('nursingCareInsurance'),
       employeePensionInsurance: this.createInsuranceDetailFromForm('employeePensionInsurance'),
@@ -318,9 +320,11 @@ export class HireEntry {
         birthDate: timestampFromDateInput(value.birthDate!),
         relationship: value.relationship! as Relationship,
         isDependent: true,
-        cohabitationType: value.cohabitationType || undefined,
-        annualIncome: value.annualIncome === '' || value.annualIncome == null ? undefined : Number(value.annualIncome),
-        occupation: value.occupation?.trim() || undefined,
+        ...(value.cohabitationType ? { cohabitationType: value.cohabitationType as CohabitationType } : {}),
+        ...(value.annualIncome !== '' && value.annualIncome != null
+          ? { annualIncome: Number(value.annualIncome) }
+          : {}),
+        ...(value.occupation?.trim() ? { occupation: value.occupation.trim() } : {}),
         ...mapDependentDisabilityStudentFromForm(value),
       });
     });

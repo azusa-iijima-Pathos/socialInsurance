@@ -360,7 +360,12 @@
             <p class="employee-detail-empty" *ngIf="insuranceHistoryRows.length === 0">確定済み保険料はありません</p>
         </section>
 
-        <h2>イベント一覧</h2>
+        <div style="display: flex; align-items: center; margin-bottom: 12px;">
+            <h2 style="margin: 0;">イベント一覧</h2>
+            <button type="button" class="im-btn-primary" (click)="applyApprovedFixedSalary()"
+                [disabled]="!canApplyApprovedFixedSalary"
+                style="margin-left: auto;">承認済みの随時改定を適用</button>
+        </div>
         <section class="employee-detail-section employee-detail-events" *ngIf="eventListItems.length > 0">
             <div class="employee-detail-events-table-wrap">
                 <table class="employee-detail-events-table">

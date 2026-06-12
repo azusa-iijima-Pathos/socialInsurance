@@ -15,7 +15,7 @@
                 <button type="button" class="im-btn-soft" *ngIf="permission() === '管理' || permission() === '承認'"
                     (click)="toEmployeeTop()">従業員用ページ</button>
                 <button type="button" class="im-btn-soft" *ngIf="permission() === '管理' || permission() === '承認'"
-                    (click)="toManageTop()">管理者用ページ</button>
+                    (click)="toManageTop()">担当者用ページ</button>
                 </div>
                 <div class="header-session-panel" *ngIf="loginEmployeeId() !== null">
                     <span class="header-session-panel__item">社員ID: {{ loginEmployeeId() }}</span>

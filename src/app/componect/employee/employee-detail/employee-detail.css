@@ -378,6 +378,37 @@
   margin-bottom: calc(-1 * var(--im-size-2));
 }
 
+/* 勤務状況・雇用契約 編集モーダル（狭いパネル） */
+.employee-edit-modal__panel:not(.employee-edit-modal__panel--wide) .employee-edit-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--im-size-10);
+  max-width: 28rem;
+}
+
+.employee-edit-modal__panel:not(.employee-edit-modal__panel--wide) .employee-edit-field.im-field-row {
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: var(--im-size-4) var(--im-size-8);
+  align-items: start;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+}
+
+.employee-edit-modal__panel:not(.employee-edit-modal__panel--wide) .employee-edit-field .im-field-row__label {
+  margin-bottom: 0;
+}
+
+.employee-edit-modal__panel:not(.employee-edit-modal__panel--wide) .employee-edit-field .im-field-row__control input:not([type='radio']):not([type='checkbox']),
+.employee-edit-modal__panel:not(.employee-edit-modal__panel--wide) .employee-edit-field .im-field-row__control select {
+  width: 100%;
+  max-width: 100%;
+}
+
+.employee-edit-modal__panel:not(.employee-edit-modal__panel--wide) .employee-edit-section-title {
+  margin-top: var(--im-size-8);
+  margin-bottom: var(--im-size-4);
+}
+
 .employee-edit-form .employee-edit-actions {
   display: grid;
   grid-template-columns: 2fr 1fr;

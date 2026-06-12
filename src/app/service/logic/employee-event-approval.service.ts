@@ -211,29 +211,66 @@ export class EmployeeEventApprovalService {
     loginEmployeeId: string,
     runId?: string,
   ): Promise<boolean> {
-    const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
-    if (!employee) return false;
-
-    const updated: Partial<Employee> = {
-      employeeId,
-      insurance: {
-        ...employee.insurance,
-        currentGrade: draft.approvedGrade,
-      } as EmployeeInsurance,
-    };
-
-    const employeeUpdated = await this.employeeService.updateEmployee(updated);
-    if (!employeeUpdated) return false;
-
-    return runId
-      ? this.calculationRunService.markRunApproved(runId, loginEmployeeId, {
+    if (runId) {
+      return this.calculationRunService.markRunApproved(runId, loginEmployeeId, {
         revisionSummary: {
           currentGrade: draft.currentGrade,
           approvedGrade: draft.approvedGrade,
           averageSalary: draft.averageSalary,
         },
-      })
-      : this.markEventApproved(employeeId, event, loginEmployeeId);
+      });
+    }
+    return this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  /** 承認済み随時改定を従業員等級へ反映し、計算結果を適用済みに更新 */
+  async applyApprovedAdHocRevisions(
+    loginEmployeeId: string,
+    employeeId?: string,
+  ): Promise<{ appliedCount: number }> {
+    const runs = await this.calculationRunService.getApplicableApprovedAdHocRevisionRuns(employeeId);
+    if (runs.length === 0) return { appliedCount: 0 };
+
+    const byEmployee = new Map<string, SystemCalculationRunItem[]>();
+    for (const run of runs) {
+      const list = byEmployee.get(run.employeeId) ?? [];
+      list.push(run);
+      byEmployee.set(run.employeeId, list);
+    }
+
+    let appliedCount = 0;
+    for (const [empId, empRuns] of byEmployee) {
+      const latestRun = empRuns[empRuns.length - 1];
+      const approvedGrade = await this.resolveApprovedGradeFromRun(latestRun);
+      if (approvedGrade === null) continue;
+
+      const employee = await this.employeeService.getEmployeeByEmployeeId(empId);
+      if (!employee) continue;
+
+      const updated = await this.employeeService.updateEmployee({
+        employeeId: empId,
+        insurance: {
+          ...employee.insurance,
+          currentGrade: approvedGrade,
+        } as EmployeeInsurance,
+      });
+      if (!updated) continue;
+
+      for (const run of empRuns) {
+        const ok = await this.calculationRunService.markRunApplied(run.runId, loginEmployeeId);
+        if (ok) appliedCount++;
+      }
+    }
+
+    return { appliedCount };
+  }
+
+  private async resolveApprovedGradeFromRun(run: SystemCalculationRunItem): Promise<number | null> {
+    const summary = run.payload?.['revisionSummary'] as { approvedGrade?: number } | undefined;
+    if (summary?.approvedGrade !== undefined) return Number(summary.approvedGrade);
+
+    const draft = await this.buildFixedSalaryApprovalDraft(this.buildEventViewFromRun(run));
+    return draft?.approvedGrade ?? null;
   }
 
   async approveInsuranceEvent(

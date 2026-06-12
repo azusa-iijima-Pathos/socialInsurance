@@ -529,13 +529,13 @@ export class LifeeventApplication {
         relationship: item.after.relationship as Relationship,
         birthDate: timestampFromDateInput(item.after.birthDate),
         isDependent: item.after.isDependent ?? true,
-        cohabitationType: item.after.cohabitationType,
-        annualIncome: item.after.annualIncome,
-        occupation: item.after.occupation,
-        hasDisability: item.after.hasDisability,
-        disabilityType: item.after.disabilityType,
-        isStudent: item.after.isStudent,
-        studentType: item.after.studentType,
+        ...(item.after.cohabitationType ? { cohabitationType: item.after.cohabitationType } : {}),
+        ...(item.after.annualIncome != null ? { annualIncome: item.after.annualIncome } : {}),
+        ...(item.after.occupation ? { occupation: item.after.occupation } : {}),
+        hasDisability: item.after.hasDisability ?? false,
+        ...(item.after.disabilityType ? { disabilityType: item.after.disabilityType } : {}),
+        isStudent: item.after.isStudent ?? false,
+        ...(item.after.studentType ? { studentType: item.after.studentType } : {}),
       };
 
       const dependentEvent: Partial<Event> = {
@@ -599,17 +599,19 @@ export class LifeeventApplication {
   private toDependentPayload(raw: Record<string, unknown>): DependentFormPayload {
     const annualIncomeRaw = raw['annualIncome'];
     const annualIncome = annualIncomeRaw === '' || annualIncomeRaw == null
-      ? undefined
+      ? null
       : Number(annualIncomeRaw);
+    const occupation = String(raw['occupation'] ?? '').trim();
+    const cohabitationType = raw['cohabitationType'] as CohabitationType | '';
     return {
       dependentId: String(raw['dependentId'] ?? ''),
       name: String(raw['name'] ?? '').trim(),
       relationship: raw['relationship'] as Relationship | '',
       birthDate: String(raw['birthDate'] ?? ''),
       isDependent: raw['isDependentStatus'] === 'dependent',
-      cohabitationType: (raw['cohabitationType'] || undefined) as CohabitationType | undefined,
-      annualIncome: Number.isFinite(annualIncome) ? annualIncome : undefined,
-      occupation: String(raw['occupation'] ?? '').trim() || undefined,
+      ...(cohabitationType ? { cohabitationType } : {}),
+      ...(Number.isFinite(annualIncome) ? { annualIncome: annualIncome as number } : {}),
+      ...(occupation ? { occupation } : {}),
       ...mapDependentDisabilityStudentFromForm(raw),
     };
   }

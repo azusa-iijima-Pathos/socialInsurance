@@ -199,11 +199,22 @@ export class AddInsuranceInfo {
   // トップ画面へ進む
   async toStartStart() {
     this.isShowModal = true;
-   await this.companyService.getCompany();
-   const companySettings = this.companyService.company()?.settings;
-   if (companySettings) {
-    this.isComplete = true;
-   }
+    this.isComplete = false;
+    await this.companyService.getCompany(true);
+    const companySettings = this.companyService.company()?.settings;
+    if (companySettings) {
+      this.isComplete = true;
+      if (companySettings.workingYear) {
+        this.workingMonthForm.patchValue({ workingYear: companySettings.workingYear });
+      }
+      if (companySettings.workingMonth) {
+        this.workingMonthForm.patchValue({ workingMonth: companySettings.workingMonth });
+      }
+    }
+  }
+
+  closeWorkingMonthModal() {
+    this.isShowModal = false;
   }
 
   toSetting() {

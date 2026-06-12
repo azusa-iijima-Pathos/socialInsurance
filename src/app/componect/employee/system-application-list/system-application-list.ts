@@ -40,6 +40,7 @@ export class SystemApplicationList {
 
   reachAgeEvents: EmployeeEventItem[] = [];
   fixedSalaryRuns: SystemCalculationRunItem[] = [];
+  canBulkApplyFixedSalary = false;
   retireRuns: SystemCalculationRunItem[] = [];
   otherSystemRuns: SystemCalculationRunItem[] = [];
   employeeApplicationEvents: EmployeeEventItem[] = [];
@@ -94,6 +95,22 @@ export class SystemApplicationList {
       .sort(compareEventsByAppliedDateDesc);
     this.selectedReachAge.clear();
     this.selectedRetire.clear();
+    const applicableRevisions = await this.calculationRunService.getApplicableApprovedAdHocRevisionRuns();
+    this.canBulkApplyFixedSalary = applicableRevisions.length > 0;
+  }
+
+  async bulkApplyFixedSalary() {
+    if (!this.canBulkApplyFixedSalary) return;
+    if (!window.confirm('承認済みの随時改定を従業員情報に反映しますか？')) return;
+
+    const { appliedCount } = await this.employeeEventApprovalService.applyApprovedAdHocRevisions(this.loginEmployeeId);
+    if (appliedCount > 0) {
+      await this.employeeService.getAllEmployees(true);
+      this.showMessage(`${appliedCount}件の随時改定を適用しました`);
+      await this.loadEvents();
+    } else {
+      this.showMessage('適用に失敗しました');
+    }
   }
 
   getSystemRunKey(run: SystemCalculationRunItem): string {
@@ -411,7 +428,9 @@ export class SystemApplicationList {
     }
 
     if (approved) {
-      await this.employeeService.getAllEmployees(true);
+      if (this.approvalModalType !== 'fixedSalary') {
+        await this.employeeService.getAllEmployees(true);
+      }
     }
     await this.afterApproval(approved);
     this.cancelApprovalModal();

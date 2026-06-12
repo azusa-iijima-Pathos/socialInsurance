@@ -34,8 +34,34 @@
   min-height: 0;
 }
 
+.lifeevent-multiple-birth-field.im-field-row {
+  grid-template-columns: 1fr;
+}
+
 .lifeevent-multiple-birth-field .im-field-row__control {
-  padding-top: var(--im-size-8);
+  padding-top: var(--im-size-4);
+}
+
+/* 産前産後/育児：グリッド内でラベル列が広すぎて入力欄が潰れないようにする */
+.lifeevent-layout .lifeevent-birth-grid {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 28rem;
+}
+
+.lifeevent-layout .lifeevent-birth-grid .im-field-row {
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  gap: var(--im-size-8);
+  align-items: start;
+}
+
+.lifeevent-layout .lifeevent-birth-grid .employee-edit-field .im-field-row__control input,
+.lifeevent-layout .lifeevent-birth-grid .employee-edit-field .im-field-row__control select {
+  width: 100%;
+  min-width: 0;
+}
+
+.lifeevent-layout .lifeevent-birth-grid .lifeevent-multiple-birth-field {
+  max-width: 28rem;
 }
 
 .lifeevent-layout .employee-edit-actions {

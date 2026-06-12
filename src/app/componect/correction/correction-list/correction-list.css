@@ -78,6 +78,18 @@
   margin-top: var(--im-size-24);
 }
 
+.correction-collection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--im-size-12);
+  margin-bottom: var(--im-size-8);
+}
+
+.correction-collection-header .section-title {
+  margin: 0;
+}
+
 .correction-collection-lead {
   margin: 0 0 var(--im-size-16);
   color: var(--im-color-slate-600);

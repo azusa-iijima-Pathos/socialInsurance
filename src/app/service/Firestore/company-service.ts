@@ -1,6 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { CrudService } from '../common/crud-service';
 import { Company, CompanySettings } from '../../model/company';
+import { CompanyLogicService } from '../logic/company-logic-service';
 
 /**
  * 会社情報サービス
@@ -13,6 +14,7 @@ import { Company, CompanySettings } from '../../model/company';
 export class CompanyService {
 
   private crudService = inject(CrudService);
+  private companyLogicService = inject(CompanyLogicService);
 
   private get companyId() {
     const companyId = sessionStorage.getItem('companyId');
@@ -104,17 +106,14 @@ export class CompanyService {
   }
 
 
-  /** 会社が特定適用か */
+  /** 会社が特定適用または任意特定適用か（保険加入判定用） */
   async isSpecificApplicableOffice(): Promise<boolean> {
     await this.getCompany();
     const company = this.company();
     if (!company) {
       throw new Error('会社情報が見つかりませんでした');
     }
-    if (company.specificApplicableOffice || company.optionalSpecificApplicableOffice) {
-      return true;
-    }
-    return false;
+    return this.companyLogicService.isSpecificApplicableOfficeForInsurance(company);
   }
 
 

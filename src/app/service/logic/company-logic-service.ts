@@ -33,7 +33,7 @@ export class CompanyLogicService {
     }
   }
 
-  /** 特定適用事業所の判定 */
+  /** 特定適用事業所の自動判定（従業員51人以上など） */
   isSpecificApplicableOffice(company: Partial<Company>): boolean {
     //社会保険加入していないかつ任意適用事業所に該当しない場合
     if(!company.socialInsuranceRequired && !company.optionalApplicableOffice) {
@@ -45,6 +45,11 @@ export class CompanyLogicService {
       return true;
     }
     return false;
+  }
+
+  /** 保険加入判定用（特定適用・任意特定適用のいずれかが有効なら true） */
+  isSpecificApplicableOfficeForInsurance(company: Partial<Company>): boolean {
+    return !!(company.specificApplicableOffice || company.optionalSpecificApplicableOffice);
   }
 
 }

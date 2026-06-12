@@ -7,7 +7,7 @@ import { PayrollService } from '../Firestore/payroll-service';
 import { Payroll } from '../../model/payroll';
 import { CommonService } from '../common/common-service';
 import { CompanyService } from '../Firestore/company-service';
-import { addMonths, YearMonth } from './event-id-service';
+import { addMonths, parseEventYearMonth, YearMonth } from './event-id-service';
 import { CrudService } from '../common/crud-service';
 import { CalculationRun } from '../../model/calculation-run';
 
@@ -43,6 +43,8 @@ export type CalculationBaseResult = {
 })
 export class EmployeeLogicService {
 
+  private static readonly CALCULATION_BASE_AD_HOC_REVISION_NOTE = '８・９月に随時改定の可能性があります。';
+
   private insuranceRates = inject(InsuranceRates);
   private payrollService = inject(PayrollService);
   private commonService = inject(CommonService);
@@ -60,7 +62,9 @@ export class EmployeeLogicService {
 
   //保険加入・等級判定
 
-  /** 保険加入の判定 */
+  /** 保険加入の判定
+   * @param isSpecificApplicableOffice 特定適用事業所または任意特定適用事業所のいずれかが該当する場合 true
+   */
   isInsuranceRequired(employee: Employee, isSpecificApplicableOffice: boolean): { isHealthInsuranceRequired?: boolean, isNursingCareInsuranceRequired?: boolean, isPensionInsuranceRequired?: boolean } {
     const WorkingHours = employee.employmentContract?.contractedWorkingHoursPerWeek;
     const transportationExpenses: number | undefined = employee.employmentContract?.transportationExpenses;
@@ -148,6 +152,11 @@ export class EmployeeLogicService {
 
   /** 算定基礎の計算結果一覧に出すための明細つき計算 */
   async getCalculationBaseResult(employee: Employee, targetYear: number = Number(this.year)): Promise<CalculationBaseResult> {
+    const result = await this.computeCalculationBaseResult(employee, targetYear);
+    return this.applyCalculationBaseAdHocRevisionNote(result, employee.employeeId, targetYear);
+  }
+
+  private async computeCalculationBaseResult(employee: Employee, targetYear: number): Promise<CalculationBaseResult> {
     const year = targetYear.toString();
     await this.insuranceRates.getRemunerationData(year);
 
@@ -184,7 +193,7 @@ export class EmployeeLogicService {
         reason: '4月〜6月支払いの給与データがありません',
       };
     }
-    //通常・短時間就労者・特定適用の短時間労働者で、平均に使う月の条件が違うためここで振り分ける。
+    //フルタイム/特定適用/一般で、平均に使う月の支払基礎日数条件が異なるためここで振り分ける。
     const targetSalaries: Payroll[] = await this.getCalculationBaseTargetSalaries(employee, aprilToJuneSalaries);
 
     if (targetSalaries.length === 0) {
@@ -265,27 +274,28 @@ export class EmployeeLogicService {
   /** 算定基礎対象の給与データを取得(勤務日数でフィルター) */
   private async getCalculationBaseTargetSalaries(employee: Employee, payrollList: Payroll[]): Promise<Payroll[]> {
     const isSpecificApplicableOffice = await this.companyService.isSpecificApplicableOffice();
-    //特定適用事業所の短時間労働者は、支払基礎日数11日以上の月だけで平均する。
-    if (this.isSpecificApplicableShortTimeWorker(employee, isSpecificApplicableOffice)) {
-      const targetSalaries = this.filterPayrollsByWorkingDays(payrollList, 11);
-      return targetSalaries.length > 0 ? targetSalaries : [];
+
+    if (!this.isNonFullTimeWorker(employee)) {
+      // フルタイム: 支払基礎日数17日以上の月で平均
+      return this.filterPayrollsByWorkingDays(payrollList, 17);
     }
 
-    //短時間就労者はまず17日以上の月を見る。1か月以上あれば、その月だけで平均する。
-    if (this.isShortTimeWorker(employee)) {
-      const overSeventeenDays = this.filterPayrollsByWorkingDays(payrollList, 17);
-      if (overSeventeenDays.length > 0) {
-        return overSeventeenDays;
-      }
-      //17日以上の月がない場合は、15日以上17日未満の月だけで平均する。
-      return payrollList.filter(payroll => {
-        const workingDays = payroll.actualWorkingDays ?? 0;
-        return 15 <= workingDays && workingDays < 17 && payroll.actualPaymentAmount !== undefined;
-      });
+    if (isSpecificApplicableOffice) {
+      // フルタイム以外 + 特定適用/任意特定適用: 11日以上の月のみ
+      return this.filterPayrollsByWorkingDays(payrollList, 11);
     }
 
-    //通常の従業員は、支払基礎日数17日以上の月だけで平均する。
-    return this.filterPayrollsByWorkingDays(payrollList, 17);
+    // フルタイム以外 + 特定適用でも任意特定でもない: 17日以上の月を優先
+    const overSeventeenDays = this.filterPayrollsByWorkingDays(payrollList, 17);
+    if (overSeventeenDays.length > 0) {
+      return overSeventeenDays;
+    }
+
+    // 17日以上がなければ15〜16日の月で平均
+    return payrollList.filter(payroll => {
+      const workingDays = payroll.actualWorkingDays ?? 0;
+      return workingDays >= 15 && workingDays <= 16 && payroll.actualPaymentAmount !== undefined;
+    });
   }
 
   /** 支払基礎日数でフィルター */
@@ -305,34 +315,46 @@ export class EmployeeLogicService {
     return '支払基礎日数の条件を満たす月がないため、従前等級を使います';
   }
 
-  /** 短時間就労者か */
-  private isShortTimeWorker(employee: Employee): boolean {
-    const weeklyWorkingHours = employee.employmentContract?.contractedWorkingHoursPerWeek ?? 0;
-    //名称ではなく、勤務形態または週労働時間が通常より短いかで短時間就労者として扱う。
-    return employee.employmentContract?.workStyle !== 'フルタイム'
-      || (weeklyWorkingHours > 0 && weeklyWorkingHours < 30);
+  /** フルタイム以外か（算定基礎の日数基準の判定用） */
+  private isNonFullTimeWorker(employee: Employee): boolean {
+    return employee.employmentContract?.workStyle !== 'フルタイム';
   }
 
-  /** 特定適用事業所の短時間労働者か */
-  private isSpecificApplicableShortTimeWorker(employee: Employee, isSpecificApplicableOffice: boolean): boolean {
-    if (!isSpecificApplicableOffice || !this.isShortTimeWorker(employee)) {
-      return false;
-    }
+  /** 対象年の8月または9月にシステム計算の随時改定が存在するか */
+  private async hasAdHocRevisionScheduledForAugustOrSeptember(employeeId: string, year: number): Promise<boolean> {
+    const runs = await this.crudService.getAll<CalculationRun>(this.calculationRunPath, 'runId');
+    return runs.some(run => {
+      if (run.type !== '随時改定') return false;
+      const runEmployeeId = String(run.targetEmployeeIds ?? run.payload?.['employeeId'] ?? '');
+      if (runEmployeeId !== employeeId) return false;
+      if (run.approval?.approvalStatus === '却下') return false;
+      if (!run.runId) return false;
 
-    const weeklyWorkingHours = employee.employmentContract?.contractedWorkingHoursPerWeek ?? 0;
-    const fixedSalary = employee.employmentContract?.fixedSalary ?? 0;
-    const transportationExpenses = employee.employmentContract?.transportationExpenses ?? 0;
-    const monthlyWage = fixedSalary ? fixedSalary - transportationExpenses : 0;
-
-    //特定適用事業所で、週20時間以上30時間未満かつ所定内賃金8.8万円以上なら11日基準を使う。
-    return weeklyWorkingHours >= 20 && weeklyWorkingHours < 30 && monthlyWage >= 88000;
+      const parsed = parseEventYearMonth(run.runId, year, 8);
+      return parsed?.year === year && (parsed.month === 8 || parsed.month === 9);
+    });
   }
 
-  /** 算定基礎対象か
+  private async applyCalculationBaseAdHocRevisionNote(
+    result: CalculationBaseResult,
+    employeeId: string,
+    year: number,
+  ): Promise<CalculationBaseResult> {
+    if (result.status === '対象外') return result;
+    if (!await this.hasAdHocRevisionScheduledForAugustOrSeptember(employeeId, year)) return result;
+
+    const note = EmployeeLogicService.CALCULATION_BASE_AD_HOC_REVISION_NOTE;
+    return {
+      ...result,
+      reason: result.reason ? `${result.reason} ${note}` : note,
+    };
+  }
+
+  /** 算定基礎対象外の判定
  *同年6月1日以降に資格取得した方
  *同年6月30日以前に退職した方
- *同年7月改定の月額変更届を提出する方、
- *同年8月または9月に随時改定が予定されている旨の申し出を行った方は対象外
+ *同年7月改定の月額変更届を提出する方
+ *（8・9月の随時改定予定がある場合は計算は行い、理由欄に注記）
  */
   private getCalculationRateTargetExclusionReason(year: number, healthInsuranceStartDate?: Date, resignationDate?: Date): string | null {
 
@@ -454,23 +476,22 @@ export class EmployeeLogicService {
 
   /** 等級から保険料の算出 */
   async getInsuranceRate(prefecture: string, grade: number, targetYearMonth: string) {
-    const targetYear = targetYearMonth.split('-')[0];
-    await this.insuranceRates.getRateData(targetYear);
-    await this.insuranceRates.getRemunerationData(targetYear);
+    const remunerationMasterYear = await this.insuranceRates.resolveRemunerationMasterYearForMonth(targetYearMonth);
+    const rateMasterYear = await this.insuranceRates.resolveRateMasterYearForMonth(targetYearMonth);
 
     /** 等級から標準報酬月額を取得 */
-    const standardMonthlyAmount = await this.insuranceRates.getStandardMonthlyAmount(targetYear, grade, targetYearMonth);
+    const standardMonthlyAmount = await this.insuranceRates.getStandardMonthlyAmount(remunerationMasterYear, grade, targetYearMonth);
     if (!standardMonthlyAmount) {
       throw new Error('標準報酬月額が見つかりません');
     }
 
     /** 4等級の標準月額報酬 */
-    const applicableRemunerationData = this.insuranceRates.getApplicableRemunerationData(targetYear, targetYearMonth);
+    const applicableRemunerationData = this.insuranceRates.getApplicableRemunerationData(remunerationMasterYear, targetYearMonth);
     const standardMonthlyAmountForGrade4 = applicableRemunerationData.find(item => Number(item.grade) === 4)?.standardMonthlyAmount;
     /** 35等級の標準月額報酬 */
     const standardMonthlyAmountForGrade36 = applicableRemunerationData.find(item => Number(item.grade) === 35)?.standardMonthlyAmount;
 
-    for (const rate of this.insuranceRates.getApplicableRateData(targetYear, targetYearMonth)) {
+    for (const rate of this.insuranceRates.getApplicableRateData(rateMasterYear, targetYearMonth)) {
       if (rate.prefecture === prefecture) {
 
         const healthRate = rate.healthInsuranceRate / 100;

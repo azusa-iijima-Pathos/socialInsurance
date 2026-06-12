@@ -65,13 +65,13 @@ export function mapDependentDisabilityStudentFromForm(
   const studentStatus = raw['studentStatus'];
   return {
     hasDisability: disabilityStatus === 'あり',
-    disabilityType: disabilityStatus === 'あり'
-      ? (raw['disabilityType'] as DisabilityType)
-      : undefined,
+    ...(disabilityStatus === 'あり' && raw['disabilityType']
+      ? { disabilityType: raw['disabilityType'] as DisabilityType }
+      : {}),
     isStudent: studentStatus === '学生',
-    studentType: studentStatus === '学生'
-      ? (raw['studentType'] as StudentType)
-      : undefined,
+    ...(studentStatus === '学生' && raw['studentType']
+      ? { studentType: raw['studentType'] as StudentType }
+      : {}),
   };
 }
 

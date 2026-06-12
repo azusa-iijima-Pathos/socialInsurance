@@ -64,7 +64,7 @@ export type ApplicantType = typeof APPLICANT_TYPES[number];
 /**
 * 承認ステータス
 */
-export const APPROVAL_STATUSES = ['申請中', '承認済み', '却下'] as const;
+export const APPROVAL_STATUSES = ['申請中', '承認済み', '却下','適用済み'] as const;
 export type ApprovalStatus = typeof APPROVAL_STATUSES[number];
 
 /**

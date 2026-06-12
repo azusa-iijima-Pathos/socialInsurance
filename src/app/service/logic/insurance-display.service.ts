@@ -130,15 +130,8 @@ export class InsuranceDisplayService {
     employeeId: string,
     payrollId: string,
   ): InsuranceDiffTotals {
-    return runs
-      .filter(run => run.type === '差額調整')
-      .filter(run => String(run.payload?.['employeeId'] ?? run.targetEmployeeIds ?? '') === employeeId)
-      .filter(run => String(run.payload?.['payrollId'] ?? '') === payrollId)
-      .reduce<InsuranceDiffTotals>((total, run) => ({
-        health: total.health + Number(run.payload?.['healthDiff'] ?? 0),
-        nursing: total.nursing + Number(run.payload?.['nursingDiff'] ?? 0),
-        pension: total.pension + Number(run.payload?.['pensionDiff'] ?? 0),
-      }), { health: 0, nursing: 0, pension: 0 });
+    const matchingRuns = this.getMatchingDifferenceAdjustments(runs, employeeId, payrollId);
+    return this.sumDifferenceAdjustmentsForHistory(matchingRuns, payrollId);
   }
 
   applyDifferenceAdjustments(
@@ -249,11 +242,7 @@ export class InsuranceDisplayService {
     payrollId: string,
   ): number {
     let grade = Number(snapshot?.grade ?? 0);
-    for (const run of runs) {
-      if (run.type !== '差額調整') continue;
-      if (String(run.payload?.['employeeId'] ?? run.targetEmployeeIds ?? '') !== employeeId) continue;
-      if (String(run.payload?.['payrollId'] ?? '') !== payrollId) continue;
-
+    for (const run of this.getMatchingDifferenceAdjustments(runs, employeeId, payrollId)) {
       const comparison = run.payload?.['comparison'] as { grade?: number } | undefined;
       const comparisonGrade = Number(comparison?.grade ?? 0);
       if (comparisonGrade > 0) {
@@ -357,6 +346,12 @@ export class InsuranceDisplayService {
     const runEmployeeId = String(run.payload?.['employeeId'] ?? run.targetEmployeeIds ?? '');
     if (runEmployeeId !== employeeId) return false;
     if (String(run.payload?.['payrollId'] ?? '') === payrollId) return true;
+
+    const adjust = run.payload?.['adjustMonth'] as { year?: number; month?: number } | undefined;
+    if (adjust?.year && adjust?.month) {
+      const adjustPayrollId = `${adjust.year}-${String(adjust.month).padStart(2, '0')}`;
+      if (adjustPayrollId === payrollId) return true;
+    }
 
     const monthlyDiffs = run.payload?.['monthlyDiffs'] as { payrollId?: string }[] | undefined;
     return monthlyDiffs?.some(diff => diff.payrollId === payrollId) ?? false;

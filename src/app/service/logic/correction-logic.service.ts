@@ -63,7 +63,7 @@ export class CorrectionLogicService {
   private insuranceRates = inject(InsuranceRates);
   private payrollService = inject(PayrollService);
   private insuranceDisplayService = inject(InsuranceDisplayService);
-  private differenceAdjustmentRuns: CalculationRun[] | null = null;
+
   enumerateConfirmedMonths(from: YearMonth, toExclusive: YearMonth): YearMonth[] {
     const months: YearMonth[] = [];
     let current = { ...from };
@@ -397,13 +397,10 @@ export class CorrectionLogicService {
       && (employee.leaveTypes === '産前産後' || employee.leaveTypes === '育児');
   }
 
+  /** 差額調整runは都度最新を取得（同一画面内で複数回修正するためキャッシュしない） */
   private async getDifferenceAdjustmentRuns(): Promise<CalculationRun[]> {
-    if (this.differenceAdjustmentRuns) {
-      return this.differenceAdjustmentRuns;
-    }
     const runs = await this.calculationRunService.getAllCalculationRuns();
-    this.differenceAdjustmentRuns = runs.filter(run => run.type === '差額調整');
-    return this.differenceAdjustmentRuns;
+    return runs.filter(run => run.type === '差額調整');
   }
 
   private getAdjustedSnapshotTotals(

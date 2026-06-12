@@ -5,7 +5,7 @@ import { PayrollService } from '../../../service/Firestore/payroll-service';
 import { CommonService } from '../../../service/common/common-service';
 import { CommonModule } from '@angular/common';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
-import { Employee } from '../../../model/employee';
+import { Employee, InsuranceDetail } from '../../../model/employee';
 import { OfficeService } from '../../../service/Firestore/office-service';
 import { EmployeeLogicService } from '../../../service/logic/employee-logic-service';
 import { CompanyService } from '../../../service/Firestore/company-service';
@@ -29,6 +29,7 @@ type EmployeeInsurance = {
   fixedSalary: number;
   actualPaymentAmount: number;
   grade: number;
+  gradeNote?: string;
 
   healthInsurance: number;
   nursingCareInsurance: number;
@@ -159,6 +160,9 @@ export class InsuranceConfirm {
       return map;
     }, {});
 
+    this.differenceAdjustmentRuns = (await this.calculationRunService.getAllCalculationRuns())
+      .filter(run => run.type === '差額調整');
+
     //従業員情報から保険料を取得
     if (this.isOutputMode) {
       await this.loadOutputModeData();
@@ -176,8 +180,6 @@ export class InsuranceConfirm {
   }
 
   private async loadOutputModeData() {
-    this.differenceAdjustmentRuns = (await this.calculationRunService.getAllCalculationRuns())
-      .filter(run => run.type === '差額調整');
     await this.officeService.getAllOffice();
     this.confirmedOutputRows = [];
     this.adjustedOutputRows = [];
@@ -238,6 +240,7 @@ export class InsuranceConfirm {
       fixedSalary: payroll?.fixedSalary ?? 0,
       actualPaymentAmount: payroll?.actualPaymentAmount ?? 0,
       grade: gradeOverride ?? Number(snapshot?.grade ?? employee.insurance?.currentGrade ?? 0),
+      gradeNote: this.getGradeDisplayNote(employee),
       ...breakdown,
       calculatedValues,
     };
@@ -290,7 +293,12 @@ export class InsuranceConfirm {
       for (const employee of this.employeeData) {
         const snapshot = await this.insuranceSnapshotService.getSnapshot(employee.employeeId, monthPayrollId);
         if (!snapshot) continue;
-        rows.push(this.insuranceDisplayService.getSnapshotBreakdown(snapshot));
+        rows.push(this.insuranceDisplayService.getAdjustedSnapshotBreakdown(
+          snapshot,
+          this.differenceAdjustmentRuns,
+          employee.employeeId,
+          monthPayrollId,
+        ));
       }
     }
 
@@ -379,6 +387,7 @@ export class InsuranceConfirm {
         fixedSalary: payroll?.fixedSalary ?? 0,
         actualPaymentAmount: payroll?.actualPaymentAmount ?? 0,
         grade: grade ?? 0,
+        gradeNote: this.getGradeDisplayNote(employee),
 
         healthInsurance,
         nursingCareInsurance,
@@ -510,6 +519,35 @@ export class InsuranceConfirm {
       && (employee.leaveTypes === '産前産後' || employee.leaveTypes === '育児');
   }
 
+  private getInsuranceStatus(detail?: InsuranceDetail): 'joined' | 'notJoined' | 'lost' {
+    if (!detail) return 'notJoined';
+    if (detail.joined) return 'joined';
+    if (detail.lostDate) return 'lost';
+    return 'notJoined';
+  }
+
+  private getGradeDisplayNote(employee: Employee): string | undefined {
+    if (employee.workStatus === '休職中' && employee.leaveTypes === '産前産後') {
+      return '（産休）';
+    }
+    if (employee.workStatus === '休職中' && employee.leaveTypes === '育児') {
+      return '（育休）';
+    }
+
+    const insurance = employee.insurance;
+    const statuses = [
+      this.getInsuranceStatus(insurance?.healthInsurance),
+      this.getInsuranceStatus(insurance?.nursingCareInsurance),
+      this.getInsuranceStatus(insurance?.employeePensionInsurance),
+    ];
+    if (!statuses.every(status => status === 'notJoined' || status === 'lost')) {
+      return undefined;
+    }
+
+    const healthStatus = this.getInsuranceStatus(insurance?.healthInsurance);
+    return healthStatus === 'lost' ? '（喪失）' : '（未加入）';
+  }
+
   private calculateInsuranceSummary() {
     this.insuranceSummary = this.insuranceDisplayService.summarizeRows(this.dataForShow.filter(item => item.hasPayrollData));
   }
@@ -602,7 +640,7 @@ export class InsuranceConfirm {
     // if (this.editButtonDisabled) return;
     //Windows標準確認ポップを表示
     const confirmed = window.confirm(
-      '確定すると、現在作業している月の給与・勤務実績、保険料の変更ができません。\n' +
+      '確定すると、現在作業している月の給与・勤務実績、保険料、差額調整の変更ができません。\n' +
       '確定しますか？'
     );
     if (!confirmed) {

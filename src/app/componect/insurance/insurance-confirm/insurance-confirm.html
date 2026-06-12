@@ -116,7 +116,10 @@
                         </td>
                         <td>{{ employee.hasPayrollData ? (employee.actualWorkingDays + '日') : '未入力' }}</td>
                         <td>{{ employee.hasPayrollData ? ((employee.fixedSalary |number) + '円') : '未入力' }}</td>
-                        <td rowspan="2">{{ employee.grade ? (employee.grade + '等級') : '未設定' }}</td>
+                        <td rowspan="2" class="insurance-confirm-grade-cell">
+                            <span>{{ employee.grade ? (employee.grade + '等級') : '未設定' }}</span>
+                            <small *ngIf="employee.gradeNote" class="insurance-confirm-grade-note">{{ employee.gradeNote }}</small>
+                        </td>
                         <td class="insurance-confirm-merged-top">
                             <input *ngIf="editMode && employee.hasPayrollData" class="insurance-confirm-edit-input"
                                 type="number" min="0" [(ngModel)]="employee.healthInsurance"

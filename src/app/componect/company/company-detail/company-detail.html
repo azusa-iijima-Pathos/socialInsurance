@@ -28,7 +28,7 @@
       </div>
     </div>
 
-    <div class="company-detail-meta" *ngIf="permission === '管理'">
+    <div class="company-detail-meta" *ngIf="permission === '管理' && mode !== 'view' ">
       <p>登録日：{{ commonService.formatDateTime(company?.createdAt) }}</p>
       <p>更新日：{{ commonService.formatDateTime(company?.updatedAt) }}</p>
     </div>

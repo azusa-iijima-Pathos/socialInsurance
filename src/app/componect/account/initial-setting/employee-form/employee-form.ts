@@ -131,29 +131,31 @@ export class EmployeeForm {
     }
 
     //雇用契約情報を登録用に変換
+    const contractValue = this.form.getRawValue().employmentContract;
     const employmentContract: Partial<EmploymentContract> = {
-      employmentCategory: this.form.value.employmentContract?.employmentCategory! as EmploymentCategory,
-      workStyle: this.form.value.employmentContract?.workStyle! as WorkStyle,
-      officeId: this.form.value.employmentContract?.officeId!,
-      contractedWorkingHoursPerWeek: Number(this.form.value.employmentContract?.contractedWorkingHoursPerWeek),
-      contractedWorkingDaysPerMonth: Number(this.form.value.employmentContract?.contractedWorkingDaysPerMonth),
-      fixedSalary: Number(this.form.value.employmentContract?.fixedSalary!),
-      ...(this.form.value.employmentContract?.transportationExpenses !== ''
-        ? { transportationExpenses: Number(this.form.value.employmentContract?.transportationExpenses) }
+      employmentCategory: contractValue.employmentCategory as EmploymentCategory,
+      workStyle: contractValue.workStyle as WorkStyle,
+      officeId: contractValue.officeId,
+      contractedWorkingHoursPerWeek: Number(contractValue.contractedWorkingHoursPerWeek),
+      contractedWorkingDaysPerMonth: Number(contractValue.contractedWorkingDaysPerMonth),
+      fixedSalary: Number(contractValue.fixedSalary),
+      ...(contractValue.transportationExpenses !== ''
+        ? { transportationExpenses: Number(contractValue.transportationExpenses) }
         : {}),
     };
 
+    const formValue = this.form.getRawValue();
     //従業員情報を登録用に変換
     const employee: Partial<Employee> = {
-      employeeId: this.form.value.employeeId!,
-      firstName: this.form.value.firstName!,
-      lastName: this.form.value.lastName!,
-      birthDate: timestampFromDateInput(this.form.value.birthDate!),
-      gender: this.form.value.gender! as Gender,
-      hireDate: timestampFromDateInput(this.form.value.hireDate!),
-      workStatus: this.form.value.workStatus! as WorkStatus,
-      ...(this.form.value.workStatus === '休職中'
-        ? { leaveTypes: this.form.value.leaveTypes! as LeaveType }
+      employeeId: formValue.employeeId,
+      firstName: formValue.firstName,
+      lastName: formValue.lastName,
+      birthDate: timestampFromDateInput(formValue.birthDate),
+      gender: formValue.gender as Gender,
+      hireDate: timestampFromDateInput(formValue.hireDate),
+      workStatus: formValue.workStatus as WorkStatus,
+      ...(formValue.workStatus === '休職中'
+        ? { leaveTypes: formValue.leaveTypes as LeaveType }
         : {}),
       employmentContract: employmentContract,
     };

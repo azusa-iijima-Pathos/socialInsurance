@@ -1,53 +1,52 @@
-<div class="im-page-container">
-    <div class="im-page-container__content">
-        <div class="im-page-container__content__delete-message">
-            <p *ngIf="message" class="im-action-message">{{ message }}</p>
-        </div>
-        <div class="im-page-container__content__table" >
-            <div *ngIf="allEmployees().length === 0">
-                <p>社員が登録されていません</p>
-            </div>
-            <table *ngIf="allEmployees().length > 0">
-                <thead>
-                    <tr>
-                        <th>社員ID</th>
-                        <th>社員名</th>
-                        <th>生年月日</th>
-                        <th>入社日</th>
-                        <th>勤務状況</th>
-                        <th>雇用区分</th>
-                        <th>勤務形態</th>
-                        <th>事業所</th>
-                        <th>労働時間</th>
-                        <th>労働日数</th>
-                        <th>固定給</th>
-                        <th>通勤手当</th>
-                        <th>登録日</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr *ngFor="let employee of allEmployees()">
-                        <td>{{ employee.employeeId }}</td>
-                        <td>{{ employee.firstName }} {{ employee.lastName }}</td>
-                        <td>{{ commonService.formatDate(employee.birthDate) }}</td>
-                        <td>{{ commonService.formatDate(employee.hireDate) }}</td>
-                        <td>{{ employee.workStatus }}</td>
-                        <td>{{ employee.employmentContract?.employmentCategory }}</td>
-                        <td>{{ employee.employmentContract?.workStyle }}</td>
-                        <td>{{ commonService.getOfficeName(employee.employmentContract?.officeId!) }}</td>
-                        <td>{{ employee.employmentContract?.contractedWorkingHoursPerWeek }}時間</td>
-                        <td>{{ employee.employmentContract?.contractedWorkingDaysPerMonth }}日</td>
-                        <td>{{ employee.employmentContract?.fixedSalary | number }}円</td>
-                        <td>{{ employee.employmentContract?.transportationExpenses !== undefined ? (employee.employmentContract?.transportationExpenses | number) + '円' : '' }}</td>
-                        <td>{{ commonService.formatDate(employee.createdAt) }}</td>
-                        <td><button class="im-btn-soft" (click)="editEmployee(employee)">編集</button>
-                            <span>&nbsp;</span>
-                        <button class="im-btn-soft im-btn-soft--danger" (click)="deleteEmployee(employee)">削除</button></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+<div class="employee-list">
+    <p *ngIf="message" class="im-action-message employee-list-message">{{ message }}</p>
+
+    <div *ngIf="allEmployees().length === 0" class="employee-list-empty">
+        <p>社員が登録されていません</p>
+    </div>
+
+    <div class="employee-list-table-wrap" *ngIf="allEmployees().length > 0">
+        <table class="employee-list-table">
+            <thead>
+                <tr>
+                    <th>社員ID</th>
+                    <th>社員名</th>
+                    <th>生年月日</th>
+                    <th>入社日</th>
+                    <th>勤務状況</th>
+                    <th>雇用区分</th>
+                    <th>勤務形態</th>
+                    <th>事業所</th>
+                    <th>労働時間</th>
+                    <th>労働日数</th>
+                    <th>固定給</th>
+                    <th>通勤手当</th>
+                    <th>登録日</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let employee of allEmployees()">
+                    <td>{{ employee.employeeId }}</td>
+                    <td>{{ employee.firstName }} {{ employee.lastName }}</td>
+                    <td>{{ commonService.formatDate(employee.birthDate) }}</td>
+                    <td>{{ commonService.formatDate(employee.hireDate) }}</td>
+                    <td>{{ employee.workStatus }}</td>
+                    <td>{{ employee.employmentContract?.employmentCategory }}</td>
+                    <td>{{ employee.employmentContract?.workStyle }}</td>
+                    <td>{{ commonService.getOfficeName(employee.employmentContract?.officeId!) }}</td>
+                    <td>{{ employee.employmentContract?.contractedWorkingHoursPerWeek }}時間</td>
+                    <td>{{ employee.employmentContract?.contractedWorkingDaysPerMonth }}日</td>
+                    <td>{{ employee.employmentContract?.fixedSalary | number }}円</td>
+                    <td>{{ employee.employmentContract?.transportationExpenses !== undefined ? (employee.employmentContract?.transportationExpenses | number) + '円' : '' }}</td>
+                    <td>{{ commonService.formatDate(employee.createdAt) }}</td>
+                    <td>
+                        <button class="im-btn-soft" (click)="editEmployee(employee)">編集</button>
+                        <button class="im-btn-soft im-btn-soft--danger" (click)="deleteEmployee(employee)">削除</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 
     <div class="employee-edit-modal" *ngIf="editEmployeeModalOpen">
