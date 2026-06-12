@@ -10,7 +10,10 @@
 
     <div style="display: flex; gap: 10px; margin-bottom: 10px;">
         <button class="im-btn-soft" (click)="toMonthlySalary()">◀給与入力へ</button>
-        <button class="im-btn-primary" style="margin-left: auto;" (click)="toInsuranceConfirm()">保険料確認へ▶</button>
+        <div style="display: flex; gap: 10px ;margin-left: auto;">
+        <button class="im-btn-soft" (click)="toCorrection()">遡及修正へ▶</button>
+        <button class="im-btn-primary" (click)="toInsuranceConfirm()">保険料確認へ▶</button>
+        </div>
     </div>
 
     <p *ngIf="message" class="im-action-message">{{ message }}</p>

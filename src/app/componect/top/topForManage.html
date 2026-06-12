@@ -1,6 +1,12 @@
 <div class="im-page-shell top-page-shell">
     <h1 class="top-page-title">トップページ</h1>
 
+    <div class="information-area" *ngIf="workingMonth">
+        <p>今月の作業をすべて完了すると保険料を算出することができます。</p>
+        <p>今月の保険料を確定すると、作業月が変更されるので、今月請求を行いたい差額調整がある場合、先に遡及修正を行ってください。</p>
+        <p>差額調整一覧から今月の調整費を含む請求額を確認することができます。</p>
+    </div>
+
     <p *ngIf="guardMessage" class="im-alert-banner" role="alert">{{ guardMessage }}</p>
 
     <div *ngIf="!workingMonth && permission === '管理'" class="top-page-empty">

@@ -5,7 +5,8 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
-    "watch": "ng build --watch --configuration development",
+    "deploy:hosting": "ng build && firebase deploy --only hosting",
+    "watch": "ng build --watch --configuration=development",
     "test": "ng test"
   },
   "prettier": {

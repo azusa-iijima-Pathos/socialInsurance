@@ -480,4 +480,9 @@ export class SystemApplicationList {
     this.router.navigate(['/insurance-confirm', this.workingYear, this.workingMonth]);
   }
 
+  /** 遡及修正へ遷移 */
+  toCorrection() {
+    this.router.navigate(['/retroactive-correction']);
+  }
+
 }
