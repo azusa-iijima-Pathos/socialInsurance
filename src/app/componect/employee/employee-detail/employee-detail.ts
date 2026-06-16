@@ -48,11 +48,17 @@ import {
 } from '../../../constants/model-constants';
 import { DependentDisabilityStudentFields } from '../../common/dependent-disability-student-fields/dependent-disability-student-fields';
 import {
+  canRegisterDependentByHealthInsurance,
   formatDisabilityForDisplay,
   formatStudentForDisplay,
   getDependentDisabilityStudentFormDefaults,
+  getDependentEndDateFormDefault,
+  getDependentStartDateFormDefault,
   mapDependentDisabilityStudentFromForm,
+  mapDependentPeriodFromForm,
   setupDependentDisabilityStudentValidators,
+  setupDependentPeriodValidators,
+  validateAllDependentPeriods,
 } from '../../../service/common/dependent-field.util';
 
 type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
@@ -411,7 +417,7 @@ export class EmployeeDetail {
     const isNewRetireStatus = newWorkStatus === '退社済み';
     if (isNewRetireStatus && !wasRetireStatus) {
       const confirmed = window.confirm(
-        '退社にした場合、情報変更ができなくなります。変更後、イベント一覧から退社イベントの承認のみ行ってください。',
+        '退社にした場合、勤務状況と退社日が登録されます。保険・扶養の変更は申請一覧から承認してください。',
       );
       if (!confirmed) return;
     } else {
@@ -462,13 +468,17 @@ export class EmployeeDetail {
       return;
     }
 
-    const createdEventIds = await this.employeeDetailEventService.createEventsFromContractChange(
+    const { createdIds, needsRetroactiveNotice } = await this.employeeDetailEventService.createEventsFromContractChange(
       this.selectedEmployeeId,
       previousEmployee,
       updatedEmployee,
       this.loginEmployeeId,
     );
-    await this.handleCreatedEvents(createdEventIds, `勤務状況・雇用契約情報を${UPDATE_MESSAGES.SUCCESS}`);
+    let successMessage = `勤務状況・雇用契約情報を${UPDATE_MESSAGES.SUCCESS}`;
+    if (needsRetroactiveNotice) {
+      successMessage += ' 退職日が現在の作業対象期間よりも前になります。遡及修正より、保険情報と扶養情報の変更をお願いします。';
+    }
+    await this.handleCreatedEvents(createdIds, successMessage);
     await this.employeeService.getAllEmployees(true);
     this.closeContractModal();
     await this.selectEmployee(false);
@@ -589,6 +599,15 @@ export class EmployeeDetail {
 
   /** 扶養情報を送信 */
   async submitDependentModal() {
+    if (!validateAllDependentPeriods(
+      this.dependentsArray,
+      this.validationService,
+      () => this.selectedEmployee,
+    )) {
+      this.showMessage('扶養期間の入力内容を確認してください');
+      return;
+    }
+
     if (this.dependentForm.invalid) {
       this.dependentForm.markAllAsTouched();
       this.showMessage('扶養情報の入力内容を確認してください');
@@ -608,7 +627,7 @@ export class EmployeeDetail {
           name: value.name,
           birthDate: timestampFromDateInput(value.birthDate),
           relationship: value.relationship as Relationship,
-          isDependent: value.isDependentStatus === 'dependent',
+          ...mapDependentPeriodFromForm(value),
           ...this.mapDependentExtraFields(value),
         });
         continue;
@@ -627,6 +646,7 @@ export class EmployeeDetail {
         birthDate: timestampFromDateInput(value.birthDate),
         relationship: value.relationship as Relationship,
         isDependent: true,
+        ...mapDependentPeriodFromForm({ ...value, isDependentStatus: 'dependent' }),
         ...this.mapDependentExtraFields(value),
       });
     }
@@ -1024,6 +1044,8 @@ export class EmployeeDetail {
       '生年月日',
       '続柄',
       '扶養状況',
+      '扶養開始日',
+      '扶養終了日',
       '同居・別居区分',
       '収入額（年収見込み）',
       '職業',
@@ -1037,6 +1059,8 @@ export class EmployeeDetail {
       this.commonService.formatDate(dependent.birthDate),
       dependent.relationship ?? '',
       this.getDependentStatusLabel(dependent.isDependent),
+      dependent.dependentStartDate ? this.commonService.formatDate(dependent.dependentStartDate) : '',
+      dependent.dependentEndDate ? this.commonService.formatDate(dependent.dependentEndDate) : '',
       dependent.cohabitationType ?? '',
       dependent.annualIncome != null ? String(dependent.annualIncome) : '',
       dependent.occupation ?? '',
@@ -1129,8 +1153,25 @@ export class EmployeeDetail {
       return;
     }
 
+    if (run.type === '資格喪失' || (run.eventType === '退社' && run.payload?.['source'] === '退社')) {
+      if (!window.confirm('退社処理の保険・扶養情報を承認して従業員情報に反映しますか？')) {
+        return;
+      }
+      const approved = await this.employeeEventApprovalService.approveRetireQualificationRun(
+        run, this.loginEmployeeId,
+      );
+      if (approved) {
+        this.showMessage('退社処理を承認し、従業員情報に反映しました');
+        await this.employeeService.getAllEmployees(true);
+        await this.selectEmployee(false);
+      } else {
+        this.showMessage('承認に失敗しました');
+      }
+      return;
+    }
+
     if (run.eventType === '退社') {
-      if (!window.confirm('システム計算結果を承認しますか？\n退社処理を行うと保険情報の変更はできません。')) {
+      if (!window.confirm('システム計算結果を承認しますか？')) {
         return;
       }
       const approved = await this.employeeEventApprovalService.approveRetireEvent(
@@ -1519,7 +1560,7 @@ export class EmployeeDetail {
   }
 
   canRegisterDependent(): boolean {
-    return this.selectedEmployee?.insurance?.healthInsurance?.joined === true;
+    return canRegisterDependentByHealthInsurance(this.selectedEmployee);
   }
 
   private async updateDependentsToNotDependent(): Promise<boolean> {
@@ -1666,8 +1707,11 @@ export class EmployeeDetail {
       occupation: [dependent.occupation ?? ''],
       ...disabilityStudentDefaults,
       isDependentStatus: [(dependent.isDependent !== false ? 'dependent' : 'notDependent') as DependentCoverageStatus],
+      dependentStartDate: [getDependentStartDateFormDefault(dependent), [Validators.required]],
+      dependentEndDate: [getDependentEndDateFormDefault(dependent)],
     });
     setupDependentDisabilityStudentValidators(group, this.destroyRef);
+    setupDependentPeriodValidators(group, this.destroyRef, this.validationService, () => this.selectedEmployee);
     return group;
   }
 
@@ -1684,9 +1728,14 @@ export class EmployeeDetail {
       occupation: [''],
       ...disabilityStudentDefaults,
       isDependentStatus: ['dependent' as DependentCoverageStatus],
+      dependentStartDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      dependentEndDate: [''],
     });
     this.setupDependentRowValidation(group);
     setupDependentDisabilityStudentValidators(group, this.destroyRef);
+    setupDependentPeriodValidators(group, this.destroyRef, this.validationService, () => this.selectedEmployee, {
+      enableEndDateField: false,
+    });
     return group;
   }
 
@@ -1704,7 +1753,7 @@ export class EmployeeDetail {
   }
 
   private setupDependentRowValidation(group: FormGroup) {
-    (['name', 'birthDate', 'relationship'] as const).forEach(fieldName => {
+    (['name', 'birthDate', 'relationship', 'dependentStartDate'] as const).forEach(fieldName => {
       group.get(fieldName)?.valueChanges
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(() => this.validationService.refreshDependentRowValidation(group));

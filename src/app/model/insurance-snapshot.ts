@@ -9,6 +9,9 @@ export type InsuranceSnapshot = {
     /** 保険支払い情報ID（DocIdとして使用） */
     snapshotId: string;
 
+    /** 会社ID */
+    companyId?: string;
+
     /** 社員ID */
     employeeId?: string;
 

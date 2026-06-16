@@ -4,10 +4,11 @@ import { CompanyService } from '../../service/Firestore/company-service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PayrollLockService } from '../../service/Firestore/payroll-lock-service';
-import { STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_2025 } from '../../insuranceData/forEmployee';
-import { STANDARD_MONTHLY_REMUNERATION_PERIOD_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025 } from '../../insuranceData/forEmployee';
-import { PREFECTURE_INSURANCE_RATES_2026, PREFECTURE_INSURANCE_RATES_2025 } from '../../insuranceData/forEmployee';
-import { INSURANCE_RATE_PERIOD_2026, INSURANCE_RATE_PERIOD_2025 } from '../../insuranceData/forEmployee';
+import { InsuranceSnapshotService } from '../../service/Firestore/insurance-snapshot-service';
+import { STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_2025, STANDARD_MONTHLY_REMUNERATION_2024 } from '../../insuranceData/forEmployee';
+import { STANDARD_MONTHLY_REMUNERATION_PERIOD_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025, STANDARD_MONTHLY_REMUNERATION_PERIOD_2024 } from '../../insuranceData/forEmployee';
+import { PREFECTURE_INSURANCE_RATES_2026, PREFECTURE_INSURANCE_RATES_2025, PREFECTURE_INSURANCE_RATES_2024 } from '../../insuranceData/forEmployee';
+import { INSURANCE_RATE_PERIOD_2026, INSURANCE_RATE_PERIOD_2025, INSURANCE_RATE_PERIOD_2024 } from '../../insuranceData/forEmployee';
 import { Firestore, doc, writeBatch } from '@angular/fire/firestore';
 import { consumeGuardMessage } from '../../service/common/guard-message.util';
 
@@ -22,6 +23,7 @@ export class TopForManage {
 
   private companyService = inject(CompanyService);
   private payrollLockService = inject(PayrollLockService);
+  private insuranceSnapshotService = inject(InsuranceSnapshotService);
 
   loginUser = sessionStorage.getItem('loginEmployeeId');
   permission = sessionStorage.getItem('permission');
@@ -42,6 +44,7 @@ export class TopForManage {
   bonusMonths = computed<number[]>(() => this.companyService.company()?.settings?.bonusMonths ?? []);
 
   guardMessage = '';
+  showExistingEmployeeLink = false;
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -56,6 +59,9 @@ export class TopForManage {
     const lockedBonusPayrolls = await this.payrollLockService.getLockedPayrolls('賞与');
     this.lockedBonusPayrollIds = lockedBonusPayrolls.map(lock => lock.payrollId);
     this.latestLockedBonusPayrollId = lockedBonusPayrolls[0]?.payrollId ?? '';
+
+    const hasSnapshot = await this.insuranceSnapshotService.hasAnyInsuranceSnapshotForCompany();
+    this.showExistingEmployeeLink = !hasSnapshot;
   }
 
   setWorkingMonth() {
@@ -133,6 +139,12 @@ export class TopForManage {
     await this.seedGradesForYear('2025', STANDARD_MONTHLY_REMUNERATION_2025, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025);
   }
 
+  async seedGrades2024() {
+    console.log('seedGrades2024');
+    await this.seedGradesForYear('2024', STANDARD_MONTHLY_REMUNERATION_2024, STANDARD_MONTHLY_REMUNERATION_PERIOD_2024);
+  }
+
+  //保険料率をFirestoreに保存
   async seedInsuranceRates() {
     await this.seedInsuranceRatesForYear('2026', PREFECTURE_INSURANCE_RATES_2026, INSURANCE_RATE_PERIOD_2026);
   }
@@ -141,6 +153,12 @@ export class TopForManage {
     await this.seedInsuranceRatesForYear('2025', PREFECTURE_INSURANCE_RATES_2025, INSURANCE_RATE_PERIOD_2025);
   }
 
+  async seedInsuranceRates2024() {
+    console.log('seedInsuranceRates2024');
+    await this.seedInsuranceRatesForYear('2024', PREFECTURE_INSURANCE_RATES_2024, INSURANCE_RATE_PERIOD_2024);
+  }
+
+  //保険料率をFirestoreに保存
   private async seedInsuranceRatesForYear(
     year: string,
     rates: { id: string;[key: string]: string | number }[],
@@ -164,7 +182,7 @@ export class TopForManage {
     await batch.commit();
   }
 
-
+//等級マスタをFirestoreに保存
   private async seedGradesForYear(
     year: string,
     grades: { grade: number;[key: string]: string | number }[],

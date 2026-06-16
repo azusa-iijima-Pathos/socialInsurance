@@ -1,6 +1,6 @@
 import { DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormGroup, Validators } from '@angular/forms';
+import { AbstractControl, FormArray, FormGroup, Validators } from '@angular/forms';
 import {
   DisabilityStatus,
   DisabilityType,
@@ -8,6 +8,11 @@ import {
   StudentType,
 } from '../../constants/model-constants';
 import { Dependent } from '../../model/dependent';
+import { Employee } from '../../model/employee';
+import { formatTimestampForDateInput, timestampFromDateInput } from './date-input.util';
+import { ValidationService } from './validation-service';
+
+export type DependentCoverageStatus = 'dependent' | 'notDependent';
 
 type LegacyDependent = Dependent & { disabilityStudentType?: string };
 
@@ -149,4 +154,137 @@ export function setupDependentDisabilityStudentValidators(
 
   subscribe('disabilityStatus');
   subscribe('studentStatus');
+}
+
+export function getDependentStartDateFormDefault(dependent?: Dependent): string {
+  return formatTimestampForDateInput(dependent?.dependentStartDate);
+}
+
+export function getDependentEndDateFormDefault(dependent?: Dependent): string {
+  return formatTimestampForDateInput(dependent?.dependentEndDate);
+}
+
+export function mapDependentPeriodFromForm(
+  raw: Record<string, unknown>,
+): Pick<Dependent, 'isDependent' | 'dependentStartDate' | 'dependentEndDate'> {
+  const isDependent = raw['isDependentStatus'] !== 'notDependent';
+  const startDate = String(raw['dependentStartDate'] ?? '');
+  const endDate = String(raw['dependentEndDate'] ?? '');
+  return {
+    isDependent,
+    ...(startDate ? { dependentStartDate: timestampFromDateInput(startDate) } : {}),
+    ...(endDate ? { dependentEndDate: timestampFromDateInput(endDate) } : {}),
+  };
+}
+
+export function canRegisterDependentByHealthInsurance(employee?: Employee | null): boolean {
+  const healthInsurance = employee?.insurance?.healthInsurance;
+  if (!healthInsurance) return false;
+  if (healthInsurance.joined === true) return true;
+  if (healthInsurance.lostDate && healthInsurance.acquiredDate) return true;
+  return false;
+}
+
+export function setupDependentPeriodValidators(
+  group: FormGroup,
+  destroyRef: DestroyRef,
+  validationService: ValidationService,
+  getEmployee: () => Employee | null,
+  options?: { enableEndDateField?: boolean },
+): void {
+  const enableEndDateField = options?.enableEndDateField !== false;
+
+  const clearPeriodError = (target: FormGroup) => {
+    if (!target.errors?.['dependentPeriod']) return;
+    const { dependentPeriod, ...rest } = target.errors ?? {};
+    target.setErrors(Object.keys(rest).length ? rest : null);
+  };
+
+  const validatePeriod = (target: FormGroup) => {
+    const startDate = target.get('dependentStartDate')?.value;
+    if (!startDate) {
+      clearPeriodError(target);
+      return;
+    }
+    const employee = getEmployee();
+    if (!employee) {
+      clearPeriodError(target);
+      return;
+    }
+    const value = target.value;
+    const periodError = validationService.validateDependentPeriod(
+      employee.insurance?.healthInsurance,
+      {
+        isDependent: value.isDependentStatus !== 'notDependent',
+        startDate: value.dependentStartDate,
+        endDate: value.dependentEndDate || undefined,
+      },
+    );
+    if (periodError) {
+      target.setErrors({ ...(target.errors ?? {}), dependentPeriod: periodError });
+      target.get('dependentStartDate')?.markAsTouched();
+    } else {
+      clearPeriodError(target);
+    }
+  };
+
+  const updateEndDateValidators = () => {
+    if (!enableEndDateField) {
+      validatePeriod(group);
+      return;
+    }
+    const endControl = group.get('dependentEndDate');
+    const isDependent = group.get('isDependentStatus')?.value !== 'notDependent';
+    if (isDependent) {
+      endControl?.clearValidators();
+    } else {
+      endControl?.setValidators([Validators.required]);
+    }
+    endControl?.updateValueAndValidity({ emitEvent: false });
+    validatePeriod(group);
+  };
+
+  if (enableEndDateField) {
+    group.get('isDependentStatus')?.valueChanges
+      .pipe(takeUntilDestroyed(destroyRef))
+      .subscribe(() => updateEndDateValidators());
+  }
+
+  (['dependentStartDate', 'dependentEndDate'] as const).forEach(fieldName => {
+    group.get(fieldName)?.valueChanges
+      .pipe(takeUntilDestroyed(destroyRef))
+      .subscribe(() => validatePeriod(group));
+  });
+
+  updateEndDateValidators();
+}
+
+export function validateAllDependentPeriods(
+  formArray: FormArray,
+  validationService: ValidationService,
+  getEmployee: () => Employee | null,
+): boolean {
+  let valid = true;
+  for (const control of formArray.controls) {
+    const group = control as FormGroup;
+    const startDate = group.get('dependentStartDate')?.value;
+    if (!startDate) continue;
+    const employee = getEmployee();
+    if (!employee) continue;
+    const value = group.value;
+    const periodError = validationService.validateDependentPeriod(
+      employee.insurance?.healthInsurance,
+      {
+        isDependent: value.isDependentStatus !== 'notDependent',
+        startDate: value.dependentStartDate,
+        endDate: value.dependentEndDate || undefined,
+      },
+    );
+    if (periodError) {
+      group.setErrors({ ...(group.errors ?? {}), dependentPeriod: periodError });
+      group.markAllAsTouched();
+      valid = false;
+    }
+  }
+  return valid;
 }

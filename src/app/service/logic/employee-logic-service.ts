@@ -19,6 +19,7 @@ export type AdHocRevisionResult = {
   reason?: string;
   targetPayrolls?: {
     payrollId: string;
+    actualWorkingDays?: number;
     actualPaymentAmount?: number;
   }[];
 };
@@ -351,9 +352,9 @@ export class EmployeeLogicService {
   }
 
   /** 算定基礎対象外の判定
- *同年6月1日以降に資格取得した方
- *同年6月30日以前に退職した方
- *同年7月改定の月額変更届を提出する方
+ * 同年6月1日以降に資格取得した方
+ * 同年6月30日以前に退職した方
+ * 同年7月改定の月額変更届を提出する方
  *（8・9月の随時改定予定がある場合は計算は行い、理由欄に注記）
  */
   private getCalculationRateTargetExclusionReason(year: number, healthInsuranceStartDate?: Date, resignationDate?: Date): string | null {
@@ -407,6 +408,26 @@ export class EmployeeLogicService {
       matchedPayrolls.push(payroll);
     }
 
+
+
+
+    // ★既存の日数判定ロジックに3か月分の給与を放り込む
+    const validPayrolls = await this.getCalculationBaseTargetSalaries(employee, matchedPayrolls);
+
+    // ★随時改定は「3か月すべて」条件をクリアしていないとNG
+    if (validPayrolls.length !== 3) {
+      return {
+        status: '判定不可',
+        currentGrade,
+        reason: '対象の3か月間に、支払基礎日数が基準を満たさない月が含まれています。',
+        targetPayrolls: this.toAdHocRevisionPayrolls(matchedPayrolls),
+      };
+    }
+
+
+
+
+
     const averageSalary = matchedPayrolls.reduce((total, payroll) => total + payroll.actualPaymentAmount!, 0) / 3;
     const remunerationData = this.StandardMonthlyRemuneration[year] ?? [];
     let calculatedGrade: number | undefined;
@@ -435,13 +456,16 @@ export class EmployeeLogicService {
     return { status: '変更なし', currentGrade, calculatedGrade, averageSalary, targetPayrolls: this.toAdHocRevisionPayrolls(matchedPayrolls) };
   }
 
+  /** 随時改定の給与データを作る */
   private toAdHocRevisionPayrolls(payrolls: Payroll[]): AdHocRevisionResult['targetPayrolls'] {
     return payrolls.map(payroll => ({
       payrollId: payroll.payrollId,
+      actualWorkingDays: payroll.actualWorkingDays,
       actualPaymentAmount: payroll.actualPaymentAmount,
     }));
   }
 
+  /** 給与データを取得（差額調整を含む） */
   private async getPayrollListWithAdjustedAmounts(employeeId: string): Promise<Payroll[]> {
     const payrollList = await this.payrollService.getPayrollListForEmployee(employeeId);
     const adjustmentRuns = await this.getDifferenceAdjustmentRuns();
@@ -464,11 +488,13 @@ export class EmployeeLogicService {
     });
   }
 
+  /** 差額調整一覧を取得 */
   private async getDifferenceAdjustmentRuns(): Promise<CalculationRun[]> {
     return (await this.crudService.getAll<CalculationRun>(this.calculationRunPath, 'runId'))
       .filter(run => run.type === '差額調整');
   }
 
+  /** 随時改定の等級を取得 */
   async getAdHocRevisionGrade(employee: Employee, changeMonth: YearMonth): Promise<number | undefined> {
     const result = await this.getAdHocRevisionResult(employee, changeMonth);
     return result.status === '改定あり' ? result.calculatedGrade : undefined;

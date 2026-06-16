@@ -1,0 +1,66 @@
+.add-dependents-csv-container h2 {
+  margin-top: 32px;
+}
+
+.add-dependents-csv-container p {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+.add-dependents-csv-message {
+  margin-bottom: 12px;
+}
+
+.add-dependents-csv-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.add-dependents-csv-file-select {
+  cursor: pointer;
+}
+
+.add-dependents-csv-file-input {
+  display: none;
+}
+
+.add-dependents-csv-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-dependents-csv-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.add-dependents-csv-preview-table {
+  overflow-x: auto;
+}
+
+.add-dependents-csv-preview-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.add-dependents-csv-preview-table th,
+.add-dependents-csv-preview-table td {
+  border: 1px solid #dee2e6;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.add-dependents-csv-preview-table th {
+  background: #f8f9fa;
+}
+
+.add-dependents-csv-preview-row--error td {
+  background: #fff5f5;
+}

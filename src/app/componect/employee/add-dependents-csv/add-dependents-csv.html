@@ -1,0 +1,76 @@
+<section class="add-dependents-csv-container">
+    <h2>CSV一括登録</h2>
+    <p *ngIf="csvImportMessage" class="im-action-message add-dependents-csv-message">{{ csvImportMessage }}</p>
+    <p>ひな形をダウンロードして、扶養情報を入力してください。</p>
+    <p>
+        ・社員IDが異なる行もまとめて一括登録できます。<br>
+        ・扶養状況は「1: 扶養」「0: 扶養外」で入力してください。<br>
+        ・扶養開始日は必須です。扶養外の場合は扶養終了日も必須です。<br>
+        ・扶養開始日は健康保険の加入日以降にしてください。
+    </p>
+    <div class="add-dependents-csv-file-actions">
+        <button type="button" class="im-btn-soft" (click)="downloadCsvTemplate()">CSVひな形ダウンロード</button>
+        <label class="im-btn-primary add-dependents-csv-file-select" for="dependentsCsvFile">CSVファイルを選択</label>
+    </div>
+    <div class="add-dependents-csv-actions">
+        <input id="dependentsCsvFile" class="add-dependents-csv-file-input" type="file" accept=".csv" (change)="onCsvFileSelected($event)">
+        <p *ngIf="selectedCsvFileName">選択中のファイル：{{ selectedCsvFileName }}</p>
+        <button type="button" class="im-btn-primary" (click)="importCsv()" [disabled]="!selectedCsvFile">
+            CSV内容を確認する
+        </button>
+    </div>
+</section>
+
+<div class="add-dependents-csv-preview-modal" *ngIf="csvPreviewModalOpen">
+    <div class="add-dependents-csv-preview-modal__panel">
+        <div class="add-dependents-csv-preview-modal__header">
+            <div>
+                <h3>CSV取り込み確認</h3>
+                <p>登録したい行にチェックを入れて、登録ボタンを押してください。エラーのある行は選択できません。</p>
+            </div>
+            <button type="button" class="im-btn-soft" (click)="closeCsvPreviewModal()">閉じる</button>
+        </div>
+        <div class="add-dependents-csv-preview-actions">
+            <button type="button" class="im-btn-soft" (click)="selectAllCsvPreviewRows()">全選択</button>
+            <button type="button" class="im-btn-soft" (click)="clearAllCsvPreviewRows()">全解除</button>
+            <button type="button" class="im-btn-primary" (click)="registerSelectedCsvRows()" [disabled]="selectedCsvPreviewCount() === 0">
+                チェックした扶養情報を登録する
+            </button>
+            <span>選択中：{{ selectedCsvPreviewCount() }}件</span>
+        </div>
+        <div class="add-dependents-csv-preview-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>登録</th>
+                        <th>社員ID</th>
+                        <th>扶養者名前</th>
+                        <th>扶養状況</th>
+                        <th>扶養開始日</th>
+                        <th>扶養終了日</th>
+                        <th>エラー</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let row of csvPreviewRows" [class.add-dependents-csv-preview-row--error]="!row.canRegister">
+                        <td>
+                            <input
+                                type="checkbox"
+                                [checked]="row.selected"
+                                [disabled]="!row.canRegister"
+                                (change)="setCsvPreviewRowSelected(row, $any($event.target).checked)">
+                        </td>
+                        <td>{{ row.employeeId }}</td>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.isDependentText }}</td>
+                        <td>{{ row.dependentStartDate }}</td>
+                        <td>{{ row.dependentEndDate || '—' }}</td>
+                        <td>
+                            <p *ngFor="let error of row.errors">{{ error }}</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

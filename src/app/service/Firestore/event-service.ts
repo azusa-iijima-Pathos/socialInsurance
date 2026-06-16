@@ -110,6 +110,11 @@ export class EventService {
     return await this.crudService.getAll<Event>(`${this.path}/${employeeId}/events`, 'eventId');
   }
 
+  async getEventById(employeeId: string, eventId: string): Promise<Event | null> {
+    const events = await this.getEmployeeEvents(employeeId);
+    return events.find(event => event.eventId === eventId) ?? null;
+  }
+
   /** 従業員詳細：全イベントを申請日降順で返す */
   async getEmployeeEventsByAppliedDateDesc(employeeId: string): Promise<Event[]> {
     const events = await this.getEmployeeEvents(employeeId);

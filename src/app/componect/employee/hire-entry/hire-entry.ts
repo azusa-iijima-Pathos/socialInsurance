@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, computed, inject } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { timestampFromDateInput } from '../../../service/common/date-input.util';
+import { timestampFromDateInput, parseDateInputValue } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
 import { CREATE_MESSAGES } from '../../../constants/constants';
 import { EMPLOYMENT_CATEGORIES, EmploymentCategory, GENDERS, Gender, LEAVE_TYPES, LeaveType, RELATIONSHIPS, Relationship, WORK_STATUSES, WORK_STYLES, WorkStatus, WorkStyle, COHABITATION_TYPES, CohabitationType } from '../../../constants/model-constants';
@@ -23,22 +24,35 @@ import { EventService } from '../../../service/Firestore/event-service';
 import { OfficeService } from '../../../service/Firestore/office-service';
 import { EmployeeLogicService } from '../../../service/logic/employee-logic-service';
 import { InsuranceFormService } from '../../../service/logic/insurance-form.service';
+import { ActivatedRoute } from '@angular/router';
+import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
+import { Event } from '../../../model/event';
+import {
+  buildDependentChangeEventBaseId,
+  getWorkMonthForDate,
+  getWorkingYearMonth,
+} from '../../../service/logic/event-id-service';
+import { TempEmployee } from '../../../model/temp-employee';
+import { TempEmployeeService } from '../../../service/Firestore/temp-employee-service';
+import { formatTimestampForDateInput } from '../../../service/common/date-input.util';
 
 type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
 type InsuranceStatus = 'joined' | 'notJoined';
 type InsuranceJudgement = { isHealthInsuranceRequired?: boolean, isNursingCareInsuranceRequired?: boolean, isPensionInsuranceRequired?: boolean };
+type HireStatus = '入社予定' | '入社済み';
 
 @Component({
   selector: 'app-hire-entry',
-  imports: [CommonModule, ReactiveFormsModule, DependentDisabilityStudentFields],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, DependentDisabilityStudentFields],
   templateUrl: './hire-entry.html',
   styleUrls: ['./hire-entry.css', '../employee-detail/employee-detail.css'],
 })
 export class HireEntry {
 
+  private route = inject(ActivatedRoute);
   private fb = inject(FormBuilder);
   private destroyRef = inject(DestroyRef);
-  private commonService = inject(CommonService);
+ commonService = inject(CommonService);
   private employeeService = inject(EmployeeService);
   private eventService = inject(EventService);
   private dependentService = inject(DependentService);
@@ -47,6 +61,8 @@ export class HireEntry {
   private employeeLogicService = inject(EmployeeLogicService);
   private validationService = inject(ValidationService);
   private insuranceFormService = inject(InsuranceFormService);
+  private calculationRunService = inject(CalculationRunService);
+  private tempEmployeeService = inject(TempEmployeeService);
 
   WORK_STATUSES = WORK_STATUSES;
   LEAVE_TYPES = LEAVE_TYPES;
@@ -59,6 +75,12 @@ export class HireEntry {
 
   message = '';
   isSpecificApplicableOffice = false;
+
+  mode = this.route.snapshot.queryParamMap.get('mode');
+  isExistingMode = this.mode === 'existing';
+  isHireBeforeCurrentWorkPeriod = false;
+  scheduledHires: TempEmployee[] = [];
+  scheduledHireDateEdits: Record<string, string> = {};
 
   // 表示用の加入判定
   autoInsuranceJudgement: InsuranceJudgement | null = null;
@@ -77,6 +99,12 @@ export class HireEntry {
     birthDate: ['', [Validators.required, this.validationService.birthDateValidator]],
     gender: ['', [Validators.required]],
     hireDate: ['', [Validators.required]],
+    hireStatus: ['入社予定' as HireStatus],
+    workStatus: ['通常勤務' as WorkStatus],
+    leaveTypes: ['' as LeaveType | ''],
+    leaveStartDate: [''],
+    leaveEndDate: [''],
+    resignationDate: [''],
     // workStatus: ['通常勤務', [Validators.required]],
     // leaveTypes: [''],
     employmentContract: this.fb.nonNullable.group({
@@ -115,6 +143,8 @@ export class HireEntry {
     await this.officeService.getAllOffice();
     await this.employeeService.getAllEmployees(true);
 
+    await this.commonService.getCurrentTargetPeriod();
+
     if (this.dependents.length === 0) {
       this.addDependent();
 
@@ -133,43 +163,288 @@ export class HireEntry {
 
     // 加入判定では会社が特定適用事業所かどうかを使う
     this.isSpecificApplicableOffice = await this.companyService.isSpecificApplicableOffice();
+    await this.companyService.getCompany();
+    if (!this.isExistingMode) {
+      await this.loadScheduledHires();
+    }
 
     // 入力内容に応じて、必須/任意/disabled を切り替える
     this.setupTransportationExpensesValidation();
-    // this.setupLeaveTypesValidation();
+    if (this.isExistingMode) {
+      this.form.controls.workStatus.setValidators([Validators.required]);
+      this.setupExistingWorkStatusValidation();
+    }
     this.setupInsuranceDetailControls('healthInsurance');
     this.setupInsuranceDetailControls('nursingCareInsurance');
     this.setupInsuranceDetailControls('employeePensionInsurance');
     this.setupInsuranceDependencyRules();
 
-    // フォーム変更時に「表示用」の自動判定だけ更新する。入力値には反映しない。
+    // フォーム変更時に自動判定表示を更新する（入社済み時は入社日変更でフォームへ反映）
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.updateAutoInsuranceJudgement();
         void this.updateAutoGradeJudgement();
       });
+    this.form.controls.hireDate.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(hireDate => {
+        void this.updateHireDateDerivedState(hireDate);
+        this.patchDependentStartDatesFromHireDate(hireDate);
+      });
+    this.form.controls.hireStatus.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        void this.updateHireDateDerivedState(this.form.controls.hireDate.value);
+      });
+    if (this.form.controls.hireDate.value) {
+      void this.updateHireDateDerivedState(this.form.controls.hireDate.value);
+    }
     this.updateAutoInsuranceJudgement();
     await this.updateAutoGradeJudgement();
+  }
+
+  async onSubmit() {
+    if (this.isExistingMode) {
+      await this.registerExistingEmployee();
+      return;
+    }
+    await this.registerHireEntry();
   }
 
   // 入社処理
   async registerHireEntry() {
     this.clearMessage();
+    if (this.form.controls.hireStatus.value === '入社予定') {
+      await this.registerScheduledHire();
+      return;
+    }
+
+    if (!this.isHireBeforeCurrentWorkPeriod && !this.validateHireDependentPeriods()) {
+      this.form.markAllAsTouched();
+      return;
+    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
     }
 
-    // 従業員情報を作成
-    const employee = this.createEmployee();
+    const includeInsurance = !this.isHireBeforeCurrentWorkPeriod;
+    const employee = this.createEmployee({ includeInsurance: false });
     const employeeRegistered = await this.employeeService.registerEmployee(employee);
     if (!employeeRegistered) {
       this.showMessage(CREATE_MESSAGES.FAILED);
       return;
     }
 
-    // 扶養情報を作成
+    const insurance = includeInsurance ? this.createInsuranceInfo() : null;
+    const dependents = includeInsurance ? this.createDependents(employee.employeeId!) : [];
+
+    const eventsCreated = await this.createHireEvents(employee, insurance, dependents, includeInsurance);
+    if (!eventsCreated) {
+      this.showMessage('従業員は登録されましたが、イベントの作成に失敗しました');
+      return;
+    }
+
+    this.showMessage(`社員ID：${employee.employeeId} ${employee.firstName} ${employee.lastName}さんの入社済みとして入社処理を${CREATE_MESSAGES.SUCCESS}`);
+    this.resetHireFormAfterSubmit();
+    await this.employeeService.getAllEmployees(true);
+  }
+
+  async registerScheduledHire() {
+    if (!this.validateHireDependentPeriods()) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    const employee = this.createEmployee({ includeInsurance: false });
+    const insurance = this.createInsuranceInfo();
+    const dependents = this.showDependentsSection() ? this.createDependents(employee.employeeId!) : [];
+
+    const tempEmployee: Partial<TempEmployee> = {
+      ...employee,
+      insurance,
+      tempDependents: dependents,
+    };
+
+    const registered = await this.tempEmployeeService.registerTempEmployee(tempEmployee);
+    if (!registered) {
+      this.showMessage(CREATE_MESSAGES.FAILED);
+      return;
+    }
+
+    this.showMessage(`社員ID：${employee.employeeId} ${employee.firstName} ${employee.lastName}さんを入社予定者として${CREATE_MESSAGES.SUCCESS}`);
+    this.resetHireFormAfterSubmit();
+    await this.loadScheduledHires();
+  }
+
+  private resetHireFormAfterSubmit() {
+    this.form.reset({ hireStatus: '入社予定' });
+    this.resetDependents();
+    this.isHireBeforeCurrentWorkPeriod = false;
+    this.form.controls.insurance.enable({ emitEvent: false });
+  }
+
+  async loadScheduledHires() {
+    this.scheduledHires = await this.tempEmployeeService.getAllTempEmployees();
+    this.scheduledHireDateEdits = {};
+    for (const temp of this.scheduledHires) {
+      this.scheduledHireDateEdits[temp.employeeId] = formatTimestampForDateInput(temp.hireDate) ?? '';
+    }
+  }
+
+  isScheduledHireMode(): boolean {
+    return !this.isExistingMode && this.form.controls.hireStatus.value === '入社予定';
+  }
+
+  isInsuranceReadonly(): boolean {
+    return this.isScheduledHireMode() && !this.isHireBeforeCurrentWorkPeriod;
+  }
+
+  showDependentsSection(): boolean {
+    if (this.isExistingMode || this.isHireBeforeCurrentWorkPeriod) return false;
+    const healthJoined = this.form.controls.insurance.getRawValue().healthInsurance.joined === 'joined';
+    return healthJoined;
+  }
+
+  isDependentStartDateReadonly(): boolean {
+    return this.isScheduledHireMode();
+  }
+
+  needsScheduledHireAttention(hireDate?: Timestamp): boolean {
+    if (!hireDate) return false;
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const hireMonth = getWorkMonthForDate(hireDate.toDate(), targetPeriodStart);
+    const current = getWorkingYearMonth();
+    return hireMonth.year * 12 + hireMonth.month <= current.year * 12 + current.month;
+  }
+
+  isHireDateBeforeCurrentWorkPeriod(hireDate: Timestamp): boolean {
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const hireMonth = getWorkMonthForDate(hireDate.toDate(), targetPeriodStart);
+    const current = getWorkingYearMonth();
+    return hireMonth.year * 12 + hireMonth.month < current.year * 12 + current.month;
+  }
+
+  getScheduledEmployeeName(temp: TempEmployee): string {
+    return `${temp.lastName ?? ''} ${temp.firstName ?? ''}`.trim();
+  }
+
+  async saveScheduledHireDate(temp: TempEmployee) {
+    const newDate = this.scheduledHireDateEdits[temp.employeeId];
+    if (!newDate) return;
+
+    const hireDate = timestampFromDateInput(newDate);
+    const tempDependents = (temp.tempDependents ?? []).map(dependent => ({
+      ...dependent,
+      dependentStartDate: hireDate,
+    }));
+
+    const updated = await this.tempEmployeeService.updateTempEmployee({
+      employeeId: temp.employeeId,
+      hireDate,
+      tempDependents,
+    });
+    if (updated) {
+      this.showMessage(`社員ID：${temp.employeeId} の入社日を更新しました`);
+      await this.loadScheduledHires();
+    } else {
+      this.showMessage('入社日の更新に失敗しました');
+    }
+  }
+
+  async approveScheduledHire(temp: TempEmployee) {
+    await this.companyService.getCompany();
+    const hireDateStr = this.scheduledHireDateEdits[temp.employeeId];
+    if (!hireDateStr) return;
+
+    const name = this.getScheduledEmployeeName(temp);
+    if (!window.confirm(`社員ID：${temp.employeeId} ${name}さんの入社を承認しますか？`)) return;
+
+    const hireDate = timestampFromDateInput(hireDateStr);
+    const beforePeriod = this.isHireDateBeforeCurrentWorkPeriod(hireDate);
+
+    const { insurance, tempDependents, ...employeeBase } = temp;
+    const employee: Partial<Employee> = {
+      ...employeeBase,
+      hireDate,
+      workStatus: '通常勤務',
+      insurance: { currentGrade: 0 },
+    };
+
+    const registered = await this.employeeService.registerEmployee(employee);
+    if (!registered) {
+      this.showMessage('従業員の登録に失敗しました');
+      return;
+    }
+
+    if (!beforePeriod) {
+      const hireEmployee = { ...employee };
+      const eventsCreated = await this.createHireEvents(
+        hireEmployee,
+        insurance ?? null,
+        tempDependents ?? [],
+        !!(insurance?.healthInsurance?.joined),
+      );
+      if (!eventsCreated) {
+        this.showMessage('従業員は登録されましたが、イベントの作成に失敗しました');
+        return;
+      }
+    }
+
+    const deleted = await this.tempEmployeeService.deleteTempEmployee(temp.employeeId);
+    if (!deleted) {
+      this.showMessage('入社承認後の一時データ削除に失敗しました');
+      return;
+    }
+
+    await this.employeeService.getAllEmployees(true);
+    await this.loadScheduledHires();
+
+    if (beforePeriod) {
+      this.showMessage(
+        '入社を承認しました。現在の作業対象期間より前の入社になります。入社登録後に、給与修正より保険料を算出したい月の給与を入力し、その後遡及修正より保険情報の登録をおこなってください。',
+      );
+    } else {
+      this.showMessage(`社員ID：${temp.employeeId} ${name}さんの入社を承認しました`);
+    }
+  }
+
+  async cancelScheduledHire(temp: TempEmployee) {
+    const name = this.getScheduledEmployeeName(temp);
+    if (!window.confirm(`社員ID：${temp.employeeId} ${name}さんの入社予定を取り消しますか？`)) return;
+
+    const deleted = await this.tempEmployeeService.deleteTempEmployee(temp.employeeId);
+    if (deleted) {
+      this.showMessage(`社員ID：${temp.employeeId} の入社予定を取り消しました`);
+      await this.loadScheduledHires();
+    } else {
+      this.showMessage('入社予定の取り消しに失敗しました');
+    }
+  }
+
+  async registerExistingEmployee() {
+    this.clearMessage();
+    if (!this.validateHireDependentPeriods()) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    const employee = this.createEmployee({ includeInsurance: true });
+    const employeeRegistered = await this.employeeService.registerEmployee(employee);
+    if (!employeeRegistered) {
+      this.showMessage(CREATE_MESSAGES.FAILED);
+      return;
+    }
+
     const dependents = this.createDependents(employee.employeeId!);
     if (dependents.length > 0) {
       const dependentsRegistered = await this.dependentService.registerDependents(employee.employeeId!, dependents);
@@ -179,24 +454,22 @@ export class HireEntry {
       }
     }
 
-    // イベントを作成
-    const eventCreated = await this.eventService.createEvent(employee.employeeId!, this.createHireEventPayload(employee, dependents));
-    if (!eventCreated) {
-      this.showMessage('従業員は登録されましたが、入社イベントの作成に失敗しました');
-      return;
-    }
-
-    this.showMessage(`社員ID：${employee.employeeId} ${employee.firstName} ${employee.lastName}さんの入社処理を${CREATE_MESSAGES.SUCCESS}`);
-    this.form.reset();
+    this.showMessage(`社員ID：${employee.employeeId} ${employee.firstName} ${employee.lastName}さんの登録を${CREATE_MESSAGES.SUCCESS}`);
+    this.form.reset({ workStatus: '通常勤務' });
     this.resetDependents();
     await this.employeeService.getAllEmployees(true);
   }
 
   // リセット
   resetForm() {
-    this.form.reset();
+    this.form.reset({ workStatus: '通常勤務', hireStatus: '入社予定' });
     this.clearMessage();
+    this.isHireBeforeCurrentWorkPeriod = false;
+    this.form.controls.insurance.enable({ emitEvent: false });
     this.updateTransportationExpensesValidation();
+    if (this.isExistingMode) {
+      this.updateExistingWorkStatusValidation();
+    }
     // this.updateLeaveTypesValidation();
     this.updateInsuranceDetailControls('notJoined', 'healthInsurance');
     this.updateInsuranceDetailControls('notJoined', 'nursingCareInsurance');
@@ -204,10 +477,14 @@ export class HireEntry {
     this.resetDependents();
   }
 
-  // // 休職種別の表示/非表示
-  // showLeaveTypesField() {
-  //   return this.form.controls.workStatus.value === '休職中';
-  // }
+  showLeaveFieldsForExisting(): boolean {
+    return this.form.controls.workStatus.value === '休職中';
+  }
+
+  showResignationFieldForExisting(): boolean {
+    const status = this.form.controls.workStatus.value;
+    return status === '退社済み' || status === '退社予定';
+  }
 
   // 通勤手当の表示/非表示
   showTransportationExpensesField() {
@@ -226,6 +503,11 @@ export class HireEntry {
   // 扶養情報の追加
   addDependent() {
     this.dependents.push(this.createDependentForm());
+    const hireDate = this.form.controls.hireDate.value;
+    if (hireDate) {
+      const lastIndex = this.dependents.length - 1;
+      this.dependents.at(lastIndex).get('dependentStartDate')?.setValue(hireDate, { emitEvent: false });
+    }
   }
 
   // 扶養情報の削除
@@ -241,24 +523,43 @@ export class HireEntry {
   }
 
   // 従業員データを作る
-  private createEmployee(): Partial<Employee> {
-    // 登録保存用の従業員データを作る
-    return {
+  private createEmployee(options?: { includeInsurance?: boolean }): Partial<Employee> {
+    const includeInsurance = options?.includeInsurance ?? true;
+    const employee: Partial<Employee> = {
       employeeId: this.form.value.employeeId!,
       firstName: this.form.value.firstName!,
       lastName: this.form.value.lastName!,
       birthDate: timestampFromDateInput(this.form.value.birthDate!),
       gender: this.form.value.gender! as Gender,
       hireDate: timestampFromDateInput(this.form.value.hireDate!),
-      workStatus: "通常勤務" as WorkStatus,
       employmentContract: this.createEmploymentContractFromForm(),
-      insurance: this.createInsuranceInfo(),
+      insurance: includeInsurance ? this.createInsuranceInfo() : { currentGrade: 0 },
     };
+
+    if (this.isExistingMode) {
+      employee.workStatus = this.form.value.workStatus as WorkStatus;
+      const leaveTypes = this.form.value.leaveTypes;
+      if (leaveTypes) employee.leaveTypes = leaveTypes as LeaveType;
+      if (this.form.value.leaveStartDate) {
+        employee.leaveStartDate = timestampFromDateInput(this.form.value.leaveStartDate);
+      }
+      if (this.form.value.leaveEndDate) {
+        employee.leaveEndDate = timestampFromDateInput(this.form.value.leaveEndDate);
+      }
+      if (this.form.value.resignationDate) {
+        employee.resignationDate = timestampFromDateInput(this.form.value.resignationDate);
+      }
+    } else {
+      employee.workStatus = '通常勤務';
+    }
+
+    return employee;
   }
 
-  //イベントに渡すデータを作る
-  private createHireEventPayload(employee: Partial<Employee>, dependents: Partial<Dependent>[]): Record<string, unknown> {
-    // 入社イベントに、登録時点の変更内容をそのまま残す
+  private createHireEventPayload(
+    employee: Partial<Employee>,
+  ): Partial<Event> {
+    const { insurance, ...employeeWithoutInsurance } = employee;
     return {
       occurredDate: employee.hireDate!,
       eventType: '入社',
@@ -270,30 +571,192 @@ export class HireEntry {
         approvedBy: this.loginEmployeeId,
       },
       payload: {
-        employee: employee,
-        dependents: dependents,
+        employee: employeeWithoutInsurance,
       },
     };
   }
 
+  private async createHireEvents(
+    employee: Partial<Employee>,
+    insurance: EmployeeInsurance | null,
+    dependents: Partial<Dependent>[],
+    includeInsurance: boolean,
+  ): Promise<boolean> {
+    const hireEventId = await this.eventService.createEvent(
+      employee.employeeId!,
+      this.createHireEventPayload(employee),
+    );
+    if (!hireEventId) return false;
+
+    if (!includeInsurance || !insurance?.healthInsurance?.joined) {
+      return true;
+    }
+
+    await this.companyService.getCompany();
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const hireDate = employee.hireDate!;
+
+    const dependentEventIds: string[] = [];
+    const dependentBaseId = buildDependentChangeEventBaseId(hireDate.toDate(), targetPeriodStart);
+    for (const dependent of dependents) {
+      const dependentEventId = await this.eventService.createEventWithBaseId(employee.employeeId!, dependentBaseId, {
+        occurredDate: dependent.dependentStartDate ?? hireDate,
+        eventType: '扶養情報変更',
+        lifeEventType: '入社',
+        appliedDate: Timestamp.now(),
+        applicantType: '管理者',
+        approval: {
+          approvalStatus: '申請中',
+        },
+        payload: { before: null, after: dependent },
+      });
+      if (!dependentEventId) return false;
+      dependentEventIds.push(dependentEventId);
+    }
+
+    const qualificationRunId = await this.calculationRunService.createPendingHireQualificationRun(
+      employee.employeeId!,
+      hireDate,
+      targetPeriodStart,
+      insurance,
+      dependentEventIds,
+    );
+    return !!qualificationRunId;
+  }
+
+  private async updateHireDateDerivedState(hireDate: string) {
+    if (!hireDate || this.isExistingMode) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = parseDateInputValue(hireDate);
+    const hireStatus: HireStatus = target >= today ? '入社予定' : '入社済み';
+    if (this.form.controls.hireStatus.value !== hireStatus) {
+      this.form.controls.hireStatus.setValue(hireStatus, { emitEvent: false });
+    }
+
+    await this.companyService.getCompany();
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const hireMonth = getWorkMonthForDate(target, targetPeriodStart);
+    const current = getWorkingYearMonth();
+    const beforePeriod = hireMonth.year * 12 + hireMonth.month < current.year * 12 + current.month;
+    this.isHireBeforeCurrentWorkPeriod = beforePeriod;
+
+    this.updateAutoInsuranceJudgement();
+    await this.updateAutoGradeJudgement();
+
+    if (beforePeriod) {
+      this.form.controls.insurance.disable({ emitEvent: false });
+      return;
+    }
+
+    this.applyAutoJudgementToForm();
+
+    if (this.isScheduledHireMode()) {
+      this.form.controls.insurance.disable({ emitEvent: false });
+      this.setDependentsStartDateReadonly(true);
+      return;
+    }
+
+    this.form.controls.insurance.enable({ emitEvent: false });
+    this.updateInsuranceDetailControls(
+      this.form.controls.insurance.controls.healthInsurance.controls.joined.value,
+      'healthInsurance',
+    );
+    this.updateInsuranceDetailControls(
+      this.form.controls.insurance.controls.nursingCareInsurance.controls.joined.value,
+      'nursingCareInsurance',
+    );
+    this.updateInsuranceDetailControls(
+      this.form.controls.insurance.controls.employeePensionInsurance.controls.joined.value,
+      'employeePensionInsurance',
+    );
+    this.setDependentsStartDateReadonly(false);
+  }
+
+  private applyAutoJudgementToForm() {
+    if (this.isExistingMode || this.isHireBeforeCurrentWorkPeriod) return;
+
+    const hireDate = this.form.controls.hireDate.value;
+    if (!hireDate) return;
+
+    const healthRequired = this.autoInsuranceJudgement?.isHealthInsuranceRequired ?? false;
+    const nursingRequired = this.autoInsuranceJudgement?.isNursingCareInsuranceRequired ?? false;
+    const pensionRequired = this.autoInsuranceJudgement?.isPensionInsuranceRequired ?? false;
+    const grade = healthRequired ? (this.autoGradeJudgement ?? 0) : 0;
+
+    this.form.controls.insurance.patchValue({
+      currentGrade: grade,
+      healthInsurance: {
+        joined: healthRequired ? 'joined' : 'notJoined',
+        acquiredDate: healthRequired ? hireDate : '',
+        companyBurdenRate: 50,
+      },
+      nursingCareInsurance: {
+        joined: nursingRequired ? 'joined' : 'notJoined',
+        acquiredDate: nursingRequired ? hireDate : '',
+        companyBurdenRate: 50,
+      },
+      employeePensionInsurance: {
+        joined: pensionRequired ? 'joined' : 'notJoined',
+        acquiredDate: pensionRequired ? hireDate : '',
+        companyBurdenRate: 50,
+      },
+    }, { emitEvent: false });
+
+    this.insuranceFormService.syncSubInsuranceStatusesWithHealth(
+      this.form.controls.insurance,
+      healthRequired ? 'joined' : 'notJoined',
+    );
+  }
+
+  private setDependentsStartDateReadonly(readonly: boolean) {
+    const hireDate = this.form.controls.hireDate.value;
+    for (const control of this.dependents.controls) {
+      const startControl = control.get('dependentStartDate');
+      if (!startControl) continue;
+      if (readonly) {
+        if (hireDate) {
+          startControl.setValue(hireDate, { emitEvent: false });
+        }
+        startControl.disable({ emitEvent: false });
+      } else {
+        startControl.enable({ emitEvent: false });
+      }
+    }
+  }
+
   // 従業員保険情報を作る
   private createInsuranceInfo(): EmployeeInsurance {
-    // 従業員ドキュメントへ保存する保険情報を作る
-    const insurance = this.form.controls.insurance;
+    const raw = this.form.controls.insurance.getRawValue();
     return {
-      currentGrade: insurance.controls.currentGrade.value,
-      ...(insurance.controls.basicPensionNumber.value.trim()
-        ? { basicPensionNumber: insurance.controls.basicPensionNumber.value.trim() }
+      currentGrade: raw.currentGrade,
+      ...(raw.basicPensionNumber.trim()
+        ? { basicPensionNumber: raw.basicPensionNumber.trim() }
         : {}),
-      healthInsurance: this.createInsuranceDetailFromForm('healthInsurance'),
-      nursingCareInsurance: this.createInsuranceDetailFromForm('nursingCareInsurance'),
-      employeePensionInsurance: this.createInsuranceDetailFromForm('employeePensionInsurance'),
+      healthInsurance: this.createInsuranceDetailFromRaw('healthInsurance', raw),
+      nursingCareInsurance: this.createInsuranceDetailFromRaw('nursingCareInsurance', raw),
+      employeePensionInsurance: this.createInsuranceDetailFromRaw('employeePensionInsurance', raw),
+    };
+  }
+
+  private createInsuranceDetailFromRaw(
+    insuranceName: InsuranceName,
+    raw: ReturnType<typeof this.form.controls.insurance.getRawValue>,
+  ): InsuranceDetail {
+    const value = raw[insuranceName];
+    if (value.joined === 'notJoined') {
+      return { joined: false };
+    }
+    return {
+      joined: true,
+      acquiredDate: timestampFromDateInput(value.acquiredDate),
+      companyBurdenRate: value.companyBurdenRate,
     };
   }
 
   // 保険情報を作る
   private createInsuranceDetailFromForm(insuranceName: InsuranceName): InsuranceDetail {
-    // 未加入の場合は付属情報を保存しない
     const value = this.form.controls.insurance.controls[insuranceName].getRawValue();
     if (value.joined === 'notJoined') {
       return { joined: false };
@@ -320,6 +783,7 @@ export class HireEntry {
         birthDate: timestampFromDateInput(value.birthDate!),
         relationship: value.relationship! as Relationship,
         isDependent: true,
+        dependentStartDate: timestampFromDateInput(value.dependentStartDate!),
         ...(value.cohabitationType ? { cohabitationType: value.cohabitationType as CohabitationType } : {}),
         ...(value.annualIncome !== '' && value.annualIncome != null
           ? { annualIncome: Number(value.annualIncome) }
@@ -334,10 +798,12 @@ export class HireEntry {
   // 扶養情報のFormGroupを作る
   private createDependentForm() {
     const disabilityStudentDefaults = getDependentDisabilityStudentFormDefaults();
+    const hireDate = this.form.controls.hireDate.value;
     const group = this.fb.nonNullable.group({
       name: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
       birthDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
       relationship: ['' as Relationship | '', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      dependentStartDate: [hireDate, [this.validationService.requiredIfAnyDependentFieldEntered]],
       cohabitationType: ['' as CohabitationType | ''],
       annualIncome: [''],
       occupation: [''],
@@ -348,8 +814,38 @@ export class HireEntry {
     return group;
   }
 
+  private patchDependentStartDatesFromHireDate(hireDate: string) {
+    if (!hireDate) return;
+    for (const control of this.dependents.controls) {
+      control.get('dependentStartDate')?.setValue(hireDate, { emitEvent: false });
+    }
+  }
+
+  private validateHireDependentPeriods(): boolean {
+    const healthInsurance = this.createInsuranceDetailFromForm('healthInsurance');
+    let valid = true;
+    for (const control of this.dependents.controls) {
+      const value = control.value;
+      if (!value.name && !value.birthDate && !value.relationship) continue;
+      const periodError = this.validationService.validateDependentPeriod(
+        healthInsurance,
+        {
+          isDependent: true,
+          startDate: value.dependentStartDate,
+        },
+      );
+      if (periodError) {
+        control.setErrors({ ...(control.errors ?? {}), dependentPeriod: periodError });
+        control.markAllAsTouched();
+        valid = false;
+      }
+    }
+    return valid;
+  }
+
+  /** 扶養情報のバリデーションを設定 */
   private setupDependentRowValidation(group: FormGroup) {
-    (['name', 'birthDate', 'relationship'] as const).forEach(fieldName => {
+    (['name', 'birthDate', 'relationship', 'dependentStartDate'] as const).forEach(fieldName => {
       group.get(fieldName)?.valueChanges
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(() => this.validationService.refreshDependentRowValidation(group));
@@ -380,6 +876,42 @@ export class HireEntry {
   //     .pipe(takeUntilDestroyed(this.destroyRef))
   //     .subscribe(() => this.setAcquiredDateFromHireDate());
   // }
+
+  private setupExistingWorkStatusValidation() {
+    this.updateExistingWorkStatusValidation();
+    this.form.controls.workStatus.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.updateExistingWorkStatusValidation());
+  }
+
+  private updateExistingWorkStatusValidation() {
+    const workStatus = this.form.controls.workStatus.value;
+    const isOnLeave = workStatus === '休職中';
+    const isRetired = workStatus === '退社済み' || workStatus === '退社予定';
+
+    const leaveTypes = this.form.controls.leaveTypes;
+    const leaveStartDate = this.form.controls.leaveStartDate;
+    const leaveEndDate = this.form.controls.leaveEndDate;
+    const resignationDate = this.form.controls.resignationDate;
+
+    leaveTypes.setValidators(isOnLeave ? [Validators.required] : null);
+    leaveStartDate.setValidators(isOnLeave ? [Validators.required] : null);
+    leaveEndDate.setValidators(null);
+    resignationDate.setValidators(isRetired ? [Validators.required] : null);
+
+    if (!isOnLeave) {
+      leaveTypes.setValue('', { emitEvent: false });
+      leaveStartDate.setValue('', { emitEvent: false });
+      leaveEndDate.setValue('', { emitEvent: false });
+    }
+    if (!isRetired) {
+      resignationDate.setValue('', { emitEvent: false });
+    }
+
+    for (const control of [leaveTypes, leaveStartDate, leaveEndDate, resignationDate]) {
+      control.updateValueAndValidity({ emitEvent: false });
+    }
+  }
 
   // // 休職種別の必須チェックを切り替える
   // private updateLeaveTypesValidation() {
@@ -480,26 +1012,13 @@ export class HireEntry {
 
   // 表示用の加入判定を更新する
   private updateAutoInsuranceJudgement() {
-    // 表示用の加入判定。フォームの加入/未加入ラジオには反映しない。
-    const employee = this.createEmployee();
-    console.log(employee);
-    // if (!employee.birthDate) {
-    //   this.autoInsuranceJudgement = null;
-    //   return;
-    // }
+    const employee = this.createEmployee({ includeInsurance: !this.isHireBeforeCurrentWorkPeriod });
     this.autoInsuranceJudgement = this.employeeLogicService.isInsuranceRequired(employee as Employee, this.isSpecificApplicableOffice);
-    console.log(this.autoInsuranceJudgement);
   }
 
   // 表示用の等級判定を更新する
   private async updateAutoGradeJudgement() {
-    // 表示用の等級判定。フォームの等級入力欄には反映しない。
-    const employee = this.createEmployee();
-    // if (!employee.employmentContract?.fixedSalary) {
-    //   this.autoGradeJudgement = null;
-    //   return;
-    // }
-
+    const employee = this.createEmployee({ includeInsurance: !this.isHireBeforeCurrentWorkPeriod });
     const grade = await this.employeeLogicService.getInsuranceGradeAtNewEntry(employee as Employee);
     this.autoGradeJudgement = grade ?? null;
   }

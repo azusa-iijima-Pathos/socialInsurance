@@ -33,6 +33,7 @@ import { SalaryCorrection } from './componect/correction/salary-correction/salar
 import { BonusCorrection } from './componect/correction/bonus-correction/bonus-correction';
 import { CorrectionList } from './componect/correction/correction-list/correction-list';
 import { authGuard, companyGuard, initialSettingGuard } from './service/common/guard/auth-guard';
+import { AddDependents } from './componect/employee/add-dependents/add-dependents';
 
 export const routes: Routes = [
     { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -81,6 +82,10 @@ export const routes: Routes = [
         path: 'office-detail', component: OfficeDetail, title: '事業所情報 ｜ 社会保険管理システム',
         canActivate: [authGuard, companyGuard], data: { permission: '承認' }
     },
+    {
+        path: 'employee-form', component: EmployeeForm, title: '既存社員追加登録 ｜ 社会保険管理システム',
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
 
     //権限：管理のみ
     { path: 'company-setting', component: Setting, title: '会社設定 ｜ 社会保険管理システム',
@@ -95,6 +100,9 @@ export const routes: Routes = [
         canActivate: [authGuard, companyGuard], data: { permission: '承認' }
     },
     { path: 'employee-addInsurance', component: AddInsuranceInfo, title: '社員保険情報追加 ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'add-dependents', component: AddDependents, title: '扶養情報追加 ｜ 社会保険管理システム' ,
         canActivate: [authGuard, companyGuard], data: { permission: '承認' }
     },
     { path: 'employee-hire-entry', component: HireEntry, title: '入社処理 ｜ 社会保険管理システム' ,

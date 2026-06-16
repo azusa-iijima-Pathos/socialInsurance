@@ -10,7 +10,10 @@ import { EmployeeDetailEventService } from '../../../service/logic/employee-deta
 import {
   EmployeeEventApprovalService,
   FixedSalaryApprovalDraft,
+  HireInsuranceApprovalDraft,
+  HireInsuranceDetailView,
   InsuranceApprovalDraft,
+  RetireInsuranceDetailView,
 } from '../../../service/logic/employee-event-approval.service';
 import { ReachAgeService } from '../../../service/logic/reach-age';
 import { EmployeeEventDisplayService } from '../../../service/logic/employee-event-display.service';
@@ -40,6 +43,7 @@ export class SystemApplicationList {
 
   reachAgeEvents: EmployeeEventItem[] = [];
   fixedSalaryRuns: SystemCalculationRunItem[] = [];
+  hireRuns: SystemCalculationRunItem[] = [];
   canBulkApplyFixedSalary = false;
   retireRuns: SystemCalculationRunItem[] = [];
   otherSystemRuns: SystemCalculationRunItem[] = [];
@@ -48,6 +52,7 @@ export class SystemApplicationList {
 
   selectedReachAge = new Set<string>();
   selectedRetire = new Set<string>();
+  selectedHire = new Set<string>();
 
   approvalModalOpen = false;
   approvalModalType: 'fixedSalary' | 'insurance' | null = null;
@@ -60,6 +65,15 @@ export class SystemApplicationList {
 
   employeeReviewModalOpen = false;
   reviewingEmployeeEvent: EmployeeEventItem | null = null;
+
+  hireDetailModalOpen = false;
+  reviewingHireRun: SystemCalculationRunItem | null = null;
+  hireApprovalDraft: HireInsuranceApprovalDraft | null = null;
+  hireApprovalValidationError = '';
+
+  retireDetailModalOpen = false;
+  reviewingRetireRun: SystemCalculationRunItem | null = null;
+  retireInsuranceDetail: RetireInsuranceDetailView | null = null;
 
   message = '';
   reachAgeMessage = '';
@@ -81,7 +95,8 @@ export class SystemApplicationList {
       .filter(event => event.eventType === '一定年齢到達')
       .sort(compareEventsByAppliedDateDesc);
     this.fixedSalaryRuns = sortRuns(systemRuns.filter(run => run.eventType === '固定給変更'));
-    this.retireRuns = sortRuns(systemRuns.filter(run => run.eventType === '退社'));
+    this.hireRuns = sortRuns(await this.calculationRunService.getPendingHireQualificationRunsUpToWorkingMonth());
+    this.retireRuns = sortRuns(await this.calculationRunService.getPendingRetireQualificationLossRunsUpToWorkingMonth());
     this.otherSystemRuns = sortRuns(systemRuns.filter(run => run.eventType === '雇用形態変更'));
     this.employeeApplicationEvents = events
       .filter(event => event.applicantType === '社員')
@@ -90,11 +105,14 @@ export class SystemApplicationList {
       .filter(event =>
         event.applicantType !== '社員'
         && event.eventType !== '一定年齢到達'
-        && event.applicantType !== 'システム',
+        && event.applicantType !== 'システム'
+        && !(event.eventType === '扶養情報変更' && event.lifeEventType === '入社')
+        && !(event.eventType === '扶養情報変更' && event.lifeEventType === '退社'),
       )
       .sort(compareEventsByAppliedDateDesc);
     this.selectedReachAge.clear();
     this.selectedRetire.clear();
+    this.selectedHire.clear();
     const applicableRevisions = await this.calculationRunService.getApplicableApprovedAdHocRevisionRuns();
     this.canBulkApplyFixedSalary = applicableRevisions.length > 0;
   }
@@ -135,8 +153,13 @@ export class SystemApplicationList {
     }
 
     let approved = false;
-    if (run.eventType === '退社') {
-      if (!window.confirm('システム計算結果を承認しますか？\n退社処理を行うと保険情報の変更はできません。')) {
+    if (run.type === '資格喪失' || run.payload?.['source'] === '退社') {
+      if (!window.confirm('退社処理の保険・扶養情報を承認して従業員情報に反映しますか？')) {
+        return;
+      }
+      approved = await this.employeeEventApprovalService.approveRetireQualificationRun(run, this.loginEmployeeId);
+    } else if (run.eventType === '退社') {
+      if (!window.confirm('システム計算結果を承認しますか？')) {
         return;
       }
       approved = await this.employeeEventApprovalService.approveRetireEvent(
@@ -148,7 +171,9 @@ export class SystemApplicationList {
 
   async onRejectSystemRun(run: SystemCalculationRunItem) {
     if (!window.confirm('システム計算結果を却下しますか？')) return;
-    const rejected = await this.employeeEventApprovalService.rejectSystemRun(run.runId, this.loginEmployeeId);
+    const rejected = run.type === '資格喪失' || run.payload?.['source'] === '退社'
+      ? await this.employeeEventApprovalService.rejectRetireQualificationRun(run, this.loginEmployeeId)
+      : await this.employeeEventApprovalService.rejectSystemRun(run.runId, this.loginEmployeeId);
     if (rejected) {
       this.showMessage('システム計算結果を却下しました');
       await this.loadEvents();
@@ -188,6 +213,12 @@ export class SystemApplicationList {
     else this.selectedRetire.delete(key);
   }
 
+  toggleHire(run: SystemCalculationRunItem, checked: boolean) {
+    const key = this.getSystemRunKey(run);
+    if (checked) this.selectedHire.add(key);
+    else this.selectedHire.delete(key);
+  }
+
   toggleAllReachAge() {
     this.reachAgeEvents.forEach(event => this.selectedReachAge.add(this.getEventKey(event)));
   }
@@ -202,6 +233,123 @@ export class SystemApplicationList {
 
   toggleAllRetireClear() {
     this.selectedRetire.clear();
+  }
+
+  toggleAllHire() {
+    this.hireRuns.forEach(run => this.selectedHire.add(this.getSystemRunKey(run)));
+  }
+
+  toggleAllHireClear() {
+    this.selectedHire.clear();
+  }
+
+  async openHireDetail(run: SystemCalculationRunItem) {
+    this.reviewingHireRun = run;
+    this.hireApprovalDraft = await this.employeeEventApprovalService.buildHireInsuranceApprovalDraft(run);
+    this.hireApprovalValidationError = '';
+    this.hireDetailModalOpen = true;
+  }
+
+  closeHireDetail() {
+    this.hireDetailModalOpen = false;
+    this.reviewingHireRun = null;
+    this.hireApprovalDraft = null;
+    this.hireApprovalValidationError = '';
+  }
+
+  getInsuranceJoinedLabel(detail?: { joined?: boolean }): string {
+    return detail?.joined ? '加入' : '未加入';
+  }
+
+  async approveHireFromDetail() {
+    if (!this.reviewingHireRun || !this.hireApprovalDraft) return;
+    this.hireApprovalValidationError = this.employeeEventApprovalService.validateHireInsuranceApprovalDraft(this.hireApprovalDraft) ?? '';
+    if (this.hireApprovalValidationError) return;
+    if (!window.confirm('入社処理の保険・扶養情報を承認して従業員情報に反映しますか？')) return;
+
+    const approved = await this.employeeEventApprovalService.approveHireQualificationRun(
+      this.reviewingHireRun,
+      this.loginEmployeeId,
+      this.hireApprovalDraft,
+    );
+    if (approved) {
+      await this.employeeService.getAllEmployees(true);
+      this.showMessage('入社処理を承認し、従業員情報に反映しました');
+      this.closeHireDetail();
+      await this.loadEvents();
+    } else {
+      this.showMessage('承認・反映に失敗しました');
+    }
+  }
+
+  async rejectHireRun(run: SystemCalculationRunItem) {
+    if (!window.confirm('入社処理を却下しますか？')) return;
+
+    const rejected = await this.employeeEventApprovalService.rejectHireQualificationRun(
+      run,
+      this.loginEmployeeId,
+    );
+    if (rejected) {
+      this.showMessage('入社処理を却下しました');
+      if (this.reviewingHireRun?.runId === run.runId) {
+        this.closeHireDetail();
+      }
+      await this.loadEvents();
+    } else {
+      this.showMessage('却下に失敗しました');
+    }
+  }
+
+  async rejectHireFromDetail() {
+    if (!this.reviewingHireRun) return;
+    await this.rejectHireRun(this.reviewingHireRun);
+  }
+
+  async openRetireDetail(run: SystemCalculationRunItem) {
+    this.reviewingRetireRun = run;
+    this.retireInsuranceDetail = await this.employeeEventApprovalService.buildRetireInsuranceDetailView(run);
+    this.retireDetailModalOpen = true;
+  }
+
+  closeRetireDetail() {
+    this.retireDetailModalOpen = false;
+    this.reviewingRetireRun = null;
+    this.retireInsuranceDetail = null;
+  }
+
+  async approveRetireFromDetail() {
+    if (!this.reviewingRetireRun) return;
+    if (!window.confirm('退社処理の保険・扶養情報を承認して従業員情報に反映しますか？')) return;
+
+    const approved = await this.employeeEventApprovalService.approveRetireQualificationRun(
+      this.reviewingRetireRun,
+      this.loginEmployeeId,
+    );
+    if (approved) {
+      await this.employeeService.getAllEmployees(true);
+      this.showMessage('退社処理を承認し、従業員情報に反映しました');
+      this.closeRetireDetail();
+      await this.loadEvents();
+    } else {
+      this.showMessage('承認・反映に失敗しました');
+    }
+  }
+
+  async rejectRetireFromDetail() {
+    if (!this.reviewingRetireRun) return;
+    if (!window.confirm('退社処理を却下しますか？')) return;
+
+    const rejected = await this.employeeEventApprovalService.rejectRetireQualificationRun(
+      this.reviewingRetireRun,
+      this.loginEmployeeId,
+    );
+    if (rejected) {
+      this.showMessage('退社処理を却下しました');
+      this.closeRetireDetail();
+      await this.loadEvents();
+    } else {
+      this.showMessage('却下に失敗しました');
+    }
   }
 
   async onApproveEvent(event: EmployeeEventItem) {
@@ -315,19 +463,16 @@ export class SystemApplicationList {
   }
 
   async bulkApproveRetire() {
-    if (!window.confirm('選択した退社処理を承認しますか？\n退社処理を行うと保険情報の変更はできません。')) return;
+    if (!window.confirm('選択した退社処理を承認して従業員情報に反映しますか？')) return;
     let count = 0;
     for (const key of this.selectedRetire) {
       const run = this.retireRuns.find(item => this.getSystemRunKey(item) === key);
       if (!run) continue;
-      const eventView = this.employeeEventApprovalService.buildEventViewFromRun(run);
-      const approved = await this.employeeEventApprovalService.approveRetireEvent(
-        run.employeeId, eventView, this.loginEmployeeId, run.runId,
-      );
+      const approved = await this.employeeEventApprovalService.approveRetireQualificationRun(run, this.loginEmployeeId);
       if (approved) count++;
     }
     if (count > 0) {
-      this.showMessage(`${count}件の退社計算結果を承認しました`);
+      this.showMessage(`${count}件の退社処理を承認しました`);
       await this.employeeService.getAllEmployees(true);
       await this.loadEvents();
     }
@@ -339,7 +484,7 @@ export class SystemApplicationList {
     for (const key of this.selectedRetire) {
       const run = this.retireRuns.find(item => this.getSystemRunKey(item) === key);
       if (!run) continue;
-      const rejected = await this.employeeEventApprovalService.rejectSystemRun(run.runId, this.loginEmployeeId);
+      const rejected = await this.employeeEventApprovalService.rejectRetireQualificationRun(run, this.loginEmployeeId);
       if (rejected) count++;
     }
     if (count > 0) {

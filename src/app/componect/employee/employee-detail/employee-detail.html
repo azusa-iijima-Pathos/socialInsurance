@@ -205,7 +205,7 @@
                             *ngIf="showInsuranceDetail(selectedEmployee.insurance?.nursingCareInsurance)">
                             <div class="employee-detail-info-grid__item">
                                 <dt>番号</dt>
-                                <dd>{{ selectedEmployee.insurance?.healthInsurance?.number || selectedEmployee.insurance?.nursingCareInsurance?.number ?? '未登録' }}</dd>
+                                <dd>{{ (selectedEmployee.insurance?.healthInsurance?.number || selectedEmployee.insurance?.nursingCareInsurance?.number) ?? '未登録' }}</dd>
                             </div>
                             <div class="employee-detail-info-grid__item">
                                 <dt>取得日</dt>
@@ -292,6 +292,14 @@
                             <div class="employee-detail-info-grid__item">
                                 <dt>扶養状況</dt>
                                 <dd>{{ getDependentStatusLabel(dependent.isDependent) }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item">
+                                <dt>扶養開始日</dt>
+                                <dd>{{ dependent.dependentStartDate ? commonService.formatDate(dependent.dependentStartDate) : '—' }}</dd>
+                            </div>
+                            <div class="employee-detail-info-grid__item" *ngIf="dependent.dependentEndDate">
+                                <dt>扶養終了日</dt>
+                                <dd>{{ commonService.formatDate(dependent.dependentEndDate) }}</dd>
                             </div>
                             <div class="employee-detail-info-grid__item">
                                 <dt>同居・別居区分</dt>
@@ -991,6 +999,32 @@
                                         *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">
                                         続柄は必須です</p>
                                 </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'detailDependentStartDate' + i">扶養開始日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'detailDependentStartDate' + i" formControlName="dependentStartDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('dependentStartDate')?.errors?.['required'] && dependent.get('dependentStartDate')?.touched">
+                                        扶養開始日は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
+                            *ngIf="isExistingDependentRow(i) && dependent.get('isDependentStatus')?.value === 'notDependent'">
+                            <div class="im-field-row__label"><label [for]="'detailDependentEndDate' + i">扶養終了日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'detailDependentEndDate' + i" formControlName="dependentEndDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('dependentEndDate')?.errors?.['required'] && dependent.get('dependentEndDate')?.touched">
+                                        扶養対象外の場合、扶養終了日は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide" *ngIf="dependent.errors?.['dependentPeriod']">
+                            <div class="error">
+                                <p>{{ dependent.errors?.['dependentPeriod'] }}</p>
                             </div>
                         </div>
                         <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">

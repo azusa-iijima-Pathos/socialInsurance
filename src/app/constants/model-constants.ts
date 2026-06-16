@@ -3,7 +3,7 @@ import { Timestamp } from "@angular/fire/firestore";
 /**
 * 勤務状況
 */
-export const WORK_STATUSES = ['通常勤務', '休職中', '退社済み', '退社予定'] as const;
+export const WORK_STATUSES = ['通常勤務', '休職中', '退社済み', '退社予定' , '入社予定'] as const;
 export type WorkStatus = typeof WORK_STATUSES[number];
 
 /**
@@ -45,7 +45,7 @@ export type EmployeeEventType = typeof EMPLOYEE_EVENT_TYPES[number];
 /**
 * ライフイベントタイプ
 */
-export const LIFE_EVENT_TYPES = ['結婚', '離婚', '出産', '育児', 'その他'] as const;
+export const LIFE_EVENT_TYPES = ['入社', '退社', '結婚', '離婚', '出産', '育児', 'その他'] as const;
 export type LifeEventType = typeof LIFE_EVENT_TYPES[number];
 
 

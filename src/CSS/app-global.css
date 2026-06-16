@@ -126,6 +126,7 @@
 .company-edit-modal,
 .office-edit-modal,
 .add-insurance-csv-preview-modal,
+.add-dependents-csv-preview-modal,
 .employee-csv-preview-modal,
 .monthly-salary-csv-preview-modal,
 .bonus-csv-modal,
@@ -146,6 +147,7 @@
 .company-edit-modal__panel,
 .office-edit-modal__panel,
 .add-insurance-csv-preview-modal__panel,
+.add-dependents-csv-preview-modal__panel,
 .employee-csv-preview-modal__panel,
 .monthly-salary-csv-preview-modal__panel,
 .bonus-csv-modal__panel {
@@ -163,6 +165,7 @@
 .employee-edit-modal__panel--wide,
 .employee-csv-preview-modal__panel,
 .add-insurance-csv-preview-modal__panel,
+.add-dependents-csv-preview-modal__panel,
 .monthly-salary-csv-preview-modal__panel,
 .bonus-csv-modal__panel {
   width: min(1200px, 100%);
@@ -173,6 +176,7 @@
 .company-edit-modal__header,
 .office-edit-modal__header,
 .add-insurance-csv-preview-modal__header,
+.add-dependents-csv-preview-modal__header,
 .employee-csv-preview-modal__header,
 .monthly-salary-csv-preview-modal__header,
 .bonus-csv-modal__header {
@@ -192,6 +196,7 @@
 .company-edit-modal__header h3,
 .office-edit-modal__header h3,
 .add-insurance-csv-preview-modal__header h3,
+.add-dependents-csv-preview-modal__header h3,
 .employee-csv-preview-modal__header h3,
 .monthly-salary-csv-preview-modal__header h3,
 .bonus-csv-modal__header h2 {
@@ -213,6 +218,7 @@
 }
 
 .add-insurance-csv-preview-modal__panel,
+.add-dependents-csv-preview-modal__panel,
 .bonus-csv-modal__panel,
 .employee-csv-preview-modal__panel,
 .monthly-salary-csv-preview-modal__panel {
@@ -289,6 +295,7 @@
 }
 
 .add-insurance-csv-preview-actions,
+.add-dependents-csv-preview-actions,
 .employee-csv-preview-actions,
 .monthly-salary-csv-preview-actions {
   display: flex;
@@ -306,6 +313,7 @@
   .company-edit-modal,
   .office-edit-modal,
   .add-insurance-csv-preview-modal,
+  .add-dependents-csv-preview-modal,
   .employee-csv-preview-modal,
   .monthly-salary-csv-preview-modal,
   .bonus-csv-modal {

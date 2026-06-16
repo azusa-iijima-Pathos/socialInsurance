@@ -46,7 +46,37 @@ export function buildCurrentWorkMonthEventId(eventType: EmployeeEventType, worki
   return `${eventType}_${formatYearMonth(year, month)}`;
 }
 
+/** 入社時の資格取得システム計算ID（例: 資格取得_2026_04_emp001） */
+export function buildHireQualificationAcquisitionRunId(
+  hireDate: Date,
+  employeeId: string,
+  targetPeriodStart: number,
+): string {
+  const workMonth = getWorkMonthForDate(hireDate, targetPeriodStart);
+  return `資格取得_${formatYearMonth(workMonth.year, workMonth.month)}_${employeeId}`;
+}
+
+/** 退社時の資格喪失システム計算ID（例: 資格喪失_2026_04_emp001） */
+export function buildRetireQualificationLossRunId(
+  resignationDate: Date,
+  employeeId: string,
+  targetPeriodStart: number,
+): string {
+  const workMonth = getWorkMonthForDate(resignationDate, targetPeriodStart);
+  return `資格喪失_${formatYearMonth(workMonth.year, workMonth.month)}_${employeeId}`;
+}
+
 /** 退社（システム申請）: 退職日を含む作業月の翌月 */
+export function buildQualificationAcquisitionRunId(acquiredDate: Date, targetPeriodStart: number): string {
+  const workMonth = getWorkMonthForDate(acquiredDate, targetPeriodStart);
+  return `資格取得_${formatYearMonth(workMonth.year, workMonth.month)}`;
+}
+
+export function buildDependentChangeEventBaseId(acquiredDate: Date, targetPeriodStart: number): string {
+  const workMonth = getWorkMonthForDate(acquiredDate, targetPeriodStart);
+  return `扶養変更_${formatYearMonth(workMonth.year, workMonth.month)}`;
+}
+
 export function buildRetireSystemEventId(resignationDate: Date, targetPeriodStart: number): string {
   const workMonth = getWorkMonthForDate(resignationDate, targetPeriodStart);
   const nextMonth = addMonths(workMonth.year, workMonth.month, 1);
@@ -84,7 +114,7 @@ export function buildEventId(
   switch (eventType) {
     case '入社': {
       const workMonth = getWorkMonthForDate(options.occurredDate!, targetPeriodStart);
-      return `入社_${formatYearMonth(workMonth.year, workMonth.month)}`;
+      return `${eventType}_${formatYearMonth(workMonth.year, workMonth.month)}`;
     }
     case '退社':
       return buildRetireSystemEventId(options.occurredDate!, targetPeriodStart);
@@ -114,6 +144,11 @@ export function parseEventYearMonth(
   const yearMonthSeqMatch = eventId.match(/_(\d{4})_(\d{2})_\d+$/);
   if (yearMonthSeqMatch) {
     return { year: Number(yearMonthSeqMatch[1]), month: Number(yearMonthSeqMatch[2]) };
+  }
+
+  const yearMonthEmployeeIdMatch = eventId.match(/_(\d{4})_(\d{2})_[A-Za-z0-9]+$/);
+  if (yearMonthEmployeeIdMatch) {
+    return { year: Number(yearMonthEmployeeIdMatch[1]), month: Number(yearMonthEmployeeIdMatch[2]) };
   }
 
   const yearMonthMatch = eventId.match(/_(\d{4})_(\d{2})$/);

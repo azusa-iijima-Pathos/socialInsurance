@@ -6,9 +6,15 @@ import { Dependent } from '../../../model/dependent';
 import { RELATIONSHIPS, Relationship, LifeEventType, LeaveType, COHABITATION_TYPES, CohabitationType } from '../../../constants/model-constants';
 import { DependentDisabilityStudentFields } from '../../common/dependent-disability-student-fields/dependent-disability-student-fields';
 import {
+  canRegisterDependentByHealthInsurance,
   getDependentDisabilityStudentFormDefaults,
+  getDependentEndDateFormDefault,
+  getDependentStartDateFormDefault,
   mapDependentDisabilityStudentFromForm,
+  mapDependentPeriodFromForm,
   setupDependentDisabilityStudentValidators,
+  setupDependentPeriodValidators,
+  validateAllDependentPeriods,
 } from '../../../service/common/dependent-field.util';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { Employee } from '../../../model/employee';
@@ -33,6 +39,8 @@ type DependentFormPayload = {
   relationship: Relationship | '';
   birthDate: string;
   isDependent: boolean;
+  dependentStartDate: string;
+  dependentEndDate: string;
   cohabitationType?: CohabitationType;
   annualIncome?: number;
   occupation?: string;
@@ -130,8 +138,17 @@ export class LifeeventApplication {
           this.birthDependents.push(
             this.createDependentForm()
           );
+          this.patchBirthDependentStartDates();
         }
       });
+
+    this.marriageForm.get('occurredDate')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.patchMarriageDependentStartDates());
+
+    this.birthForm.get('childBirthDate')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.patchBirthDependentStartDates());
   }
 
   setActiveTab(tab: LifeEventTab) {
@@ -144,7 +161,7 @@ export class LifeeventApplication {
   }
 
   private validateDependentArray(formArray: FormArray): boolean {
-    let valid = true;
+    let valid = validateAllDependentPeriods(formArray, this.validationService, () => this.employee);
     for (const control of formArray.controls) {
       if (control.invalid) {
         control.markAllAsTouched();
@@ -394,14 +411,21 @@ export class LifeeventApplication {
   addDependent(type: 1 | 2 | 3) {
     if (!this.canRegisterDependent()) {
       this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
-      this.resetDependentChangeForm();
       return;
     }
     const form = this.createDependentForm();
     switch (type) {
-      case 1: this.marriageDependents.push(form); break;
-      case 2: this.birthDependents.push(form); break;
-      case 3: this.dependentChangeDependents.push(form); break;
+      case 1:
+        this.marriageDependents.push(form);
+        this.patchMarriageDependentStartDates();
+        break;
+      case 2:
+        this.birthDependents.push(form);
+        this.patchBirthDependentStartDates();
+        break;
+      case 3:
+        this.dependentChangeDependents.push(form);
+        break;
     }
   }
 
@@ -466,20 +490,54 @@ export class LifeeventApplication {
       isDependentStatus: [
         (existing ? (existing.isDependent !== false ? 'dependent' : 'notDependent') : 'dependent') as DependentCoverageStatus,
       ],
+      dependentStartDate: [
+        getDependentStartDateFormDefault(existing),
+        existing
+          ? [Validators.required]
+          : [this.validationService.requiredIfAnyDependentFieldEntered],
+      ],
+      dependentEndDate: [getDependentEndDateFormDefault(existing)],
       cohabitationType: [existing?.cohabitationType ?? ('' as CohabitationType | '')],
       annualIncome: [existing?.annualIncome ?? ''],
       occupation: [existing?.occupation ?? ''],
       ...disabilityStudentDefaults,
     });
 
-    (['name', 'birthDate', 'relationship'] as const).forEach(fieldName => {
+    (['name', 'birthDate', 'relationship', 'dependentStartDate'] as const).forEach(fieldName => {
       group.get(fieldName)?.valueChanges
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(() => this.validationService.refreshDependentRowValidation(group));
     });
     setupDependentDisabilityStudentValidators(group, this.destroyRef);
+    setupDependentPeriodValidators(group, this.destroyRef, this.validationService, () => this.employee, {
+      enableEndDateField: !!existing,
+    });
 
     return group;
+  }
+
+  private patchMarriageDependentStartDates() {
+    const occurredDate = this.marriageForm.get('occurredDate')?.value;
+    if (!occurredDate) return;
+    for (const control of this.marriageDependents.controls) {
+      if (control.get('isExisting')?.value) continue;
+      const startControl = control.get('dependentStartDate');
+      if (!startControl?.value) {
+        startControl?.setValue(occurredDate, { emitEvent: false });
+      }
+    }
+  }
+
+  private patchBirthDependentStartDates() {
+    const childBirthDate = this.birthForm.get('childBirthDate')?.value;
+    if (!childBirthDate) return;
+    for (const control of this.birthDependents.controls) {
+      if (control.get('isExisting')?.value) continue;
+      const startControl = control.get('dependentStartDate');
+      if (!startControl?.value) {
+        startControl?.setValue(childBirthDate, { emitEvent: false });
+      }
+    }
   }
 
   private collectChangedDependents(formArray: FormArray): { before: Dependent | null; after: DependentFormPayload }[] {
@@ -509,7 +567,7 @@ export class LifeeventApplication {
   }
 
   canRegisterDependent(): boolean {
-    return this.employee?.insurance?.healthInsurance?.joined === true;
+    return canRegisterDependentByHealthInsurance(this.employee);
   }
 
   /** 扶養情報変更申請 */
@@ -528,7 +586,11 @@ export class LifeeventApplication {
         name: item.after.name,
         relationship: item.after.relationship as Relationship,
         birthDate: timestampFromDateInput(item.after.birthDate),
-        isDependent: item.after.isDependent ?? true,
+        ...mapDependentPeriodFromForm({
+          isDependentStatus: item.after.isDependent ? 'dependent' : 'notDependent',
+          dependentStartDate: item.after.dependentStartDate,
+          dependentEndDate: item.after.dependentEndDate,
+        }),
         ...(item.after.cohabitationType ? { cohabitationType: item.after.cohabitationType } : {}),
         ...(item.after.annualIncome != null ? { annualIncome: item.after.annualIncome } : {}),
         ...(item.after.occupation ? { occupation: item.after.occupation } : {}),
@@ -572,6 +634,8 @@ export class LifeeventApplication {
       relationship: before.relationship ?? '',
       birthDate: before.birthDate ? this.formatDateInput(before.birthDate.toDate()) : '',
       isDependent: before.isDependent !== false,
+      dependentStartDate: getDependentStartDateFormDefault(before),
+      dependentEndDate: getDependentEndDateFormDefault(before),
       cohabitationType: before.cohabitationType ?? '',
       annualIncome: before.annualIncome ?? '',
       occupation: before.occupation ?? '',
@@ -585,6 +649,8 @@ export class LifeeventApplication {
       relationship: after.relationship,
       birthDate: after.birthDate,
       isDependent: after.isDependent,
+      dependentStartDate: after.dependentStartDate,
+      dependentEndDate: after.dependentEndDate,
       cohabitationType: after.cohabitationType ?? '',
       annualIncome: after.annualIncome ?? '',
       occupation: after.occupation ?? '',
@@ -609,6 +675,8 @@ export class LifeeventApplication {
       relationship: raw['relationship'] as Relationship | '',
       birthDate: String(raw['birthDate'] ?? ''),
       isDependent: raw['isDependentStatus'] === 'dependent',
+      dependentStartDate: String(raw['dependentStartDate'] ?? ''),
+      dependentEndDate: String(raw['dependentEndDate'] ?? ''),
       ...(cohabitationType ? { cohabitationType } : {}),
       ...(Number.isFinite(annualIncome) ? { annualIncome: annualIncome as number } : {}),
       ...(occupation ? { occupation } : {}),

@@ -1,0 +1,218 @@
+<h1>扶養情報を追加</h1>
+
+<div class="information-area">
+    <p>既存社員の扶養情報を追加します。</p>
+    <p>扶養情報は後から従業員が登録することも可能です。（その場合、承認が必要になります。）</p>
+</div>
+
+<p class="im-action-message" *ngIf="message">{{message}}</p>
+
+<form [formGroup]="form" (ngSubmit)="onSubmit()">
+    <div class="im-field-block im-field-row">
+        <div class="im-field-row__label">
+            <label for="employeeId">社員ID（半角）</label>
+        </div>
+        <div class="im-field-row__control">
+            <input type="text" id="employeeId" formControlName="employeeId">
+            <div class="error">
+                <p *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">社員IDは必須です</p>
+                <p *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">半角で入力してください
+                </p>
+                <p *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">
+                    社員IDが存在しません</p>
+            </div>
+        </div>
+        <div class="im-field-row__control_name" style="font-weight: bold; color: #495057;">
+            名前：<span>{{commonService.getEmployeeName(form.get('employeeId')?.value ?? '')}}</span>
+        </div>
+    </div>
+
+    <h3>扶養情報入力</h3>
+
+    <div formArrayName="dependents">
+        <div *ngFor="let dependent of dependentsFormArray.controls; let i = index" [formGroupName]="i"
+            class="dependent-card">
+
+            <div class="dependent-card__header">
+                <div class="dependent-card__title">扶養親族 {{i + 1}}</div>
+                <button type="button" class="im-btn-danger" (click)="removeDependent(i)"
+                    *ngIf="dependentsFormArray.length > 1">この行を削除</button>
+            </div>
+
+            <div class="dependent-card__grid">
+                <div class="im-field-row__control">
+                    <label>扶養者名前</label>
+                    <input type="text" formControlName="name">
+                    <div class="error">
+                        <p *ngIf="dependent.get('name')?.errors?.['required'] && dependent.get('name')?.touched">
+                            扶養者名前は必須です</p>
+                    </div>
+                </div>
+
+                <div class="im-field-row__control">
+                    <label>生年月日</label>
+                    <input type="date" formControlName="birthDate">
+                    <div class="error">
+                        <p
+                            *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">
+                            生年月日は必須です</p>
+                        <p
+                            *ngIf="dependent.get('birthDate')?.errors?.['invalidBirthDate'] && dependent.get('birthDate')?.touched">
+                            日付が正しくありません</p>
+                    </div>
+                </div>
+
+                <div class="im-field-row__control">
+                    <label>続柄</label>
+                    <select formControlName="relationship">
+                        <option value="">選択してください</option>
+                        <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}
+                        </option>
+                    </select>
+                    <div class="error">
+                        <p
+                            *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">
+                            続柄は必須です</p>
+                    </div>
+                </div>
+
+                <div class="im-field-row__control">
+                    <label>扶養状況</label>
+                    <div class="radio-group">
+                        <label><input type="radio" formControlName="isDependentStatus" value="dependent"> 扶養対象</label>
+                        <label><input type="radio" formControlName="isDependentStatus" value="notDependent"> 扶養対象外</label>
+                    </div>
+                </div>
+
+                <div class="im-field-row__control">
+                    <label>扶養開始日</label>
+                    <input type="date" formControlName="dependentStartDate">
+                    <div class="error">
+                        <p *ngIf="dependent.get('dependentStartDate')?.errors?.['required'] && dependent.get('dependentStartDate')?.touched">
+                            扶養開始日は必須です</p>
+                    </div>
+                </div>
+
+                <div class="im-field-row__control">
+                    <label>扶養終了日</label>
+                    <input type="date" formControlName="dependentEndDate">
+                    <div class="error">
+                        <p *ngIf="dependent.get('dependentEndDate')?.errors?.['required'] && dependent.get('dependentEndDate')?.touched">
+                            扶養対象外の場合、扶養終了日は必須です</p>
+                    </div>
+                </div>
+
+                <div class="im-field-row__control dependent-card__full-width" *ngIf="dependent.errors?.['dependentPeriod']">
+                    <div class="error">
+                        <p>{{ dependent.errors?.['dependentPeriod'] }}</p>
+                    </div>
+                </div>
+
+                <div class="im-field-row__control">
+                    <label>同居・別居区分</label>
+                    <div class="radio-group">
+                        <label><input type="radio" formControlName="cohabitationType" value="同居"> 同居</label>
+                        <label><input type="radio" formControlName="cohabitationType" value="別居"> 別居</label>
+                    </div>
+                </div>
+
+                <div class="im-field-row__control">
+                    <label>収入額（年収見込み）</label>
+                    <input type="number" min="0" formControlName="annualIncome">
+                    <div class="error">
+                        <p
+                            *ngIf="dependent.get('annualIncome')?.errors?.['required'] && dependent.get('annualIncome')?.touched">
+                            収入額は必須です</p>
+                    </div>
+                </div>
+
+                <div class="im-field-row__control">
+                    <label>職業</label>
+                    <input type="text" formControlName="occupation">
+                    <div class="error">
+                        <p
+                            *ngIf="dependent.get('occupation')?.errors?.['required'] && dependent.get('occupation')?.touched">
+                            職業は必須です</p>
+                    </div>
+                </div>
+
+                <div class="im-field-row__control">
+                    <label>障害有無</label>
+                    <div class="radio-group">
+                        <label><input type="radio" formControlName="hasDisability" value="true"> あり</label>
+                        <label><input type="radio" formControlName="hasDisability" value="false"> なし</label>
+                    </div>
+                </div>
+                <div class="im-field-row__control" *ngIf="dependent.get('hasDisability')?.value === 'true'">
+                    <label>障害タイプ</label>
+                    <select formControlName="disabilityType">
+                        <option value="">選択してください</option>
+                        <option *ngFor="let disabilityType of DISABILITY_TYPES" [value]="disabilityType">{{
+                            disabilityType }}</option>
+                    </select>
+                    <div class="error">
+                        <p
+                            *ngIf="dependent.get('disabilityType')?.errors?.['required'] && dependent.get('disabilityType')?.touched">
+                            障害タイプは必須です</p>
+                    </div>
+                </div>
+                <div class="im-field-row__control">
+                    <label>学生有無</label>
+                    <div class="radio-group">
+                        <label><input type="radio" formControlName="isStudent" value="true"> あり</label>
+                        <label><input type="radio" formControlName="isStudent" value="false"> なし</label>
+                    </div>
+                </div>
+                <div class="im-field-row__control" *ngIf="dependent.get('isStudent')?.value === 'true'">
+                    <label>学生タイプ</label>
+                    <select formControlName="studentType">
+                        <option value="">選択してください</option>
+                        <option *ngFor="let studentType of STUDENT_TYPES" [value]="studentType">{{ studentType }}
+                        </option>
+                    </select>
+                    <div class="error">
+                        <p
+                            *ngIf="dependent.get('studentType')?.errors?.['required'] && dependent.get('studentType')?.touched">
+                            学生タイプは必須です</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="im-field-row__actions">
+            <button type="button" class="im-btn-soft" (click)="addDependent()">＋ 扶養親族を追加</button>
+            <button type="submit" class="im-btn-primary">この内容で登録する</button>
+        </div>
+    </div>
+</form>
+
+<app-add-dependents-csv (registered)="onCsvRegistered()"></app-add-dependents-csv>
+
+<section class="employee-overview-section">
+    <h3>全従業員 扶養情報一覧</h3>
+    <p *ngIf="overviewLoading">読み込み中...</p>
+    <div class="employee-overview-table-wrap" *ngIf="!overviewLoading">
+        <table class="employee-overview-table">
+            <thead>
+                <tr>
+                    <th>社員ID</th>
+                    <th>名前</th>
+                    <th>健康保険加入状況</th>
+                    <th>扶養情報</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let row of employeeOverviewRows">
+                    <td>{{ row.employeeId }}</td>
+                    <td>{{ row.employeeName }}</td>
+                    <td>{{ row.healthInsuranceStatus }}</td>
+                    <td>{{ row.dependentsSummary }}</td>
+                </tr>
+                <tr *ngIf="employeeOverviewRows.length === 0">
+                    <td colspan="4">登録済みの従業員がいません</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+

@@ -110,13 +110,13 @@ export class RetireEntry {
       return;
     }
 
-    const createdEventIds = await this.employeeDetailEventService.createRetireEvents(
+    const retireResult = await this.employeeDetailEventService.createRetireEvents(
       this.form.value.employeeId!,
       previousEmployee,
       updatedEmployee,
       this.loginEmployeeId,
     );
-    if (createdEventIds.length === 0) {
+    if (retireResult.createdIds.length === 0) {
       this.commonService.showTimedMessage(
         '退職イベントの作成に失敗しました',
         value => this.message = value,
@@ -125,9 +125,12 @@ export class RetireEntry {
       return;
     }
 
-    const message = this.form.value.workStatus === '退社予定'
+    let message = this.form.value.workStatus === '退社予定'
       ? '退職予定の登録に成功しました'
       : '退職登録に成功しました';
+    if (retireResult.needsRetroactiveNotice) {
+      message += ' 退職日が現在の作業対象期間よりも前になります。遡及修正より、保険情報と扶養情報の変更をお願いします。';
+    }
     this.commonService.showTimedMessage(message, value => this.message = value, this.messageTimer);
     this.form.reset({ workStatus: '退社予定' });
     await this.employeeService.getAllEmployees(true);

@@ -6,7 +6,7 @@ import { EmployeeService } from './employee-service';
 import { EmployeeLogicService } from '../logic/employee-logic-service';
 import { EmployeeEventType } from '../../constants/model-constants';
 import { Event } from '../../model/event';
-import { addMonths, getWorkingYearMonth, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth, buildAdHocRevisionRunId, parseEventYearMonth, YearMonth } from '../logic/event-id-service';
+import { addMonths, buildHireQualificationAcquisitionRunId, buildRetireQualificationLossRunId, getWorkingYearMonth, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth, buildAdHocRevisionRunId, parseEventYearMonth, YearMonth } from '../logic/event-id-service';
 import { MonthlyInsuranceDiff, MonthlyInsuranceComparisonRow } from '../logic/correction-logic.service';
 
 export type SystemCalculationRunItem = CalculationRun & {
@@ -221,6 +221,128 @@ export class CalculationRunService {
     return created ? runId : null;
   }
 
+  /** 入社時の資格取得システム計算（申請中） */
+  async createPendingHireQualificationRun(
+    employeeId: string,
+    hireDate: Timestamp,
+    targetPeriodStart: number,
+    insurance: Record<string, unknown>,
+    dependentEventIds: string[],
+  ): Promise<string | null> {
+    const runId = buildHireQualificationAcquisitionRunId(hireDate.toDate(), employeeId, targetPeriodStart);
+    const run: Partial<CalculationRun> = {
+      runId,
+      targetEmployeeIds: employeeId,
+      detectedDate: Timestamp.now(),
+      type: '資格取得',
+      approval: { approvalStatus: '申請中' },
+      payload: {
+        employeeId,
+        insurance,
+        occurredDate: hireDate,
+        source: '入社',
+        dependentEventIds,
+      },
+    };
+
+    const created = await this.crudService.create<CalculationRun>(`${this.path}/${runId}`, run);
+    return created ? runId : null;
+  }
+
+  /** 申請中の入社資格取得（作業月以前） */
+  async getPendingHireQualificationRunsUpToWorkingMonth(): Promise<SystemCalculationRunItem[]> {
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return [];
+
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run =>
+        run.type === '資格取得'
+        && run.approval?.approvalStatus === '申請中'
+        && run.payload?.['source'] === '入社',
+      )
+      .filter(run => run.runId && isEventAtOrBeforeWorkingMonth(run.runId, year, month))
+      .map(run => this.toHireQualificationItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  /** 退社時の資格喪失システム計算（申請中） */
+  async createPendingRetireQualificationLossRun(
+    employeeId: string,
+    resignationDate: Timestamp,
+    targetPeriodStart: number,
+    before: Record<string, unknown>,
+    dependentEventIds: string[],
+  ): Promise<string | null> {
+    const runId = buildRetireQualificationLossRunId(resignationDate.toDate(), employeeId, targetPeriodStart);
+    const run: Partial<CalculationRun> = {
+      runId,
+      targetEmployeeIds: employeeId,
+      detectedDate: Timestamp.now(),
+      type: '資格喪失',
+      approval: { approvalStatus: '申請中' },
+      payload: {
+        employeeId,
+        before,
+        occurredDate: resignationDate,
+        source: '退社',
+        dependentEventIds,
+      },
+    };
+
+    const created = await this.crudService.create<CalculationRun>(`${this.path}/${runId}`, run);
+    return created ? runId : null;
+  }
+
+  /** 申請中の退社資格喪失（作業月以前） */
+  async getPendingRetireQualificationLossRunsUpToWorkingMonth(): Promise<SystemCalculationRunItem[]> {
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return [];
+
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run =>
+        run.type === '資格喪失'
+        && run.approval?.approvalStatus === '申請中'
+        && run.payload?.['source'] === '退社',
+      )
+      .filter(run => run.runId && isEventAtOrBeforeWorkingMonth(run.runId, year, month))
+      .map(run => this.toRetireQualificationItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  /** 入社時の資格取得システム計算（承認済み） */
+  async createApprovedQualificationAcquisitionRun(
+    employeeId: string,
+    baseRunId: string,
+    insurance: Record<string, unknown>,
+    occurredDate: Timestamp,
+    loginEmployeeId: string,
+  ): Promise<string | null> {
+    const runId = await this.allocateSequentialRunId(baseRunId);
+    const run: Partial<CalculationRun> = {
+      runId,
+      targetEmployeeIds: employeeId,
+      detectedDate: Timestamp.now(),
+      type: '資格取得',
+      approval: {
+        approvalStatus: '承認済み',
+        approvedDate: Timestamp.now(),
+        approvedBy: loginEmployeeId,
+      },
+      payload: {
+        employeeId,
+        insurance,
+        occurredDate,
+      },
+    };
+
+    const created = await this.crudService.create<CalculationRun>(`${this.path}/${runId}`, run);
+    return created ? runId : null;
+  }
+
   /** システムイベント相当の計算結果を作成（旧システムイベント） */
   async createSystemEventRun(
     employeeId: string,
@@ -407,7 +529,12 @@ export class CalculationRunService {
     const runs = await this.getAllCalculationRuns();
     return runs
       .filter(run =>
-        (run.type === 'イベント' || run.type === '随時改定')
+        (
+          run.type === 'イベント'
+          || run.type === '随時改定'
+          || (run.type === '資格取得' && run.payload?.['source'] === '入社')
+          || (run.type === '資格喪失' && run.payload?.['source'] === '退社')
+        )
         && run.approval?.approvalStatus === '申請中'
         && run.targetEmployeeIds === employeeId,
       )
@@ -565,10 +692,36 @@ export class CalculationRunService {
     };
   }
 
+  private toRetireQualificationItem(run: CalculationRun): SystemCalculationRunItem | null {
+    const employeeId = String(run.targetEmployeeIds ?? run.payload?.['employeeId'] ?? '');
+    if (!employeeId || !run.runId || run.type !== '資格喪失') return null;
+
+    return {
+      ...run,
+      employeeId,
+      eventType: '退社',
+      eventId: run.runId,
+    };
+  }
+
+  private toHireQualificationItem(run: CalculationRun): SystemCalculationRunItem | null {
+    const employeeId = String(run.targetEmployeeIds ?? run.payload?.['employeeId'] ?? '');
+    if (!employeeId || !run.runId || run.type !== '資格取得') return null;
+
+    return {
+      ...run,
+      employeeId,
+      eventType: '入社',
+      eventId: run.runId,
+    };
+  }
+
   private toSystemItem(run: CalculationRun): SystemCalculationRunItem | null {
     const employeeId = String(run.targetEmployeeIds ?? run.payload?.['employeeId'] ?? '');
     const eventType = (run.payload?.['eventType'] as EmployeeEventType | undefined)
-      ?? (run.type === '随時改定' ? '固定給変更' : undefined);
+      ?? (run.type === '随時改定' ? '固定給変更' : undefined)
+      ?? (run.type === '資格取得' && run.payload?.['source'] === '入社' ? '入社' : undefined)
+      ?? (run.type === '資格喪失' && run.payload?.['source'] === '退社' ? '退社' : undefined);
     if (!employeeId || !eventType || !run.runId) return null;
 
     return {

@@ -21,10 +21,24 @@ export class InsuranceSnapshotService {
 
   /** 保険料支払い情報を保存 */
   async saveInsuranceSnapshot(employeeId: string, snapshot: Partial<InsuranceSnapshot>): Promise<boolean> {
+    const companyId = sessionStorage.getItem('companyId') ?? undefined;
     return await this.crudService.create(
       `${this.path}/${employeeId}/insuranceSnapshots/${snapshot.snapshotId}`,
-      snapshot
+      { ...snapshot, companyId },
     );
+  }
+
+  /** 当該会社に確定済み保険料スナップショットが1件でもあるか（companyId 付きデータのみ） */
+  async hasAnyInsuranceSnapshotForCompany(): Promise<boolean> {
+    const companyId = sessionStorage.getItem('companyId');
+    if (!companyId) return false;
+
+    const snapshots = await this.crudService.getByCollectionGroupFields<InsuranceSnapshot>(
+      'insuranceSnapshots',
+      [{ field: 'companyId', value: companyId }],
+      'snapshotId',
+    );
+    return snapshots.length > 0;
   }
 
   /** 対象の給与・賞与IDで保険料が確定済みか確認 */
@@ -44,6 +58,7 @@ export class InsuranceSnapshotService {
     );
   }
 
+  //保険料支払い情報を取得
   async getSnapshot(employeeId: string, payrollId: string): Promise<InsuranceSnapshot | null> {
     return await this.crudService.getById<InsuranceSnapshot>(
       `${this.path}/${employeeId}/insuranceSnapshots/${payrollId}`,

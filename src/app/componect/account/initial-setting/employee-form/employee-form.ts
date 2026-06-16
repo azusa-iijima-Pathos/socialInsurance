@@ -12,9 +12,10 @@ import { OfficeService } from '../../../../service/Firestore/office-service';
 import { CommonService, MessageTimer } from '../../../../service/common/common-service';
 import { AddEmployeeByCSVService, CsvEmployeePreviewRow } from '../../../../service/CSV/addEmployeeByCSV-service';
 import { ValidationService } from '../../../../service/common/validation-service';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { EmployeeList } from '../../../employee/employee-list/employee-list';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Input } from '@angular/core';
 
 /**
  * 社員情報初期登録画面（個別登録、CSV一括登録）
@@ -37,6 +38,7 @@ export class EmployeeForm {
   commonService = inject(CommonService);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
+  private route = inject(ActivatedRoute);
 
   WORK_STATUSES = WORK_STATUSES;
   LEAVE_TYPES = LEAVE_TYPES;
@@ -48,7 +50,7 @@ export class EmployeeForm {
 
   officeNameMap = computed(() => this.officeService.allOfficeNameMap());
 
-
+  mode = this.route.snapshot.queryParamMap.get('mode');
 
   form = this.fb.nonNullable.group({
     employeeId: ['', [Validators.required, Validators.pattern('^[a-zA-Z0-9]+$')], [this.validationService.validateEmployeeId]],
@@ -81,6 +83,9 @@ export class EmployeeForm {
   private individualMessageTimer: MessageTimer = null;
   private csvMessageTimer: MessageTimer = null;
 
+  workingMonth = Number(sessionStorage.getItem('workingMonth'));
+  workingYear = Number(sessionStorage.getItem('workingYear'));
+
   async ngOnInit() {
     const message = history.state.message;
     if (message) {
@@ -95,8 +100,8 @@ export class EmployeeForm {
     this.setupTransportationExpensesValidation();
     this.setupLeaveTypesValidation();
     this.setupWorkStyleAutoSelection();
-    
-    //編集権限確認（パラムとセッションの一致確認、トップ権限か確認）
+
+    this.commonService.getCurrentTargetPeriod();
 
   }
 

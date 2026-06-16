@@ -1,7 +1,9 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { Timestamp } from '@angular/fire/firestore';
 import { OfficeService } from '../Firestore/office-service';
 import { EmployeeService } from '../Firestore/employee-service';
+import { CompanyService } from '../Firestore/company-service';
+import { Company } from '../../model/company';
 
 export type MessageTimer = ReturnType<typeof setTimeout> | null;
 
@@ -49,7 +51,7 @@ export class CommonService {
 
   //IDから事業所名を取得
   getOfficeName(officeId: string): string | null {
-    if(!officeId || officeId === '') {
+    if (!officeId || officeId === '') {
       return '未定';
     }
     const officeNameMap = this.officeService.allOfficeNameMap();
@@ -58,7 +60,7 @@ export class CommonService {
 
   //IDから社員名を取得
   getEmployeeName(employeeId: string): string | null {
-    if(!employeeId || employeeId === '') {
+    if (!employeeId || employeeId === '') {
       return '未定';
     }
     const employeeNameMap = this.employeeService.allEmployeeNameMap();
@@ -91,6 +93,41 @@ export class CommonService {
       clearTimeout(currentTimer);
     }
     return null;
+  }
+
+
+
+  companyService = inject(CompanyService);
+  targetPeriod = signal<string>('');
+  targetPeriodStartDay = signal<string>('');
+  isTargetPeriodLoaded = false;
+  //今の対象期間を取得（〇月〇日～〇月〇日）
+  async getCurrentTargetPeriod() {
+    if (this.isTargetPeriodLoaded) {
+      return;
+    }
+    //会社情報を取得
+    await this.companyService.getCompany();
+    const company = this.companyService.company();
+    if (!company) {
+      throw new Error('会社情報が取得できません');
+    }
+    if (!company.settings) {
+      throw new Error('会社情報が取得できません');
+    }
+    const targetPeriod = company.settings.targetPeriod;
+    const targetPeriodStart = targetPeriod[0];
+    let targetPeriodEnd: number | string = targetPeriod[1];
+    if (targetPeriodEnd === 31) {
+      targetPeriodEnd = '末日';
+    }else{
+      targetPeriodEnd = `${String(targetPeriodEnd).padStart(2, '0')}日`;
+    }
+    const workingMonth = company.settings.workingMonth;
+    const workingYear = company.settings.workingYear;
+    this.targetPeriod.set(`${workingYear}年${String(workingMonth).padStart(2, '0')}月${String(targetPeriodStart).padStart(2, '0')}日～${targetPeriodEnd}`);
+    this.targetPeriodStartDay.set(`${workingYear}年${String(workingMonth).padStart(2, '0')}月${String(targetPeriodStart).padStart(2, '0')}日`);
+    this.isTargetPeriodLoaded = true;
   }
 
 }

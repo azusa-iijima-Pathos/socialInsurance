@@ -6,14 +6,26 @@ import { EmployeeEventType } from '../../constants/model-constants';
 import { EventService } from '../Firestore/event-service';
 import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { CompanyService } from '../Firestore/company-service';
+import { DependentService } from '../Firestore/dependent-service';
 import {
   addMonths,
   buildCurrentWorkMonthEventId,
-  buildRetireSystemEventId,
+  buildDependentChangeEventBaseId,
+  getWorkMonthForDate,
   getWorkingYearMonth,
   isEventAtOrBeforeWorkingMonth,
 } from './event-id-service';
 import { Event } from '../../model/event';
+
+export type ContractChangeEventsResult = {
+  createdIds: string[];
+  needsRetroactiveNotice: boolean;
+};
+
+export type RetireEventsResult = {
+  createdIds: string[];
+  needsRetroactiveNotice: boolean;
+};
 
 @Injectable({
   providedIn: 'root',
@@ -23,13 +35,14 @@ export class EmployeeDetailEventService {
   private eventService = inject(EventService);
   private calculationRunService = inject(CalculationRunService);
   private companyService = inject(CompanyService);
+  private dependentService = inject(DependentService);
 
   async createEventsFromContractChange(
     employeeId: string,
     before: Employee,
     after: Employee,
     loginEmployeeId: string,
-  ): Promise<string[]> {
+  ): Promise<ContractChangeEventsResult> {
     const createdIds: string[] = [];
     const beforeContract = before.employmentContract;
     const afterContract = after.employmentContract;
@@ -38,8 +51,11 @@ export class EmployeeDetailEventService {
     const wasRetireStatus = before.workStatus === '退社済み' || before.workStatus === '退社予定';
 
     if (isRetireStatus && after.resignationDate && (!wasRetireStatus || before.resignationDate?.toMillis() !== after.resignationDate?.toMillis())) {
-      createdIds.push(...await this.createRetireEvents(employeeId, before, after, loginEmployeeId));
-      return createdIds;
+      const retireResult = await this.createRetireEvents(employeeId, before, after, loginEmployeeId);
+      return {
+        createdIds: retireResult.createdIds,
+        needsRetroactiveNotice: retireResult.needsRetroactiveNotice,
+      };
     }
 
     if (beforeContract?.fixedSalary !== afterContract?.fixedSalary) {
@@ -73,7 +89,7 @@ export class EmployeeDetailEventService {
       if (eventId) createdIds.push(eventId);
     }
 
-    return createdIds;
+    return { createdIds, needsRetroactiveNotice: false };
   }
 
   async createRetireEvents(
@@ -81,26 +97,61 @@ export class EmployeeDetailEventService {
     before: Employee,
     after: Employee,
     loginEmployeeId: string,
-  ): Promise<string[]> {
+  ): Promise<RetireEventsResult> {
     const createdIds: string[] = [];
-    if (!after.resignationDate) return createdIds;
+    if (!after.resignationDate) return { createdIds, needsRetroactiveNotice: false };
 
     const adminId = await this.createAdminApprovedEvent(employeeId, '退社', before, after, loginEmployeeId);
     if (adminId) createdIds.push(adminId);
 
     await this.companyService.getCompany();
     const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
-    const systemEventId = buildRetireSystemEventId(after.resignationDate.toDate(), targetPeriodStart);
-    const systemId = await this.calculationRunService.createSystemEventRun(
-      employeeId,
-      systemEventId,
-      '退社',
-      { before, after },
-      after.resignationDate,
-    );
-    if (systemId) createdIds.push(systemId);
+    const resignationDate = after.resignationDate;
+    const resignMonth = getWorkMonthForDate(resignationDate.toDate(), targetPeriodStart);
+    const current = getWorkingYearMonth();
+    const beforePeriod = resignMonth.year * 12 + resignMonth.month < current.year * 12 + current.month;
 
-    return createdIds;
+    if (beforePeriod) {
+      return { createdIds, needsRetroactiveNotice: true };
+    }
+
+    const dependents = await this.dependentService.getDependents(employeeId);
+    const activeDependents = dependents.filter(dependent => dependent.isDependent !== false);
+
+    const dependentEventIds: string[] = [];
+    const dependentBaseId = buildDependentChangeEventBaseId(resignationDate.toDate(), targetPeriodStart);
+    for (const dependent of activeDependents) {
+      const afterDependent: Partial<Dependent> = {
+        ...dependent,
+        isDependent: false,
+        dependentEndDate: resignationDate,
+      };
+      const dependentEventId = await this.eventService.createEventWithBaseId(employeeId, dependentBaseId, {
+        occurredDate: resignationDate,
+        eventType: '扶養情報変更',
+        lifeEventType: '退社',
+        appliedDate: Timestamp.now(),
+        applicantType: '管理者',
+        approval: {
+          approvalStatus: '申請中',
+        },
+        payload: { before: dependent, after: afterDependent },
+      });
+      if (!dependentEventId) return { createdIds, needsRetroactiveNotice: false };
+      dependentEventIds.push(dependentEventId);
+      createdIds.push(dependentEventId);
+    }
+
+    const qualificationRunId = await this.calculationRunService.createPendingRetireQualificationLossRun(
+      employeeId,
+      resignationDate,
+      targetPeriodStart,
+      before,
+      dependentEventIds,
+    );
+    if (qualificationRunId) createdIds.push(qualificationRunId);
+
+    return { createdIds, needsRetroactiveNotice: false };
   }
 
   async createEventFromDependentChange(
@@ -223,7 +274,7 @@ export class EmployeeDetailEventService {
   ): Promise<string | null> {
     let occurredDate = Timestamp.now();
     if (eventType === '退社') {
-      occurredDate = after.resignationDate as Timestamp;
+      occurredDate = (after as Employee).resignationDate as Timestamp;
     }
     return this.eventService.createEventWithBaseId(employeeId, buildCurrentWorkMonthEventId(eventType), {
       occurredDate: occurredDate,

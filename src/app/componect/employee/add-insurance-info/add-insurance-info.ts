@@ -246,4 +246,8 @@ export class AddInsuranceInfo {
     this.router.navigate(['/top-for-manage']);
   }
 
+  toAddDependents() {
+    this.router.navigate(['/add-dependents'], { queryParams: { mode: 'initial' } });
+  }
+
 }

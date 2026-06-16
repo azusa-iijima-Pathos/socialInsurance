@@ -2,7 +2,9 @@ import { inject, Injectable } from '@angular/core';
 import { AbstractControl, FormGroup, ValidationErrors } from '@angular/forms';
 import { CompanyService } from '../Firestore/company-service';
 import { EmployeeService } from '../Firestore/employee-service';
-import { Employee } from '../../model/employee';
+import { TempEmployeeService } from '../Firestore/temp-employee-service';
+import { Employee, InsuranceDetail } from '../../model/employee';
+import { parseDateInputValue } from './date-input.util';
 import { OfficeService } from '../Firestore/office-service';
 import { UserService } from '../Firestore/user-service';
 import { User } from '../../model/user';
@@ -14,6 +16,7 @@ export class ValidationService {
 
   private companyService = inject(CompanyService);
   private employeeService = inject(EmployeeService);
+  private tempEmployeeService = inject(TempEmployeeService);
   private officeService = inject(OfficeService);
   private userService = inject(UserService);
 
@@ -65,10 +68,14 @@ export class ValidationService {
       return null;
     }
     const allEmployeeIds: string[] = this.employeeService.allEmployeeIDs();
-    if (!allEmployeeIds.includes(employeeId)) {
-      return null;
+    if (allEmployeeIds.includes(employeeId)) {
+      return { employeeIdAlreadyExists: true };
     }
-    return { employeeIdAlreadyExists: true };
+    await this.tempEmployeeService.getAllTempEmployees();
+    if (this.tempEmployeeService.allTempEmployeeIds().includes(employeeId)) {
+      return { employeeIdAlreadyExists: true };
+    }
+    return null;
   }
 
 
@@ -161,14 +168,15 @@ export class ValidationService {
     const name = parent.get('name')?.value;
     const birthDate = parent.get('birthDate')?.value;
     const relationship = parent.get('relationship')?.value;
-    const hasAnyValue = Boolean(name || birthDate || relationship);
+    const dependentStartDate = parent.get('dependentStartDate')?.value;
+    const hasAnyValue = Boolean(name || birthDate || relationship || dependentStartDate);
 
     return hasAnyValue && !control.value ? { required: true } : null;
   };
 
   /** 扶養行の入力変更時に、同じ行の他項目も再検証する */
   refreshDependentRowValidation(group: FormGroup): void {
-    (['name', 'birthDate', 'relationship'] as const).forEach(fieldName => {
+    (['name', 'birthDate', 'relationship', 'dependentStartDate'] as const).forEach(fieldName => {
       group.get(fieldName)?.updateValueAndValidity({ emitEvent: false });
     });
   }
@@ -221,7 +229,58 @@ export class ValidationService {
     return null;
   }
 
+  /** 扶養期間と健康保険加入期間の整合性チェック（OKなら null） */
+  validateDependentPeriod(
+    healthInsurance: InsuranceDetail | undefined,
+    params: {
+      isDependent: boolean;
+      startDate: string;
+      endDate?: string;
+    },
+  ): string | null {
+    const { isDependent, startDate, endDate } = params;
 
+    if (!startDate) return '扶養開始日は必須です';
+    if (!isDependent && !endDate) return '扶養対象外の場合、扶養終了日は必須です';
+
+    const start = parseDateInputValue(startDate);
+    const end = endDate ? parseDateInputValue(endDate) : null;
+
+    if (end && end <= start) return '扶養終了日は開始日より後の日付にしてください';
+
+    if (!healthInsurance) {
+      return '健康保険に加入していないため、扶養の登録はできません';
+    }
+
+    const acquired = healthInsurance.acquiredDate?.toDate();
+    if (!acquired) return '健康保険の取得日が未登録です';
+
+    acquired.setHours(0, 0, 0, 0);
+    start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(0, 0, 0, 0);
+
+    if (start < acquired) return '扶養開始日は健康保険の加入日以降にしてください';
+
+    const isJoined = healthInsurance.joined === true;
+    const lost = healthInsurance.lostDate?.toDate();
+
+    if (!isJoined && !lost) {
+      return '健康保険に加入していないため、扶養の登録はできません';
+    }
+
+    if (isJoined) {
+      return null;
+    }
+
+    if (!lost) return '健康保険の喪失日が未登録です';
+    lost.setHours(0, 0, 0, 0);
+
+    const periodEnd = end ?? lost;
+    if (start < acquired || start > lost || periodEnd > lost) {
+      return '扶養対象期間に健康保険に加入していません';
+    }
+    return null;
+  }
 
 
 

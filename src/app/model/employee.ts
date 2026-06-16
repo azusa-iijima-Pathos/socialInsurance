@@ -31,6 +31,12 @@ export type Employee = {
     /** 休暇情報 */
     leaveTypes?: LeaveType | null;
 
+    /** 休職開始日 */
+    leaveStartDate?: Timestamp;
+
+    /** 休職終了日（予定日） */
+    leaveEndDate?: Timestamp;
+
     /** 退職日 */
     resignationDate?: Timestamp;
 

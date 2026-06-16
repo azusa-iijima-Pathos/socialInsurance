@@ -118,6 +118,62 @@ export const PREFECTURE_INSURANCE_RATES_2025 = [
   ];
 
   /**
+ * 協会けんぽ2024（2024-03〜2025-02）
+ */
+export const INSURANCE_RATE_PERIOD_2024 = { effectiveFrom: '2024-03', effectiveTo: '2025-02' };
+export const STANDARD_MONTHLY_REMUNERATION_PERIOD_2024 = { effectiveFrom: '2024-03', effectiveTo: '2025-02' };
+
+export const PREFECTURE_INSURANCE_RATES_2024 = [
+    { id: 'hokkaido', year: 2024, prefecture: '北海道', healthInsuranceRate: 10.35, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'aomori', year: 2024, prefecture: '青森県', healthInsuranceRate: 9.90, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'iwate', year: 2024, prefecture: '岩手県', healthInsuranceRate: 9.67, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'miyagi', year: 2024, prefecture: '宮城県', healthInsuranceRate: 10.15, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'akita', year: 2024, prefecture: '秋田県', healthInsuranceRate: 10.03, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'yamagata', year: 2024, prefecture: '山形県', healthInsuranceRate: 9.77, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'fukushima', year: 2024, prefecture: '福島県', healthInsuranceRate: 9.68, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'ibaraki', year: 2024, prefecture: '茨城県', healthInsuranceRate: 9.72, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'tochigi', year: 2024, prefecture: '栃木県', healthInsuranceRate: 9.87, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'gunma', year: 2024, prefecture: '群馬県', healthInsuranceRate: 9.81, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'saitama', year: 2024, prefecture: '埼玉県', healthInsuranceRate: 9.78, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'chiba', year: 2024, prefecture: '千葉県', healthInsuranceRate: 9.81, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'tokyo', year: 2024, prefecture: '東京都', healthInsuranceRate: 9.98, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'kanagawa', year: 2024, prefecture: '神奈川県', healthInsuranceRate: 9.96, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'niigata', year: 2024, prefecture: '新潟県', healthInsuranceRate: 9.53, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'toyama', year: 2024, prefecture: '富山県', healthInsuranceRate: 9.64, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'ishikawa', year: 2024, prefecture: '石川県', healthInsuranceRate: 9.91, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'fukui', year: 2024, prefecture: '福井県', healthInsuranceRate: 9.97, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'yamanashi', year: 2024, prefecture: '山梨県', healthInsuranceRate: 9.91, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'nagano', year: 2024, prefecture: '長野県', healthInsuranceRate: 9.70, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'gifu', year: 2024, prefecture: '岐阜県', healthInsuranceRate: 9.94, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'shizuoka', year: 2024, prefecture: '静岡県', healthInsuranceRate: 9.81, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'aichi', year: 2024, prefecture: '愛知県', healthInsuranceRate: 10.05, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'mie', year: 2024, prefecture: '三重県', healthInsuranceRate: 10.01, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'shiga', year: 2024, prefecture: '滋賀県', healthInsuranceRate: 9.95, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'kyoto', year: 2024, prefecture: '京都府', healthInsuranceRate: 10.07, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'osaka', year: 2024, prefecture: '大阪府', healthInsuranceRate: 10.29, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'hyogo', year: 2024, prefecture: '兵庫県', healthInsuranceRate: 10.19, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'nara', year: 2024, prefecture: '奈良県', healthInsuranceRate: 10.05, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'wakayama', year: 2024, prefecture: '和歌山県', healthInsuranceRate: 10.22, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'tottori', year: 2024, prefecture: '鳥取県', healthInsuranceRate: 9.93, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'shimane', year: 2024, prefecture: '島根県', healthInsuranceRate: 9.89, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'okayama', year: 2024, prefecture: '岡山県', healthInsuranceRate: 10.20, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'hiroshima', year: 2024, prefecture: '広島県', healthInsuranceRate: 9.99, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'yamaguchi', year: 2024, prefecture: '山口県', healthInsuranceRate: 10.33, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'tokushima', year: 2024, prefecture: '徳島県', healthInsuranceRate: 10.43, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'kagawa', year: 2024, prefecture: '香川県', healthInsuranceRate: 10.19, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'ehime', year: 2024, prefecture: '愛媛県', healthInsuranceRate: 10.15, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'kochi', year: 2024, prefecture: '高知県', healthInsuranceRate: 10.15, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'fukuoka', year: 2024, prefecture: '福岡県', healthInsuranceRate: 10.35, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'saga', year: 2024, prefecture: '佐賀県', healthInsuranceRate: 10.70, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'nagasaki', year: 2024, prefecture: '長崎県', healthInsuranceRate: 10.38, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'kumamoto', year: 2024, prefecture: '熊本県', healthInsuranceRate: 10.10, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'oita', year: 2024, prefecture: '大分県', healthInsuranceRate: 10.23, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'miyazaki', year: 2024, prefecture: '宮崎県', healthInsuranceRate: 10.01, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'kagoshima', year: 2024, prefecture: '鹿児島県', healthInsuranceRate: 10.28, nursingCareRate: 1.60, pensionRate: 18.3 },
+    { id: 'okinawa', year: 2024, prefecture: '沖縄県', healthInsuranceRate: 9.53, nursingCareRate: 1.60, pensionRate: 18.3 },
+];
+
+  /**
    * 等級マスタ2026
    */
   export const STANDARD_MONTHLY_REMUNERATION_2026 = [
@@ -173,7 +229,18 @@ export const PREFECTURE_INSURANCE_RATES_2025 = [
     { grade: 50, year: 2026, standardMonthlyAmount: 1390000, monthlyMin: 1355000, monthlyMax: Number.MAX_SAFE_INTEGER },
   ];
 
+  /**
+ * 等級マスタ2025
+ */
 export const STANDARD_MONTHLY_REMUNERATION_2025 = STANDARD_MONTHLY_REMUNERATION_2026.map(item => ({
   ...item,
   year: 2025,
+}));
+
+/**
+ * 等級マスタ2024
+ */
+export const STANDARD_MONTHLY_REMUNERATION_2024 = STANDARD_MONTHLY_REMUNERATION_2026.map(item => ({
+  ...item,
+  year: 2024,
 }));

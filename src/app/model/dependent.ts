@@ -46,4 +46,10 @@ export type Dependent = {
 
     /** 学生タイプ（学生の場合必須） */
     studentType?: StudentType;
+
+    /** 扶養開始日（予定日） */
+    dependentStartDate?: Timestamp;
+
+    /** 扶養終了日（予定日） */
+    dependentEndDate?: Timestamp;
 }

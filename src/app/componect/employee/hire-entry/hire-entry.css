@@ -1,3 +1,35 @@
+.hire-entry-attention {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: #fff5f5;
+  border: 1px solid #ffc9c9;
+  color: #c92a2a;
+  font-weight: bold;
+}
+
+.hire-entry-scheduled-list {
+  margin-top: 2rem;
+}
+
+.hire-entry-insurance-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.hire-entry-retroactive-notice {
+  margin: 1rem 0 0;
+  padding: 12px 16px;
+  border: 1px solid #ffc9c9;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #c92a2a;
+  line-height: 1.6;
+}
+
 .hire-entry-container {
     max-width: 1100px;
     margin: 0 auto;
