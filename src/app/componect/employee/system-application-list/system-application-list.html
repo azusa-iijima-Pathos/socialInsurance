@@ -383,123 +383,195 @@
 
 <!-- 入社処理 確認モーダル -->
 <div class="employee-edit-modal" *ngIf="hireDetailModalOpen && reviewingHireRun && hireApprovalDraft">
-    <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
+    <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--hire">
         <div class="employee-edit-modal__header">
             <h2>入社処理の確認</h2>
         </div>
-        <div class="employee-approval-modal__body">
-            <p>{{ getEmployeeName(reviewingHireRun.employeeId) }}（入社日：{{ commonService.formatDate(reviewingHireRun.payload?.['occurredDate']) }}）</p>
-            <div class="im-field-block im-field-row employee-edit-field">
-                <div class="im-field-row__label"><label for="hireApprovalGrade">等級</label></div>
-                <div class="im-field-row__control">
-                    <input id="hireApprovalGrade" type="number" min="0" max="50"
-                        [(ngModel)]="hireApprovalDraft.currentGrade">
-                    <p class="hire-entry-auto-judgement">等級自動判定：{{ hireApprovalDraft.autoGrade ?? '判定不能' }}</p>
-                </div>
-            </div>
-            <div class="im-field-block im-field-row employee-edit-field">
-                <div class="im-field-row__label"><label for="hireApprovalPensionNumber">基礎年金番号</label></div>
-                <div class="im-field-row__control">
-                    <input id="hireApprovalPensionNumber" type="text" [(ngModel)]="hireApprovalDraft.basicPensionNumber">
-                </div>
-            </div>
-            <div class="employee-approval-insurance-block">
-                <h3>健康保険</h3>
-                <div class="im-field-block im-field-row employee-edit-field">
-                    <div class="im-field-row__label"><span>加入</span></div>
+        <div class="employee-approval-modal__body hire-approval-modal__body">
+            <p class="hire-approval-modal__summary">
+                {{ getEmployeeName(reviewingHireRun.employeeId) }}（入社日：{{ commonService.formatDate(reviewingHireRun.payload?.['occurredDate']) }}）
+            </p>
+            <div class="hire-approval-modal__grade-row">
+                <div class="im-field-block im-field-row hire-approval-compact-field">
+                    <div class="im-field-row__label"><label for="hireApprovalGrade">等級</label></div>
                     <div class="im-field-row__control">
-                        <select [(ngModel)]="hireApprovalDraft.healthJoined">
-                            <option [ngValue]="true">加入</option>
-                            <option [ngValue]="false">未加入</option>
-                        </select>
+                        <input id="hireApprovalGrade" type="number" min="0" max="50"
+                            [(ngModel)]="hireApprovalDraft.currentGrade">
+                        <p class="hire-entry-auto-judgement">等級自動判定：{{ hireApprovalDraft.autoGrade ?? '判定不能' }}</p>
                     </div>
                 </div>
-                <div class="im-field-block im-field-row employee-edit-field" *ngIf="hireApprovalDraft.healthJoined">
-                    <div class="im-field-row__label"><label>取得日</label></div>
+                <div class="im-field-block im-field-row hire-approval-compact-field">
+                    <div class="im-field-row__label"><label for="hireApprovalPensionNumber">基礎年金番号</label></div>
                     <div class="im-field-row__control">
-                        <input type="date" [(ngModel)]="hireApprovalDraft.healthAcquiredDate">
-                    </div>
-                </div>
-                <div class="im-field-block im-field-row employee-edit-field" *ngIf="hireApprovalDraft.healthJoined">
-                    <div class="im-field-row__label"><label>会社負担率（％）</label></div>
-                    <div class="im-field-row__control">
-                        <input type="number" min="0" max="100" [(ngModel)]="hireApprovalDraft.healthCompanyBurdenRate">
+                        <input id="hireApprovalPensionNumber" type="text"
+                            [(ngModel)]="hireApprovalDraft.basicPensionNumber">
                     </div>
                 </div>
             </div>
-            <div class="employee-approval-insurance-block">
-                <h3>介護保険</h3>
-                <div class="im-field-block im-field-row employee-edit-field">
-                    <div class="im-field-row__label"><span>加入</span></div>
-                    <div class="im-field-row__control">
-                        <select [(ngModel)]="hireApprovalDraft.nursingJoined">
-                            <option [ngValue]="true">加入</option>
-                            <option [ngValue]="false">未加入</option>
-                        </select>
+            <div class="hire-approval-modal__insurance-row">
+                <div class="employee-approval-insurance-block">
+                    <h3>健康保険</h3>
+                    <div class="im-field-block im-field-row hire-approval-compact-field">
+                        <div class="im-field-row__label"><span>加入</span></div>
+                        <div class="im-field-row__control">
+                            <select [(ngModel)]="hireApprovalDraft.healthJoined">
+                                <option [ngValue]="true">加入</option>
+                                <option [ngValue]="false">未加入</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row hire-approval-compact-field"
+                        *ngIf="hireApprovalDraft.healthJoined">
+                        <div class="im-field-row__label"><label>取得日</label></div>
+                        <div class="im-field-row__control">
+                            <input type="date" [(ngModel)]="hireApprovalDraft.healthAcquiredDate">
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row hire-approval-compact-field"
+                        *ngIf="hireApprovalDraft.healthJoined">
+                        <div class="im-field-row__label"><label>会社負担率（％）</label></div>
+                        <div class="im-field-row__control">
+                            <input type="number" min="0" max="100"
+                                [(ngModel)]="hireApprovalDraft.healthCompanyBurdenRate">
+                        </div>
                     </div>
                 </div>
-                <div class="im-field-block im-field-row employee-edit-field" *ngIf="hireApprovalDraft.nursingJoined">
-                    <div class="im-field-row__label"><label>取得日</label></div>
-                    <div class="im-field-row__control">
-                        <input type="date" [(ngModel)]="hireApprovalDraft.nursingAcquiredDate">
+                <div class="employee-approval-insurance-block">
+                    <h3>介護保険</h3>
+                    <div class="im-field-block im-field-row hire-approval-compact-field">
+                        <div class="im-field-row__label"><span>加入</span></div>
+                        <div class="im-field-row__control">
+                            <select [(ngModel)]="hireApprovalDraft.nursingJoined">
+                                <option [ngValue]="true">加入</option>
+                                <option [ngValue]="false">未加入</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row hire-approval-compact-field"
+                        *ngIf="hireApprovalDraft.nursingJoined">
+                        <div class="im-field-row__label"><label>取得日</label></div>
+                        <div class="im-field-row__control">
+                            <input type="date" [(ngModel)]="hireApprovalDraft.nursingAcquiredDate">
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row hire-approval-compact-field"
+                        *ngIf="hireApprovalDraft.nursingJoined">
+                        <div class="im-field-row__label"><label>会社負担率（％）</label></div>
+                        <div class="im-field-row__control">
+                            <input type="number" min="0" max="100"
+                                [(ngModel)]="hireApprovalDraft.nursingCompanyBurdenRate">
+                        </div>
                     </div>
                 </div>
-                <div class="im-field-block im-field-row employee-edit-field" *ngIf="hireApprovalDraft.nursingJoined">
-                    <div class="im-field-row__label"><label>会社負担率（％）</label></div>
-                    <div class="im-field-row__control">
-                        <input type="number" min="0" max="100" [(ngModel)]="hireApprovalDraft.nursingCompanyBurdenRate">
+                <div class="employee-approval-insurance-block">
+                    <h3>厚生年金</h3>
+                    <div class="im-field-block im-field-row hire-approval-compact-field">
+                        <div class="im-field-row__label"><span>加入</span></div>
+                        <div class="im-field-row__control">
+                            <select [(ngModel)]="hireApprovalDraft.pensionJoined">
+                                <option [ngValue]="true">加入</option>
+                                <option [ngValue]="false">未加入</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row hire-approval-compact-field"
+                        *ngIf="hireApprovalDraft.pensionJoined">
+                        <div class="im-field-row__label"><label>取得日</label></div>
+                        <div class="im-field-row__control">
+                            <input type="date" [(ngModel)]="hireApprovalDraft.pensionAcquiredDate">
+                        </div>
+                    </div>
+                    <div class="im-field-block im-field-row hire-approval-compact-field"
+                        *ngIf="hireApprovalDraft.pensionJoined">
+                        <div class="im-field-row__label"><label>会社負担率（％）</label></div>
+                        <div class="im-field-row__control">
+                            <input type="number" min="0" max="100"
+                                [(ngModel)]="hireApprovalDraft.pensionCompanyBurdenRate">
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="employee-approval-insurance-block">
-                <h3>厚生年金</h3>
-                <div class="im-field-block im-field-row employee-edit-field">
-                    <div class="im-field-row__label"><span>加入</span></div>
-                    <div class="im-field-row__control">
-                        <select [(ngModel)]="hireApprovalDraft.pensionJoined">
-                            <option [ngValue]="true">加入</option>
-                            <option [ngValue]="false">未加入</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="im-field-block im-field-row employee-edit-field" *ngIf="hireApprovalDraft.pensionJoined">
-                    <div class="im-field-row__label"><label>取得日</label></div>
-                    <div class="im-field-row__control">
-                        <input type="date" [(ngModel)]="hireApprovalDraft.pensionAcquiredDate">
-                    </div>
-                </div>
-                <div class="im-field-block im-field-row employee-edit-field" *ngIf="hireApprovalDraft.pensionJoined">
-                    <div class="im-field-row__label"><label>会社負担率（％）</label></div>
-                    <div class="im-field-row__control">
-                        <input type="number" min="0" max="100" [(ngModel)]="hireApprovalDraft.pensionCompanyBurdenRate">
-                    </div>
-                </div>
-            </div>
-            <div *ngIf="hireApprovalDraft.dependents.length > 0">
+            <div class="hire-approval-modal__dependents" *ngIf="hireApprovalDraft.dependents.length > 0">
                 <h3>扶養情報</h3>
-                <div class="employee-dependent-row" *ngFor="let dependent of hireApprovalDraft.dependents">
-                    <div class="im-field-block im-field-row employee-edit-field">
-                        <div class="im-field-row__label"><label>名前</label></div>
-                        <div class="im-field-row__control">
-                            <input type="text" [(ngModel)]="dependent.name">
+                <div class="hire-approval-dependent-card" *ngFor="let dependent of hireApprovalDraft.dependents">
+                    <div class="hire-approval-dependent-grid">
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><label>名前</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [(ngModel)]="dependent.name">
+                            </div>
                         </div>
-                    </div>
-                    <div class="im-field-block im-field-row employee-edit-field">
-                        <div class="im-field-row__label"><label>続柄</label></div>
-                        <div class="im-field-row__control">
-                            <input type="text" [(ngModel)]="dependent.relationship">
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><label>続柄</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [(ngModel)]="dependent.relationship">
+                            </div>
                         </div>
-                    </div>
-                    <div class="im-field-block im-field-row employee-edit-field">
-                        <div class="im-field-row__label"><label>生年月日</label></div>
-                        <div class="im-field-row__control">
-                            <input type="date" [(ngModel)]="dependent.birthDate">
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><label>生年月日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [(ngModel)]="dependent.birthDate">
+                            </div>
                         </div>
-                    </div>
-                    <div class="im-field-block im-field-row employee-edit-field">
-                        <div class="im-field-row__label"><label>扶養開始日</label></div>
-                        <div class="im-field-row__control">
-                            <input type="date" [(ngModel)]="dependent.dependentStartDate">
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><label>扶養開始日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [(ngModel)]="dependent.dependentStartDate">
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><label>同居・別居区分</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [(ngModel)]="dependent.cohabitationType">
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><label>収入額（年収見込み）</label></div>
+                            <div class="im-field-row__control">
+                                <input type="number" min="0" [(ngModel)]="dependent.annualIncome">
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><label>職業</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [(ngModel)]="dependent.occupation">
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><span>障害</span></div>
+                            <div class="im-field-row__control">
+                                <select [(ngModel)]="dependent.disabilityStatus">
+                                    <option *ngFor="let status of DISABILITY_STATUSES" [value]="status">{{ status }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row hire-approval-compact-field"
+                            *ngIf="dependent.disabilityStatus === 'あり'">
+                            <div class="im-field-row__label"><label>障害タイプ</label></div>
+                            <div class="im-field-row__control">
+                                <select [(ngModel)]="dependent.disabilityType">
+                                    <option value="">選択してください</option>
+                                    <option *ngFor="let type of DISABILITY_TYPES" [value]="type">{{ type }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><span>学生</span></div>
+                            <div class="im-field-row__control">
+                                <select [(ngModel)]="dependent.studentStatus">
+                                    <option *ngFor="let status of STUDENT_STATUSES" [value]="status">{{ status }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row hire-approval-compact-field"
+                            *ngIf="dependent.studentStatus === '学生'">
+                            <div class="im-field-row__label"><label>学生タイプ</label></div>
+                            <div class="im-field-row__control">
+                                <select [(ngModel)]="dependent.studentType">
+                                    <option value="">選択してください</option>
+                                    <option *ngFor="let type of STUDENT_TYPES" [value]="type">{{ type }}</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>

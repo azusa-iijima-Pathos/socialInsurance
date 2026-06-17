@@ -9,6 +9,10 @@ import { deleteField } from '@angular/fire/firestore';
 
 //PATH: companies/{companyId}/employees/{employeeId}
 
+export type UpdateEmployeeInput = Omit<Partial<Employee>, 'resignationDate'> & {
+  resignationDate?: Employee['resignationDate'] | null;
+};
+
 @Injectable({
   providedIn: 'root',
 })
@@ -96,10 +100,13 @@ export class EmployeeService {
   }
 
   /** 社員を更新 */
-  async updateEmployee(employee: Partial<Employee>): Promise<boolean> {
+  async updateEmployee(employee: UpdateEmployeeInput): Promise<boolean> {
     const data: Record<string, unknown> = { ...employee };
     if (employee.leaveTypes === null) {
       data['leaveTypes'] = deleteField();
+    }
+    if (employee.resignationDate === null) {
+      data['resignationDate'] = deleteField();
     }
     const result = await this.crudService.update(`${this.path}/${employee.employeeId}`, data);
     if (result) {

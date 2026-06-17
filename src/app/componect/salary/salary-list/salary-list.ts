@@ -1,22 +1,31 @@
-import { Component, computed, EventEmitter, inject, Input, OnChanges, Output, signal, SimpleChanges } from '@angular/core';
+import { Component, computed, DestroyRef, EventEmitter, inject, Input, OnChanges, Output, signal, SimpleChanges } from '@angular/core';
 import { PayrollService } from '../../../service/Firestore/payroll-service';
 import { CommonModule } from '@angular/common';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { Payroll } from '../../../model/payroll';
-import { DELETE_MESSAGES, UPDATE_MESSAGES } from '../../../constants/constants';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { CREATE_MESSAGES, DELETE_MESSAGES, UPDATE_MESSAGES } from '../../../constants/constants';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Timestamp } from '@angular/fire/firestore';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { ValidationService } from '../../../service/common/validation-service';
 import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
 import { RouterLink } from '@angular/router';
 import { formatTimestampForDateInput, parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
+import { CompanyService } from '../../../service/Firestore/company-service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MonthlySalaryCSV } from '../monthly-salary-csv/monthly-salary-csv';
+import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
+
+type CorrectionEmployeeRow = {
+  employeeId: string;
+  payroll: Payroll | null;
+};
 
 @Component({
   selector: 'app-salary-list',
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, MonthlySalaryCSV],
   templateUrl: './salary-list.html',
-  styleUrl: './salary-list.css',
+  styleUrls: ['./salary-list.css', '../monthly-salary/monthly-salary.css'],
 })
 export class SalaryList implements OnChanges {
 
@@ -26,13 +35,26 @@ export class SalaryList implements OnChanges {
   private employeeService = inject(EmployeeService);
   private validationService = inject(ValidationService);
   private correctionLogicService = inject(CorrectionLogicService);
+  private companyService = inject(CompanyService);
+  private destroyRef = inject(DestroyRef);
+  private payrollLockService = inject(PayrollLockService);
 
   message: string = '';
+  registerMessage = '';
+  confirmLockMessage = '';
   private messageTimer: MessageTimer = null;
+  private registerMessageTimer: MessageTimer = null;
+  private confirmLockMessageTimer: MessageTimer = null;
   editPayrollModalOpen = false;
+  isAddMode = false;
   private originalPayroll: Payroll | null = null;
   targetPeriodStartError = '';
   private payrollIdState = signal('');
+  private periodBoundsState = signal<{ periodStart: Date; periodEnd: Date } | null>(null);
+  private isPayrollLockedState = signal(false);
+
+  inputFormat: 1 | 2 = 2;
+  companyId = sessionStorage.getItem('companyId') ?? '';
 
   allPayrollListForMonth = computed(() => {
     const payrollId = this.payrollIdState();
@@ -40,6 +62,36 @@ export class SalaryList implements OnChanges {
     return this.payrollService.allPayrollListForMonth()
       .find(item => item.payrollId === payrollId)?.payrollList
       .filter(payroll => !retiredIds.has(payroll.employeeId ?? '')) ?? [];
+  });
+
+  isEmptyCorrectionMonth = computed(() =>
+    this.correctionMode && !this.isBonus && !this.isPayrollLockedState(),
+  );
+
+  hasCorrectionPayrollData = computed(() =>
+    this.correctionMode && !this.isBonus && this.isPayrollLockedState(),
+  );
+
+  correctionEmployeeRows = computed((): CorrectionEmployeeRow[] => {
+    if (!this.correctionMode || this.isBonus || !this.isPayrollLockedState()) return [];
+    const bounds = this.periodBoundsState();
+    if (!bounds) return [];
+
+    const payrollMap = new Map(
+      this.allPayrollListForMonth().map(payroll => [payroll.employeeId ?? '', payroll]),
+    );
+
+    return this.employeeService.allEmployees()
+      .filter(employee => this.correctionLogicService.wasEmployedInPayrollPeriod(
+        employee,
+        bounds.periodStart,
+        bounds.periodEnd,
+      ))
+      .sort((left, right) => left.employeeId.localeCompare(right.employeeId))
+      .map(employee => ({
+        employeeId: employee.employeeId,
+        payroll: payrollMap.get(employee.employeeId) ?? null,
+      }));
   });
 
   @Input() payrollId: string = '';
@@ -61,10 +113,37 @@ export class SalaryList implements OnChanges {
     actualPaymentAmount: [0, [Validators.required, Validators.min(0)]],
   });
 
+  registerForm = this.fb.nonNullable.group({
+    employeeId: ['', [Validators.required, Validators.pattern('^[a-zA-Z0-9]+$')], [this.validationService.correctEmployeeId]],
+    actualWorkingDays: [null as number | null, [Validators.required, Validators.min(0)]],
+    actualWorkingHours: [null as number | null, [Validators.required, Validators.min(0)]],
+    paymentDate: ['', [Validators.required]],
+    targetPeriodStart: ['', [Validators.required]],
+    targetPeriodEnd: ['', [Validators.required]],
+    basicSalary: [0],
+    fixedAllowance: [0],
+    transportAllowance: [0],
+    variableAllowance: [0],
+    fixedSalary: [null as number | null, [Validators.required, Validators.min(0)]],
+    actualPaymentAmount: [null as number | null, [Validators.required, Validators.min(0)]],
+  }, {
+    validators: [
+      this.validationService.validateSalaryNumber,
+      this.validationService.validateWorkingHoursAndDays,
+      this.validationService.validatePaymentAmount,
+      control => this.validateCorrectionTargetPeriodStartMonth(control),
+    ],
+  });
+
   async ngOnInit() {
     this.payrollIdState.set(this.payrollId);
-    await this.loadPayrollList(true);
-    await this.employeeService.getAllEmployees();
+    if (this.correctionMode && !this.isBonus) {
+      await this.companyService.getCompany();
+      this.inputFormat = this.companyService.company()?.settings?.salaryInputFormat ?? 2;
+      this.applyRegisterFormValidators();
+      this.setupRegisterFormAutoCalculation();
+    }
+    await this.loadPayrollContext(true);
     this.updateFormValidators();
   }
 
@@ -72,7 +151,7 @@ export class SalaryList implements OnChanges {
     if (changes['payrollId']) {
       this.payrollIdState.set(this.payrollId);
       if (!changes['payrollId'].firstChange && this.payrollId) {
-        void this.loadPayrollList(true);
+        void this.loadPayrollContext(true);
       }
     }
     if (changes['correctionMode'] || changes['isBonus']) {
@@ -89,25 +168,128 @@ export class SalaryList implements OnChanges {
     this.form.updateValueAndValidity({ emitEvent: false });
   }
 
+  private async loadPayrollContext(forceReload = false) {
+    if (!this.payrollId) return;
+    await this.loadPayrollList(forceReload);
+
+    if (this.correctionMode && !this.isBonus) {
+      await this.employeeService.getAllEmployees(true);
+      const bounds = await this.correctionLogicService.getPayrollPeriodBounds(this.payrollId);
+      this.periodBoundsState.set(bounds);
+      const locked = await this.payrollLockService.isPayrollLocked(this.payrollId);
+      this.isPayrollLockedState.set(locked);
+      await this.applyRegisterFormDefaults();
+    }
+  }
+
   private async loadPayrollList(forceReload = false) {
     if (!this.payrollId) return;
     await this.payrollService.getAllPayrollListForMonth(this.payrollId, forceReload);
   }
 
+  private async applyRegisterFormDefaults() {
+    if (!this.payrollId) return;
+    const defaults = await this.correctionLogicService.getDefaultPayrollPeriodDates(this.payrollId);
+    this.registerForm.patchValue({
+      paymentDate: defaults.paymentDate,
+      targetPeriodStart: defaults.targetPeriodStart,
+      targetPeriodEnd: defaults.targetPeriodEnd,
+    }, { emitEvent: false });
+  }
+
+  private applyRegisterFormValidators() {
+    const detailedControls = [
+      this.registerForm.controls.basicSalary,
+      this.registerForm.controls.fixedAllowance,
+      this.registerForm.controls.transportAllowance,
+      this.registerForm.controls.variableAllowance,
+    ];
+    for (const control of detailedControls) {
+      control.setValidators(this.inputFormat === 1 ? [Validators.required, Validators.min(0)] : null);
+      control.updateValueAndValidity({ emitEvent: false });
+    }
+  }
+
+  private setupRegisterFormAutoCalculation() {
+    const autoCalculationControls = [
+      this.registerForm.controls.basicSalary,
+      this.registerForm.controls.fixedAllowance,
+      this.registerForm.controls.transportAllowance,
+      this.registerForm.controls.variableAllowance,
+    ];
+    for (const control of autoCalculationControls) {
+      control.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          if (this.inputFormat !== 1) return;
+          this.updateRegisterFormCalculatedAmounts();
+        });
+    }
+  }
+
+  private updateRegisterFormCalculatedAmounts() {
+    if (this.inputFormat !== 1) return;
+    const fixedSalary = Number(this.registerForm.controls.basicSalary.value ?? 0)
+      + Number(this.registerForm.controls.fixedAllowance.value ?? 0)
+      + Number(this.registerForm.controls.transportAllowance.value ?? 0);
+    const actualPaymentAmount = fixedSalary + Number(this.registerForm.controls.variableAllowance.value ?? 0);
+    this.registerForm.patchValue({ fixedSalary, actualPaymentAmount }, { emitEvent: false });
+  }
+
+  private validateCorrectionTargetPeriodStartMonth(control: AbstractControl): ValidationErrors | null {
+    if (!this.correctionMode || !this.payrollId) return null;
+    const targetPeriodStart = control.get('targetPeriodStart')?.value;
+    if (!targetPeriodStart) return null;
+
+    const date = parseDateInputValue(targetPeriodStart);
+    if (Number.isNaN(date.getTime())) return null;
+
+    const isExpectedMonth = this.correctionLogicService.isTargetPeriodStartInPayrollMonth(targetPeriodStart, this.payrollId);
+    return isExpectedMonth ? null : { targetPeriodStartMonthMismatch: true };
+  }
+
   editPayroll(payroll: Payroll) {
+    void this.openPayrollModal(payroll.employeeId ?? '', payroll);
+  }
+
+  openAddPayroll(employeeId: string) {
+    void this.openPayrollModal(employeeId, null);
+  }
+
+  private async openPayrollModal(employeeId: string, payroll: Payroll | null) {
     if (this.disabled) return;
+
+    this.isAddMode = !payroll;
     this.originalPayroll = payroll;
     this.editPayrollModalOpen = true;
+    this.targetPeriodStartError = '';
+
+    if (payroll) {
+      this.form.patchValue({
+        payrollId: payroll.payrollId,
+        employeeId: payroll.employeeId ?? '',
+        actualWorkingDays: payroll.actualWorkingDays ?? 0,
+        actualWorkingHours: payroll.actualWorkingHours ?? 0,
+        targetPeriodStart: formatTimestampForDateInput(payroll.targetPeriod?.[0]),
+        targetPeriodEnd: formatTimestampForDateInput(payroll.targetPeriod?.[1]),
+        paymentDate: formatTimestampForDateInput(payroll.paymentDate),
+        fixedSalary: payroll.fixedSalary ?? 0,
+        actualPaymentAmount: payroll.actualPaymentAmount ?? 0,
+      });
+      return;
+    }
+
+    const defaults = await this.correctionLogicService.getDefaultPayrollPeriodDates(this.payrollId);
     this.form.patchValue({
-      payrollId: payroll.payrollId,
-      employeeId: payroll.employeeId ?? '',
-      actualWorkingDays: payroll.actualWorkingDays ?? 0,
-      actualWorkingHours: payroll.actualWorkingHours ?? 0,
-      targetPeriodStart: formatTimestampForDateInput(payroll.targetPeriod?.[0]),
-      targetPeriodEnd: formatTimestampForDateInput(payroll.targetPeriod?.[1]),
-      paymentDate: formatTimestampForDateInput(payroll.paymentDate),
-      fixedSalary: payroll.fixedSalary ?? 0,
-      actualPaymentAmount: payroll.actualPaymentAmount ?? 0,
+      payrollId: this.payrollId,
+      employeeId,
+      actualWorkingDays: 0,
+      actualWorkingHours: 0,
+      targetPeriodStart: defaults.targetPeriodStart,
+      targetPeriodEnd: defaults.targetPeriodEnd,
+      paymentDate: defaults.paymentDate,
+      fixedSalary: 0,
+      actualPaymentAmount: 0,
     });
   }
 
@@ -116,8 +298,15 @@ export class SalaryList implements OnChanges {
     return this.isBonus ? '保険料確認' : '修正';
   }
 
+  getModalTitle(): string {
+    if (this.isBonus) return '賞与編集';
+    if (this.isAddMode) return '給与・勤務実績登録';
+    return '給与・勤務実績編集';
+  }
+
   closeEditPayrollModal() {
     this.editPayrollModalOpen = false;
+    this.isAddMode = false;
     this.originalPayroll = null;
     this.targetPeriodStartError = '';
     this.form.reset();
@@ -139,8 +328,9 @@ export class SalaryList implements OnChanges {
 
     this.targetPeriodStartError = '';
     if (this.correctionMode && !this.isBonus) {
-      const targetError = await this.correctionLogicService.validateSalaryCorrectionTargetPeriod(
+      const targetError = await this.correctionLogicService.validateSalaryCorrectionTargetPeriodStart(
         this.form.value.targetPeriodStart!,
+        this.payrollId,
       );
       if (targetError) {
         this.targetPeriodStartError = targetError;
@@ -149,24 +339,9 @@ export class SalaryList implements OnChanges {
       }
     }
 
-    const payroll: Partial<Payroll> = {
-      payrollId: this.form.value.payrollId!,
-      employeeId: this.form.value.employeeId!,
-      targetPeriod: [
-        timestampFromDateInput(this.form.value.targetPeriodStart!),
-        timestampFromDateInput(this.form.value.targetPeriodEnd!),
-      ],
-      paymentDate: timestampFromDateInput(this.form.value.paymentDate!),
-      actualPaymentAmount: this.form.value.actualPaymentAmount!,
-    };
+    const payroll = this.buildPayrollFromForm(this.form.getRawValue());
 
-    if (!this.isBonus) {
-      payroll.actualWorkingDays = this.form.value.actualWorkingDays!;
-      payroll.actualWorkingHours = this.form.value.actualWorkingHours!;
-      payroll.fixedSalary = this.form.value.fixedSalary!;
-    }
-
-    if (this.correctionMode && !this.hasPayrollChanges(this.originalPayroll, payroll)) {
+    if (this.correctionMode && !this.isAddMode && !this.hasPayrollChanges(this.originalPayroll, payroll)) {
       this.commonService.showTimedMessage('変更がありません。', value => this.message = value, this.messageTimer);
       return;
     }
@@ -177,15 +352,173 @@ export class SalaryList implements OnChanges {
       return;
     }
 
-    const result = await this.payrollService.updatePayroll(payroll);
-    if (!result) {
-      this.commonService.showTimedMessage(UPDATE_MESSAGES.FAILED, value => this.message = value, this.messageTimer);
-      this.closeEditPayrollModal();
+    if (this.isAddMode) {
+      const registered = await this.registerPayrollRecord(payroll, this.correctionMode);
+      if (!registered) return;
+      this.commonService.showTimedMessage(
+        `従業員ID：${payroll.employeeId}の給与・勤務実績を${CREATE_MESSAGES.SUCCESS}`,
+        value => this.message = value,
+        this.messageTimer,
+      );
+    } else {
+      const updatePayroll = this.correctionMode
+        ? this.payrollService.updatePayrollForCorrection.bind(this.payrollService)
+        : this.payrollService.updatePayroll.bind(this.payrollService);
+      const result = await updatePayroll(payroll);
+      if (!result) {
+        this.commonService.showTimedMessage(UPDATE_MESSAGES.FAILED, value => this.message = value, this.messageTimer);
+        this.closeEditPayrollModal();
+        return;
+      }
+      this.commonService.showTimedMessage(
+        `従業員ID：${payroll.employeeId}の給与・勤務実績を${UPDATE_MESSAGES.SUCCESS}`,
+        value => this.message = value,
+        this.messageTimer,
+      );
+    }
+
+    this.closeEditPayrollModal();
+    await this.loadPayrollContext(true);
+  }
+
+  async registerIndividualSalary() {
+    if (this.registerForm.invalid) {
+      this.registerForm.markAllAsTouched();
       return;
     }
 
-    this.commonService.showTimedMessage(`従業員ID：${payroll.employeeId}の給与・勤務実績を${UPDATE_MESSAGES.SUCCESS}`, value => this.message = value, this.messageTimer);
-    this.closeEditPayrollModal();
+    this.targetPeriodStartError = '';
+    const targetError = await this.correctionLogicService.validateSalaryCorrectionTargetPeriodStart(
+      this.registerForm.value.targetPeriodStart!,
+      this.payrollId,
+    );
+    if (targetError) {
+      this.targetPeriodStartError = targetError;
+      this.registerForm.controls.targetPeriodStart.markAsTouched();
+      return;
+    }
+
+    const payroll = this.buildPayrollFromRegisterForm();
+    const registered = await this.registerPayrollRecord(payroll, false, 'register');
+    if (!registered) return;
+
+    this.commonService.showTimedMessage(CREATE_MESSAGES.SUCCESS, value => this.registerMessage = value, this.registerMessageTimer);
+    this.registerForm.reset();
+    await this.applyRegisterFormDefaults();
+    this.applyRegisterFormValidators();
+    this.updateRegisterFormCalculatedAmounts();
+    await this.loadPayrollContext(true);
+  }
+
+  resetRegisterForm() {
+    this.registerForm.reset();
+    void this.applyRegisterFormDefaults();
+    this.applyRegisterFormValidators();
+    this.updateRegisterFormCalculatedAmounts();
+  }
+
+  onCorrectionPayrollRegistered() {
+    void this.loadPayrollContext(true);
+  }
+
+  async confirmCorrectionPayrollMonth() {
+    if (!this.payrollId) return;
+
+    const confirmed = window.confirm(
+      '確定すると、この月の給与・勤務実績の登録フォームは表示されなくなります。\n確定しますか？',
+    );
+    if (!confirmed) return;
+
+    const lockResult = await this.payrollLockService.lockPayroll(this.payrollId, '毎月');
+    if (!lockResult) {
+      this.confirmLockMessageTimer = this.commonService.showTimedMessage(
+        '確定に失敗しました',
+        value => this.confirmLockMessage = value,
+        this.confirmLockMessageTimer,
+      );
+      return;
+    }
+
+    this.confirmLockMessage = '';
+    await this.loadPayrollContext(true);
+  }
+
+  private buildPayrollFromForm(value: ReturnType<typeof this.form.getRawValue>): Partial<Payroll> {
+    const payroll: Partial<Payroll> = {
+      payrollId: value.payrollId,
+      employeeId: value.employeeId,
+      type: '毎月',
+      companyId: this.companyId,
+      targetPeriod: [
+        timestampFromDateInput(value.targetPeriodStart),
+        timestampFromDateInput(value.targetPeriodEnd),
+      ],
+      paymentDate: timestampFromDateInput(value.paymentDate),
+      actualPaymentAmount: value.actualPaymentAmount,
+    };
+
+    if (!this.isBonus) {
+      payroll.actualWorkingDays = value.actualWorkingDays;
+      payroll.actualWorkingHours = value.actualWorkingHours;
+      payroll.fixedSalary = value.fixedSalary;
+    }
+
+    return payroll;
+  }
+
+  private buildPayrollFromRegisterForm(): Partial<Payroll> {
+    const value = this.registerForm.getRawValue();
+    return {
+      payrollId: this.payrollId,
+      type: '毎月',
+      companyId: this.companyId,
+      employeeId: value.employeeId,
+      actualWorkingDays: value.actualWorkingDays!,
+      actualWorkingHours: Math.round(value.actualWorkingHours! * 12 / 52),
+      paymentDate: timestampFromDateInput(value.paymentDate!),
+      targetPeriod: [
+        timestampFromDateInput(value.targetPeriodStart!),
+        timestampFromDateInput(value.targetPeriodEnd!),
+      ],
+      fixedSalary: value.fixedSalary!,
+      actualPaymentAmount: value.actualPaymentAmount!,
+    };
+  }
+
+  private async registerPayrollRecord(
+    payroll: Partial<Payroll>,
+    forCorrection = false,
+    errorChannel: 'message' | 'register' = 'message',
+  ): Promise<boolean> {
+    const showError = (text: string) => {
+      if (errorChannel === 'register') {
+        this.commonService.showTimedMessage(text, value => this.registerMessage = value, this.registerMessageTimer);
+      } else {
+        this.commonService.showTimedMessage(text, value => this.message = value, this.messageTimer);
+      }
+    };
+
+    const employeeId = payroll.employeeId!;
+    const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
+    if (this.employeeService.isRetired(employee)) {
+      showError(`社員ID ${employeeId} は退社済みのため、給与入力の対象外です`);
+      return false;
+    }
+
+    const existingPayroll = await this.payrollService.getPayroll(employeeId, payroll);
+    if (existingPayroll) {
+      showError(`社員ID ${employeeId} の同じ対象月の給与・勤務実績は既に登録済みです`);
+      return false;
+    }
+
+    const result = forCorrection
+      ? await this.payrollService.registerPayrollForCorrection(employeeId, payroll)
+      : await this.payrollService.registerPayroll(employeeId, payroll);
+    if (!result) {
+      showError(CREATE_MESSAGES.FAILED);
+      return false;
+    }
+    return true;
   }
 
   async deletePayroll(payroll: Payroll) {
@@ -196,7 +529,6 @@ export class SalaryList implements OnChanges {
       return;
     }
     this.commonService.showTimedMessage(`従業員ID：${payroll.employeeId}の給与・勤務実績を${DELETE_MESSAGES.SUCCESS}`, value => this.message = value, this.messageTimer);
-    return;
   }
 
   private hasPayrollChanges(original: Payroll | null, updated: Partial<Payroll>): boolean {

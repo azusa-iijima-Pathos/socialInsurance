@@ -19,6 +19,7 @@ import { InsuranceDraft } from '../../../model/insurance-draft';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { CalculationRun } from '../../../model/calculation-run';
 import { InsuranceDisplayService, InsuranceNoticeSummary, OfficeInsuranceSummary } from '../../../service/logic/insurance-display.service';
+import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
 
 type EmployeeInsurance = {
   employeeId: string;
@@ -88,6 +89,7 @@ export class InsuranceConfirm {
   private insuranceRates = inject(InsuranceRates);
   private calculationRunService = inject(CalculationRunService);
   private insuranceDisplayService = inject(InsuranceDisplayService);
+  private payrollLockService = inject(PayrollLockService);
 
   companyId = sessionStorage.getItem('companyId');
 
@@ -651,6 +653,12 @@ export class InsuranceConfirm {
     const snapshotSaved = await this.saveInsuranceSnapshots();
     if (!snapshotSaved) {
       console.error('保険料を保存できませんでした');
+      return;
+    }
+
+    const lockResult = await this.payrollLockService.lockPayroll(this.payrollId, '毎月');
+    if (!lockResult) {
+      console.error('給与の編集ロックを保存できませんでした');
       return;
     }
 

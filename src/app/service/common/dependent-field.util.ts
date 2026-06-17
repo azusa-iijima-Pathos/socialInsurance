@@ -24,7 +24,7 @@ export type DependentDisabilityStudentFormValue = {
 };
 
 export function getDependentDisabilityStudentFormDefaults(
-  dependent?: Dependent,
+  dependent?: Partial<Dependent>,
 ): DependentDisabilityStudentFormValue {
   const legacy = dependent as LegacyDependent | undefined;
 

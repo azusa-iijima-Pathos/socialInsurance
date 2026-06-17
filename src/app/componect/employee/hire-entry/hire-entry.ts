@@ -3,9 +3,13 @@ import { Component, DestroyRef, computed, inject } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { timestampFromDateInput, parseDateInputValue } from '../../../service/common/date-input.util';
-import { Timestamp } from '@angular/fire/firestore';
-import { CREATE_MESSAGES } from '../../../constants/constants';
+import {
+  timestampFromDateInput,
+  parseDateInputValue,
+  isValidDateInputValue,
+  optionalTimestampFromDateInput,
+  formatTimestampForDateInput,
+} from '../../../service/common/date-input.util';
 import { EMPLOYMENT_CATEGORIES, EmploymentCategory, GENDERS, Gender, LEAVE_TYPES, LeaveType, RELATIONSHIPS, Relationship, WORK_STATUSES, WORK_STYLES, WorkStatus, WorkStyle, COHABITATION_TYPES, CohabitationType } from '../../../constants/model-constants';
 import { DependentDisabilityStudentFields } from '../../common/dependent-disability-student-fields/dependent-disability-student-fields';
 import {
@@ -34,7 +38,8 @@ import {
 } from '../../../service/logic/event-id-service';
 import { TempEmployee } from '../../../model/temp-employee';
 import { TempEmployeeService } from '../../../service/Firestore/temp-employee-service';
-import { formatTimestampForDateInput } from '../../../service/common/date-input.util';
+import { Timestamp } from '@angular/fire/firestore';
+import { CREATE_MESSAGES } from '../../../constants/constants';
 
 type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
 type InsuranceStatus = 'joined' | 'notJoined';
@@ -74,6 +79,8 @@ export class HireEntry {
   officeNameMap = computed(() => this.officeService.allOfficeNameMap());
 
   message = '';
+  scheduledListMessage = '';
+  scheduledListRetroactiveMessage = '';
   isSpecificApplicableOffice = false;
 
   mode = this.route.snapshot.queryParamMap.get('mode');
@@ -81,16 +88,17 @@ export class HireEntry {
   isHireBeforeCurrentWorkPeriod = false;
   scheduledHires: TempEmployee[] = [];
   scheduledHireDateEdits: Record<string, string> = {};
+  scheduledHireDateEditingIds = new Set<string>();
 
   // 表示用の加入判定
   autoInsuranceJudgement: InsuranceJudgement | null = null;
   autoGradeJudgement: number | null = null;
 
   private messageTimer: MessageTimer = null;
+  private scheduledListMessageTimer: MessageTimer = null;
+  private scheduledListRetroactiveMessageTimer: MessageTimer = null;
 
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? '';
-  workingYear = sessionStorage.getItem('workingYear') ?? '';
-  workingMonth = sessionStorage.getItem('workingMonth') ?? '';
 
   form = this.fb.nonNullable.group({
     employeeId: ['', [Validators.required, Validators.pattern('^[a-zA-Z0-9]+$')], [this.validationService.validateEmployeeId]],
@@ -165,6 +173,7 @@ export class HireEntry {
     this.isSpecificApplicableOffice = await this.companyService.isSpecificApplicableOffice();
     await this.companyService.getCompany();
     if (!this.isExistingMode) {
+      this.form.controls.hireStatus.disable({ emitEvent: false });
       await this.loadScheduledHires();
     }
 
@@ -220,6 +229,7 @@ export class HireEntry {
       return;
     }
 
+    this.ensureHireDatesBeforeSave();
     if (!this.isHireBeforeCurrentWorkPeriod && !this.validateHireDependentPeriods()) {
       this.form.markAllAsTouched();
       return;
@@ -230,7 +240,7 @@ export class HireEntry {
     }
 
     const includeInsurance = !this.isHireBeforeCurrentWorkPeriod;
-    const employee = this.createEmployee({ includeInsurance: false });
+    const employee = this.buildEmployeeForSave({ includeInsurance: false });
     const employeeRegistered = await this.employeeService.registerEmployee(employee);
     if (!employeeRegistered) {
       this.showMessage(CREATE_MESSAGES.FAILED);
@@ -252,6 +262,7 @@ export class HireEntry {
   }
 
   async registerScheduledHire() {
+    this.ensureHireDatesBeforeSave();
     if (!this.validateHireDependentPeriods()) {
       this.form.markAllAsTouched();
       return;
@@ -261,7 +272,7 @@ export class HireEntry {
       return;
     }
 
-    const employee = this.createEmployee({ includeInsurance: false });
+    const employee = this.buildEmployeeForSave({ includeInsurance: false });
     const insurance = this.createInsuranceInfo();
     const dependents = this.showDependentsSection() ? this.createDependents(employee.employeeId!) : [];
 
@@ -284,6 +295,7 @@ export class HireEntry {
 
   private resetHireFormAfterSubmit() {
     this.form.reset({ hireStatus: '入社予定' });
+    this.form.controls.hireStatus.disable({ emitEvent: false });
     this.resetDependents();
     this.isHireBeforeCurrentWorkPeriod = false;
     this.form.controls.insurance.enable({ emitEvent: false });
@@ -291,7 +303,13 @@ export class HireEntry {
 
   async loadScheduledHires() {
     this.scheduledHires = await this.tempEmployeeService.getAllTempEmployees();
+    this.scheduledHires.sort((left, right) => {
+      const leftTime = left.hireDate?.toDate().getTime() ?? Number.MAX_SAFE_INTEGER;
+      const rightTime = right.hireDate?.toDate().getTime() ?? Number.MAX_SAFE_INTEGER;
+      return leftTime - rightTime;
+    });
     this.scheduledHireDateEdits = {};
+    this.scheduledHireDateEditingIds.clear();
     for (const temp of this.scheduledHires) {
       this.scheduledHireDateEdits[temp.employeeId] = formatTimestampForDateInput(temp.hireDate) ?? '';
     }
@@ -334,6 +352,15 @@ export class HireEntry {
     return `${temp.lastName ?? ''} ${temp.firstName ?? ''}`.trim();
   }
 
+  isEditingScheduledHireDate(employeeId: string): boolean {
+    return this.scheduledHireDateEditingIds.has(employeeId);
+  }
+
+  startEditingScheduledHireDate(temp: TempEmployee) {
+    this.scheduledHireDateEdits[temp.employeeId] = formatTimestampForDateInput(temp.hireDate) ?? '';
+    this.scheduledHireDateEditingIds.add(temp.employeeId);
+  }
+
   async saveScheduledHireDate(temp: TempEmployee) {
     const newDate = this.scheduledHireDateEdits[temp.employeeId];
     if (!newDate) return;
@@ -350,10 +377,11 @@ export class HireEntry {
       tempDependents,
     });
     if (updated) {
-      this.showMessage(`社員ID：${temp.employeeId} の入社日を更新しました`);
+      this.scheduledHireDateEditingIds.delete(temp.employeeId);
+      this.showScheduledListMessage(`社員ID：${temp.employeeId} の入社日を更新しました`);
       await this.loadScheduledHires();
     } else {
-      this.showMessage('入社日の更新に失敗しました');
+      this.showScheduledListMessage('入社日の更新に失敗しました');
     }
   }
 
@@ -378,7 +406,7 @@ export class HireEntry {
 
     const registered = await this.employeeService.registerEmployee(employee);
     if (!registered) {
-      this.showMessage('従業員の登録に失敗しました');
+      this.showScheduledListMessage('従業員の登録に失敗しました');
       return;
     }
 
@@ -391,14 +419,14 @@ export class HireEntry {
         !!(insurance?.healthInsurance?.joined),
       );
       if (!eventsCreated) {
-        this.showMessage('従業員は登録されましたが、イベントの作成に失敗しました');
+        this.showScheduledListMessage('従業員は登録されましたが、イベントの作成に失敗しました');
         return;
       }
     }
 
     const deleted = await this.tempEmployeeService.deleteTempEmployee(temp.employeeId);
     if (!deleted) {
-      this.showMessage('入社承認後の一時データ削除に失敗しました');
+      this.showScheduledListMessage('入社承認後の一時データ削除に失敗しました');
       return;
     }
 
@@ -406,11 +434,11 @@ export class HireEntry {
     await this.loadScheduledHires();
 
     if (beforePeriod) {
-      this.showMessage(
-        '入社を承認しました。現在の作業対象期間より前の入社になります。入社登録後に、給与修正より保険料を算出したい月の給与を入力し、その後遡及修正より保険情報の登録をおこなってください。',
+      this.showScheduledListRetroactiveMessage(
+        '入社を承認しました。<br>現在の作業対象期間より前の入社になります。<br>給与修正より保険料を算出したい月の給与を入力し、その後遡及修正より保険情報の登録をおこなってください。',
       );
     } else {
-      this.showMessage(`社員ID：${temp.employeeId} ${name}さんの入社を承認しました`);
+      this.showScheduledListMessage(`社員ID：${temp.employeeId} ${name}さんの入社を承認しました`);
     }
   }
 
@@ -420,15 +448,16 @@ export class HireEntry {
 
     const deleted = await this.tempEmployeeService.deleteTempEmployee(temp.employeeId);
     if (deleted) {
-      this.showMessage(`社員ID：${temp.employeeId} の入社予定を取り消しました`);
+      this.showScheduledListMessage(`社員ID：${temp.employeeId} の入社予定を取り消しました`);
       await this.loadScheduledHires();
     } else {
-      this.showMessage('入社予定の取り消しに失敗しました');
+      this.showScheduledListMessage('入社予定の取り消しに失敗しました');
     }
   }
 
   async registerExistingEmployee() {
     this.clearMessage();
+    this.ensureHireDatesBeforeSave();
     if (!this.validateHireDependentPeriods()) {
       this.form.markAllAsTouched();
       return;
@@ -438,7 +467,7 @@ export class HireEntry {
       return;
     }
 
-    const employee = this.createEmployee({ includeInsurance: true });
+    const employee = this.buildEmployeeForSave({ includeInsurance: true });
     const employeeRegistered = await this.employeeService.registerEmployee(employee);
     if (!employeeRegistered) {
       this.showMessage(CREATE_MESSAGES.FAILED);
@@ -463,6 +492,9 @@ export class HireEntry {
   // リセット
   resetForm() {
     this.form.reset({ workStatus: '通常勤務', hireStatus: '入社予定' });
+    if (!this.isExistingMode) {
+      this.form.controls.hireStatus.disable({ emitEvent: false });
+    }
     this.clearMessage();
     this.isHireBeforeCurrentWorkPeriod = false;
     this.form.controls.insurance.enable({ emitEvent: false });
@@ -522,33 +554,67 @@ export class HireEntry {
     return this.dependents.at(index).get(fieldName);
   }
 
-  // 従業員データを作る
-  private createEmployee(options?: { includeInsurance?: boolean }): Partial<Employee> {
-    const includeInsurance = options?.includeInsurance ?? true;
+  /** 加入判定・等級判定の表示用。日付未入力でもエラーにしない */
+  private buildEmployeeSnapshot(options?: { includeInsurance?: boolean }): Partial<Employee> {
+    const includeInsurance = options?.includeInsurance ?? false;
+    const birthDate = optionalTimestampFromDateInput(this.form.controls.birthDate.value);
+    const hireDate = optionalTimestampFromDateInput(this.form.controls.hireDate.value);
+
     const employee: Partial<Employee> = {
-      employeeId: this.form.value.employeeId!,
-      firstName: this.form.value.firstName!,
-      lastName: this.form.value.lastName!,
-      birthDate: timestampFromDateInput(this.form.value.birthDate!),
-      gender: this.form.value.gender! as Gender,
-      hireDate: timestampFromDateInput(this.form.value.hireDate!),
+      employeeId: this.form.controls.employeeId.value,
+      firstName: this.form.controls.firstName.value,
+      lastName: this.form.controls.lastName.value,
+      gender: (this.form.controls.gender.value || undefined) as Gender | undefined,
+      employmentContract: this.createEmploymentContractFromForm(),
+      insurance: includeInsurance ? this.createInsuranceInfo() : { currentGrade: 0 },
+      ...(birthDate ? { birthDate } : {}),
+      ...(hireDate ? { hireDate } : {}),
+    };
+
+    if (this.isExistingMode) {
+      employee.workStatus = this.form.controls.workStatus.value as WorkStatus;
+      const leaveTypes = this.form.controls.leaveTypes.value;
+      if (leaveTypes) employee.leaveTypes = leaveTypes as LeaveType;
+
+      const leaveStartDate = optionalTimestampFromDateInput(this.form.controls.leaveStartDate.value);
+      const leaveEndDate = optionalTimestampFromDateInput(this.form.controls.leaveEndDate.value);
+      const resignationDate = optionalTimestampFromDateInput(this.form.controls.resignationDate.value);
+      if (leaveStartDate) employee.leaveStartDate = leaveStartDate;
+      if (leaveEndDate) employee.leaveEndDate = leaveEndDate;
+      if (resignationDate) employee.resignationDate = resignationDate;
+    } else {
+      employee.workStatus = '通常勤務';
+    }
+
+    return employee;
+  }
+
+  /** Firestore 保存用。バリデーション通過後にのみ呼ぶ */
+  private buildEmployeeForSave(options?: { includeInsurance?: boolean }): Partial<Employee> {
+    const includeInsurance = options?.includeInsurance ?? true;
+
+    const employee: Partial<Employee> = {
+      employeeId: this.form.controls.employeeId.value,
+      firstName: this.form.controls.firstName.value,
+      lastName: this.form.controls.lastName.value,
+      birthDate: timestampFromDateInput(this.form.controls.birthDate.value),
+      gender: this.form.controls.gender.value as Gender,
+      hireDate: timestampFromDateInput(this.form.controls.hireDate.value),
       employmentContract: this.createEmploymentContractFromForm(),
       insurance: includeInsurance ? this.createInsuranceInfo() : { currentGrade: 0 },
     };
 
     if (this.isExistingMode) {
-      employee.workStatus = this.form.value.workStatus as WorkStatus;
-      const leaveTypes = this.form.value.leaveTypes;
+      employee.workStatus = this.form.controls.workStatus.value as WorkStatus;
+      const leaveTypes = this.form.controls.leaveTypes.value;
       if (leaveTypes) employee.leaveTypes = leaveTypes as LeaveType;
-      if (this.form.value.leaveStartDate) {
-        employee.leaveStartDate = timestampFromDateInput(this.form.value.leaveStartDate);
-      }
-      if (this.form.value.leaveEndDate) {
-        employee.leaveEndDate = timestampFromDateInput(this.form.value.leaveEndDate);
-      }
-      if (this.form.value.resignationDate) {
-        employee.resignationDate = timestampFromDateInput(this.form.value.resignationDate);
-      }
+
+      const leaveStartDate = optionalTimestampFromDateInput(this.form.controls.leaveStartDate.value);
+      const leaveEndDate = optionalTimestampFromDateInput(this.form.controls.leaveEndDate.value);
+      const resignationDate = optionalTimestampFromDateInput(this.form.controls.resignationDate.value);
+      if (leaveStartDate) employee.leaveStartDate = leaveStartDate;
+      if (leaveEndDate) employee.leaveEndDate = leaveEndDate;
+      if (resignationDate) employee.resignationDate = resignationDate;
     } else {
       employee.workStatus = '通常勤務';
     }
@@ -745,12 +811,18 @@ export class HireEntry {
     raw: ReturnType<typeof this.form.controls.insurance.getRawValue>,
   ): InsuranceDetail {
     const value = raw[insuranceName];
-    if (value.joined === 'notJoined') {
+    if (value.joined !== 'joined') {
       return { joined: false };
     }
+
+    const acquiredDateValue = value.acquiredDate || this.form.controls.hireDate.value;
+    if (!isValidDateInputValue(acquiredDateValue)) {
+      return { joined: false };
+    }
+
     return {
       joined: true,
-      acquiredDate: timestampFromDateInput(value.acquiredDate),
+      acquiredDate: timestampFromDateInput(acquiredDateValue),
       companyBurdenRate: value.companyBurdenRate,
     };
   }
@@ -758,13 +830,18 @@ export class HireEntry {
   // 保険情報を作る
   private createInsuranceDetailFromForm(insuranceName: InsuranceName): InsuranceDetail {
     const value = this.form.controls.insurance.controls[insuranceName].getRawValue();
-    if (value.joined === 'notJoined') {
+    if (value.joined !== 'joined') {
       return { joined: false };
+    }
+
+    const acquiredDateValue = value.acquiredDate || this.form.controls.hireDate.value;
+    if (!isValidDateInputValue(acquiredDateValue)) {
+      return { joined: true };
     }
 
     return {
       joined: true,
-      acquiredDate: timestampFromDateInput(value.acquiredDate),
+      acquiredDate: timestampFromDateInput(acquiredDateValue),
       companyBurdenRate: value.companyBurdenRate,
     };
   }
@@ -772,10 +849,15 @@ export class HireEntry {
   // 扶養情報を作る
   private createDependents(employeeId: string): Partial<Dependent>[] {
     // 入力された扶養情報だけ、dependents サブコレクション用に変換する
+    const hireDate = this.form.controls.hireDate.value;
     const dependents: Partial<Dependent>[] = [];
     this.dependents.controls.forEach((control, index) => {
-      const value = control.value;
+      const value = control.getRawValue();
       if (!value.name && !value.birthDate && !value.relationship) return;
+      if (!isValidDateInputValue(value.birthDate)) return;
+
+      const startDateValue = value.dependentStartDate || hireDate;
+      if (!isValidDateInputValue(startDateValue)) return;
 
       dependents.push({
         dependentId: `${index + 1}`,
@@ -783,7 +865,7 @@ export class HireEntry {
         birthDate: timestampFromDateInput(value.birthDate!),
         relationship: value.relationship! as Relationship,
         isDependent: true,
-        dependentStartDate: timestampFromDateInput(value.dependentStartDate!),
+        dependentStartDate: timestampFromDateInput(startDateValue),
         ...(value.cohabitationType ? { cohabitationType: value.cohabitationType as CohabitationType } : {}),
         ...(value.annualIncome !== '' && value.annualIncome != null
           ? { annualIncome: Number(value.annualIncome) }
@@ -825,7 +907,7 @@ export class HireEntry {
     const healthInsurance = this.createInsuranceDetailFromForm('healthInsurance');
     let valid = true;
     for (const control of this.dependents.controls) {
-      const value = control.value;
+      const value = control.getRawValue();
       if (!value.name && !value.birthDate && !value.relationship) continue;
       const periodError = this.validationService.validateDependentPeriod(
         healthInsurance,
@@ -1010,15 +1092,23 @@ export class HireEntry {
     });
   }
 
+  private ensureHireDatesBeforeSave() {
+    this.setAcquiredDateFromHireDate();
+    this.patchDependentStartDatesFromHireDate(this.form.controls.hireDate.value);
+  }
+
   // 表示用の加入判定を更新する
   private updateAutoInsuranceJudgement() {
-    const employee = this.createEmployee({ includeInsurance: !this.isHireBeforeCurrentWorkPeriod });
-    this.autoInsuranceJudgement = this.employeeLogicService.isInsuranceRequired(employee as Employee, this.isSpecificApplicableOffice);
+    const employee = this.buildEmployeeSnapshot();
+    this.autoInsuranceJudgement = this.employeeLogicService.isInsuranceRequired(
+      employee as Employee,
+      this.isSpecificApplicableOffice,
+    );
   }
 
   // 表示用の等級判定を更新する
   private async updateAutoGradeJudgement() {
-    const employee = this.createEmployee({ includeInsurance: !this.isHireBeforeCurrentWorkPeriod });
+    const employee = this.buildEmployeeSnapshot();
     const grade = await this.employeeLogicService.getInsuranceGradeAtNewEntry(employee as Employee);
     this.autoGradeJudgement = grade ?? null;
   }
@@ -1039,16 +1129,6 @@ export class HireEntry {
       ...(transportationExpenses !== undefined ? { transportationExpenses } : {}),
     };
   }
-
-  // // 生年月日をTimestampに変換する
-  // private createBirthDateTimestamp(): Timestamp | undefined {
-  //   // 生年月日が未入力/不正な場合は、未加入ではなく判定不能にするため undefined を返す
-  //   const value = this.form.controls.birthDate.value;
-  //   if (!value || this.form.controls.birthDate.invalid) return undefined;
-
-  //   const date = new Date(`${value}T00:00:00`);
-  //   return Number.isNaN(date.getTime()) ? undefined : Timestamp.fromDate(date);
-  // }
 
   // 数値に変換する
   private toNumberOrUndefined(value: unknown): number | undefined {
@@ -1080,6 +1160,30 @@ export class HireEntry {
   // メッセージをクリアする
   private clearMessage() {
     this.messageTimer = this.commonService.clearTimedMessage(value => this.message = value, this.messageTimer);
+  }
+
+  private showScheduledListMessage(message: string) {
+    this.scheduledListRetroactiveMessageTimer = this.commonService.clearTimedMessage(
+      value => this.scheduledListRetroactiveMessage = value,
+      this.scheduledListRetroactiveMessageTimer,
+    );
+    this.scheduledListMessageTimer = this.commonService.showTimedMessage(
+      message,
+      value => this.scheduledListMessage = value,
+      this.scheduledListMessageTimer,
+    );
+  }
+
+  private showScheduledListRetroactiveMessage(message: string) {
+    this.scheduledListMessageTimer = this.commonService.clearTimedMessage(
+      value => this.scheduledListMessage = value,
+      this.scheduledListMessageTimer,
+    );
+    this.scheduledListRetroactiveMessageTimer = this.commonService.showTimedMessage(
+      message,
+      value => this.scheduledListRetroactiveMessage = value,
+      this.scheduledListRetroactiveMessageTimer,
+    );
   }
 
 }

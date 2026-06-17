@@ -457,7 +457,8 @@ export class CorrectionList {
   }
 
   private getTargetMonth(run: CalculationRun): string {
-    const target = run.payload?.['targetMonth'] as { year?: number; month?: number } | undefined;
+    const target = run.payload?.['targetMonth'] as { year?: number; month?: number } | undefined
+      ?? run.payload?.['applyWorkMonth'] as { year?: number; month?: number } | undefined;
     if (!target?.year || !target?.month) return '';
     return `${target.year}-${String(target.month).padStart(2, '0')}`;
   }

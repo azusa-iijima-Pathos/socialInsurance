@@ -101,12 +101,38 @@ export class EmployeeDetailEventService {
     const createdIds: string[] = [];
     if (!after.resignationDate) return { createdIds, needsRetroactiveNotice: false };
 
+    if (after.workStatus === '退社予定') {
+      const pendingId = await this.createPendingAdminEvent(employeeId, '退社', before, after);
+      if (pendingId) createdIds.push(pendingId);
+      return { createdIds, needsRetroactiveNotice: false };
+    }
+
     const adminId = await this.createAdminApprovedEvent(employeeId, '退社', before, after, loginEmployeeId);
     if (adminId) createdIds.push(adminId);
 
     await this.companyService.getCompany();
     const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
-    const resignationDate = after.resignationDate;
+    const resignMonth = getWorkMonthForDate(after.resignationDate.toDate(), targetPeriodStart);
+    const current = getWorkingYearMonth();
+    const beforePeriod = resignMonth.year * 12 + resignMonth.month < current.year * 12 + current.month;
+    if (beforePeriod) {
+      return { createdIds, needsRetroactiveNotice: true };
+    }
+
+    const followUp = await this.createRetireInsuranceAndDependentEvents(employeeId, before, after.resignationDate);
+    createdIds.push(...followUp.createdIds);
+    return followUp;
+  }
+
+  async createRetireInsuranceAndDependentEvents(
+    employeeId: string,
+    before: Employee,
+    resignationDate: Timestamp,
+  ): Promise<RetireEventsResult> {
+    const createdIds: string[] = [];
+
+    await this.companyService.getCompany();
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
     const resignMonth = getWorkMonthForDate(resignationDate.toDate(), targetPeriodStart);
     const current = getWorkingYearMonth();
     const beforePeriod = resignMonth.year * 12 + resignMonth.month < current.year * 12 + current.month;
@@ -263,6 +289,28 @@ export class EmployeeDetailEventService {
     return (contract.employmentCategory === '契約社員' && contract.workStyle === '時短')
       || contract.employmentCategory === 'パート'
       || contract.workStyle === 'パート';
+  }
+
+  private async createPendingAdminEvent(
+    employeeId: string,
+    eventType: EmployeeEventType,
+    before: Employee | Record<string, unknown>,
+    after: Employee | Record<string, unknown>,
+  ): Promise<string | null> {
+    let occurredDate = Timestamp.now();
+    if (eventType === '退社') {
+      occurredDate = (after as Employee).resignationDate as Timestamp;
+    }
+    return this.eventService.createEventWithBaseId(employeeId, buildCurrentWorkMonthEventId(eventType), {
+      occurredDate,
+      eventType,
+      appliedDate: Timestamp.now(),
+      applicantType: '管理者',
+      approval: {
+        approvalStatus: '申請中',
+      },
+      payload: { before, after },
+    });
   }
 
   private async createAdminApprovedEvent(

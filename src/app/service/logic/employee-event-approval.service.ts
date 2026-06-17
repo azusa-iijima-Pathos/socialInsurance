@@ -9,10 +9,16 @@ import { CompanyService } from '../Firestore/company-service';
 import { EmployeeLogicService } from './employee-logic-service';
 import { DependentService } from '../Firestore/dependent-service';
 import { Dependent } from '../../model/dependent';
-import { Relationship } from '../../constants/model-constants';
+import {
+  getDependentDisabilityStudentFormDefaults,
+  mapDependentDisabilityStudentFromForm,
+} from '../common/dependent-field.util';
+import { Relationship, CohabitationType, DisabilityType, StudentType } from '../../constants/model-constants';
 import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { SystemCalculationRunItem } from '../Firestore/calculation-run-service';
 import { UserService } from '../Firestore/user-service';
+import { EmployeeDetailEventService } from './employee-detail-event-service';
+import { getWorkMonthForDate, getWorkingYearMonth } from './event-id-service';
 
 type InsuranceStatusKind = 'joined' | 'notJoined' | 'lost';
 
@@ -64,6 +70,13 @@ export type HireDependentApprovalDraft = {
   birthDate: string;
   relationship: Relationship | '';
   dependentStartDate: string;
+  cohabitationType: CohabitationType | '';
+  annualIncome: number | '';
+  occupation: string;
+  disabilityStatus: 'あり' | 'なし' | '';
+  disabilityType: DisabilityType | '';
+  studentStatus: '学生' | '学生じゃない' | '';
+  studentType: StudentType | '';
 };
 
 export type HireInsuranceApprovalDraft = {
@@ -103,6 +116,7 @@ export class EmployeeEventApprovalService {
   private dependentService = inject(DependentService);
   private calculationRunService = inject(CalculationRunService);
   private userService = inject(UserService);
+  private employeeDetailEventService = inject(EmployeeDetailEventService);
 
   async buildFixedSalaryApprovalDraft(event: Event): Promise<FixedSalaryApprovalDraft | null> {
     const after = event.payload?.['after'] as Employee | undefined;
@@ -386,6 +400,7 @@ export class EmployeeEventApprovalService {
       const event = await this.eventService.getEventById(run.employeeId, eventId);
       const after = event?.payload?.['after'] as Partial<Dependent> | undefined;
       if (!after) continue;
+      const disabilityStudentDefaults = getDependentDisabilityStudentFormDefaults(after);
       dependents.push({
         eventId,
         dependentId: after.dependentId ?? `${index + 1}`,
@@ -393,6 +408,13 @@ export class EmployeeEventApprovalService {
         birthDate: this.formatDateInput(after.birthDate?.toDate()) || '',
         relationship: (after.relationship ?? '') as Relationship | '',
         dependentStartDate: this.formatDateInput(after.dependentStartDate?.toDate()) || hireDate,
+        cohabitationType: after.cohabitationType ?? '',
+        annualIncome: after.annualIncome ?? '',
+        occupation: after.occupation ?? '',
+        disabilityStatus: disabilityStudentDefaults.disabilityStatus,
+        disabilityType: disabilityStudentDefaults.disabilityType,
+        studentStatus: disabilityStudentDefaults.studentStatus,
+        studentType: disabilityStudentDefaults.studentType,
       });
     }
 
@@ -508,13 +530,23 @@ export class EmployeeEventApprovalService {
       for (const dependentDraft of draft.dependents) {
         const event = await this.eventService.getEventById(run.employeeId, dependentDraft.eventId);
         if (!event) continue;
+        const existingAfter = event.payload?.['after'] as Partial<Dependent> | undefined;
         const after: Partial<Dependent> = {
+          ...existingAfter,
           dependentId: dependentDraft.dependentId,
           name: dependentDraft.name,
           birthDate: timestampFromDateInput(dependentDraft.birthDate),
           relationship: dependentDraft.relationship as Relationship,
           isDependent: true,
           dependentStartDate: timestampFromDateInput(dependentDraft.dependentStartDate),
+          ...(dependentDraft.cohabitationType
+            ? { cohabitationType: dependentDraft.cohabitationType as CohabitationType }
+            : {}),
+          ...(dependentDraft.annualIncome !== '' && dependentDraft.annualIncome != null
+            ? { annualIncome: Number(dependentDraft.annualIncome) }
+            : {}),
+          ...(dependentDraft.occupation?.trim() ? { occupation: dependentDraft.occupation.trim() } : {}),
+          ...mapDependentDisabilityStudentFromForm(dependentDraft as Record<string, unknown>),
         };
         const updated = await this.eventService.updateEvent(run.employeeId, dependentDraft.eventId, {
           payload: { ...event.payload, after },
@@ -632,6 +664,16 @@ export class EmployeeEventApprovalService {
 
   async approveRetireEvent(employeeId: string, event: Event, loginEmployeeId: string, runId?: string): Promise<boolean> {
     const after = event.payload?.['after'] as Employee | undefined;
+    const isScheduledRetireApproval =
+      event.applicantType === '管理者'
+      && event.approval?.approvalStatus === '申請中'
+      && event.eventType === '退社'
+      && after?.workStatus === '退社予定';
+
+    if (isScheduledRetireApproval) {
+      return this.approveScheduledRetireEvent(employeeId, event, loginEmployeeId);
+    }
+
     const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
     if (!employee) return false;
 
@@ -679,6 +721,44 @@ export class EmployeeEventApprovalService {
     return runId
       ? this.calculationRunService.markRunApproved(runId, loginEmployeeId)
       : this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  private async approveScheduledRetireEvent(
+    employeeId: string,
+    event: Event,
+    loginEmployeeId: string,
+  ): Promise<boolean> {
+    const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
+    if (!employee?.resignationDate) return false;
+
+    const resignationDate = employee.resignationDate;
+    const previousEmployee: Employee = {
+      ...employee,
+      employmentContract: employee.employmentContract ? { ...employee.employmentContract } : undefined,
+    };
+
+    const employeeUpdated = await this.employeeService.updateEmployee({
+      employeeId,
+      workStatus: '退社済み',
+      resignationDate,
+    });
+    if (!employeeUpdated) return false;
+
+    await this.companyService.getCompany();
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const resignMonth = getWorkMonthForDate(resignationDate.toDate(), targetPeriodStart);
+    const current = getWorkingYearMonth();
+    const beforePeriod = resignMonth.year * 12 + resignMonth.month < current.year * 12 + current.month;
+
+    if (!beforePeriod) {
+      await this.employeeDetailEventService.createRetireInsuranceAndDependentEvents(
+        employeeId,
+        previousEmployee,
+        resignationDate,
+      );
+    }
+
+    return this.markEventApproved(employeeId, event, loginEmployeeId);
   }
 
   async rejectSystemRun(runId: string, loginEmployeeId: string): Promise<boolean> {

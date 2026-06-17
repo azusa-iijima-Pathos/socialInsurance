@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { EmployeeInsurance, InsuranceDetail } from '../../model/employee';
 import { Timestamp } from '@angular/fire/firestore';
-import { timestampFromDateInput } from '../common/date-input.util';
+import { timestampFromDateInput, isValidDateInputValue } from '../common/date-input.util';
 
 export type InsuranceStatus = 'joined' | 'notJoined' | 'lost';
 export type InsuranceName = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
@@ -51,12 +51,19 @@ export class InsuranceFormService {
     }
 
     if (value.joined === 'joined') {
+      if (!isValidDateInputValue(value.acquiredDate)) {
+        return { joined: false };
+      }
       return {
         joined: true,
         number: value.number,
         acquiredDate: timestampFromDateInput(value.acquiredDate),
         companyBurdenRate: value.companyBurdenRate,
       };
+    }
+
+    if (!isValidDateInputValue(value.acquiredDate) || !isValidDateInputValue(value.lostDate)) {
+      return { joined: false };
     }
 
     return {

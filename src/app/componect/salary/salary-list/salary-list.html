@@ -4,55 +4,257 @@
         <p *ngIf="message" class="im-action-message">{{ message }}</p>
     </div>
 
-    <div *ngIf="allPayrollListForMonth().length === 0" style="text-align: center; margin-top: 16px; color: var(--im-color-black);">
-        <p>給与・勤務実績が登録されていません</p>
-    </div>
+    <ng-container *ngIf="correctionMode && !isBonus">
+        <div *ngIf="isEmptyCorrectionMonth()" class="salary-correction-empty-state">
+            <p class="salary-correction-empty-message">給与情報は未登録です。追加する場合は下記より追加をお願いします。</p>
 
-    <div class="monthly-salary-list-container__content">
-        <div *ngIf="allPayrollListForMonth().length > 0">
+            <div class="monthly-salary-registration-layout salary-correction-registration-layout">
+            <section class="monthly-salary-registration-card monthly-salary-registration-card--csv">
+                <app-monthly-salary-csv
+                    [payrollId]="payrollId"
+                    [inputFormat]="inputFormat"
+                    fileInputId="salaryCorrectionCsvFile"
+                    (payrollRegistered)="onCorrectionPayrollRegistered()">
+                </app-monthly-salary-csv>
+            </section>
+
+            <section class="monthly-salary-registration-card monthly-salary-registration-card--individual salary-correction-register-card">
+                <form [formGroup]="registerForm" (ngSubmit)="registerIndividualSalary()">
+                    <section class="monthly-salary-container__content__form__section im-fields-grid monthly-salary-basic-section">
+                        <h2 class="section-title">個別登録</h2>
+                        <div class="monthly-salary-container__content__message">
+                            <p *ngIf="registerMessage" class="im-action-message">{{ registerMessage }}</p>
+                        </div>
+                        <div class="im-field-block im-field-row monthly-salary-basic-field">
+                            <div class="im-field-row__label">
+                                <label for="registerEmployeeId">社員ID</label>
+                            </div>
+                            <div class="im-field-row__control">
+                                <input type="text" id="registerEmployeeId" formControlName="employeeId">
+                                <div class="error">
+                                    <p *ngIf="registerForm.get('employeeId')?.errors?.['required'] && registerForm.get('employeeId')?.touched">社員IDは必須です</p>
+                                    <p *ngIf="registerForm.get('employeeId')?.errors?.['pattern'] && registerForm.get('employeeId')?.touched">半角で入力してください</p>
+                                    <p *ngIf="registerForm.get('employeeId')?.errors?.['employeeIdIncorrect'] && registerForm.get('employeeId')?.touched">社員IDが存在しません</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="monthly-salary-basic-pair">
+                            <div class="im-field-block im-field-row monthly-salary-basic-field">
+                                <div class="im-field-row__label">
+                                    <label for="registerActualWorkingDays">勤務日数(月単位)</label>
+                                </div>
+                                <div class="im-field-row__control">
+                                    <div class="monthly-salary-inline-control">
+                                        <input type="number" id="registerActualWorkingDays" formControlName="actualWorkingDays">
+                                        <span class="monthly-salary-unit">日</span>
+                                    </div>
+                                    <div class="error">
+                                        <p *ngIf="registerForm.get('actualWorkingDays')?.errors?.['required'] && registerForm.get('actualWorkingDays')?.touched">勤務日数は必須です</p>
+                                        <p *ngIf="registerForm.get('actualWorkingDays')?.errors?.['min'] && registerForm.get('actualWorkingDays')?.touched">勤務日数は0日以上で入力してください</p>
+                                        <p *ngIf="registerForm.hasError('invalidWorkingDays')">勤務時間がある場合、勤務日数は1日以上で入力してください</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="im-field-block im-field-row monthly-salary-basic-field">
+                                <div class="im-field-row__label">
+                                    <label for="registerActualWorkingHours">勤務時間(月単位)</label>
+                                </div>
+                                <div class="im-field-row__control">
+                                    <div class="monthly-salary-inline-control">
+                                        <input type="number" id="registerActualWorkingHours" formControlName="actualWorkingHours">
+                                        <span class="monthly-salary-unit">時間</span>
+                                    </div>
+                                    <div class="error">
+                                        <p *ngIf="registerForm.get('actualWorkingHours')?.errors?.['required'] && registerForm.get('actualWorkingHours')?.touched">勤務時間は必須です</p>
+                                        <p *ngIf="registerForm.get('actualWorkingHours')?.errors?.['min'] && registerForm.get('actualWorkingHours')?.touched">勤務時間は0時間以上で入力してください</p>
+                                        <p *ngIf="registerForm.hasError('invalidWorkingHours')">勤務日数がある場合、勤務時間は1時間以上で入力してください</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row monthly-salary-basic-field">
+                            <div class="im-field-row__label">
+                                <label for="registerTargetPeriodStart">対象期間</label>
+                            </div>
+                            <div class="im-field-row__control monthly-salary-period-control">
+                                <input type="date" id="registerTargetPeriodStart" formControlName="targetPeriodStart">
+                                <span class="monthly-salary-separator">～</span>
+                                <input type="date" id="registerTargetPeriodEnd" formControlName="targetPeriodEnd">
+                            </div>
+                            <div class="error">
+                                <p *ngIf="registerForm.get('targetPeriodStart')?.errors?.['required'] && registerForm.get('targetPeriodStart')?.touched">対象期間開始日は必須です</p>
+                                <p *ngIf="registerForm.get('targetPeriodEnd')?.errors?.['required'] && registerForm.get('targetPeriodEnd')?.touched">対象期間終了日は必須です</p>
+                                <p *ngIf="registerForm.hasError('targetPeriodStartMonthMismatch') && registerForm.get('targetPeriodStart')?.touched">対象期間開始日は対象月の日付で入力してください</p>
+                                <p *ngIf="targetPeriodStartError">{{ targetPeriodStartError }}</p>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row monthly-salary-basic-field">
+                            <div class="im-field-row__label">
+                                <label for="registerPaymentDate">支給日</label>
+                            </div>
+                            <div class="im-field-row__control">
+                                <input type="date" id="registerPaymentDate" formControlName="paymentDate">
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="monthly-salary-container__content__form__section monthly-salary-form-subsection" *ngIf="inputFormat === 1">
+                        <span class="monthly-salary-section-label">給与内訳</span>
+                        <div class="monthly-salary-form-grid">
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="registerBasicSalary">基本給</label>
+                                <input type="number" id="registerBasicSalary" formControlName="basicSalary">
+                                <span>円</span>
+                            </div>
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="registerFixedAllowance">固定手当</label>
+                                <input type="number" id="registerFixedAllowance" formControlName="fixedAllowance">
+                                <span>円</span>
+                            </div>
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="registerTransportAllowance">通勤手当</label>
+                                <input type="number" id="registerTransportAllowance" formControlName="transportAllowance">
+                                <span>円</span>
+                            </div>
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="registerVariableAllowance">変動給</label>
+                                <input type="number" id="registerVariableAllowance" formControlName="variableAllowance">
+                                <span>円</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="monthly-salary-container__content__form__section monthly-salary-form-subsection">
+                        <span class="monthly-salary-section-label">支給額</span>
+                        <div class="monthly-salary-form-grid">
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="registerFixedSalary">固定給</label>
+                                <input type="number" id="registerFixedSalary" formControlName="fixedSalary" [readonly]="inputFormat === 1">
+                                <span>円</span>
+                                <p *ngIf="registerForm.get('fixedSalary')?.errors?.['required'] && registerForm.get('fixedSalary')?.touched">固定給は必須です</p>
+                            </div>
+                            <div class="monthly-salary-container__content__form__item">
+                                <label for="registerActualPaymentAmount">総支給額</label>
+                                <input type="number" id="registerActualPaymentAmount" formControlName="actualPaymentAmount" [readonly]="inputFormat === 1">
+                                <span>円</span>
+                                <p *ngIf="registerForm.get('actualPaymentAmount')?.errors?.['required'] && registerForm.get('actualPaymentAmount')?.touched">総支給額は必須です</p>
+                            </div>
+                        </div>
+                        <div class="monthly-salary-form-error">
+                            <p *ngIf="registerForm.hasError('invalidSalary')">勤務実績がある場合、総支給額は1円以上で入力してください</p>
+                            <p *ngIf="registerForm.hasError('invalidActualPaymentAmount')">総支給額は固定給以上で入力してください</p>
+                        </div>
+                    </section>
+
+                    <div class="monthly-salary-form-actions">
+                        <button type="submit" class="im-btn-primary">登録</button>
+                        <button type="button" class="im-btn-soft" (click)="resetRegisterForm()">リセット</button>
+                    </div>
+                </form>
+            </section>
+            </div>
+
+            <div class="salary-correction-confirm-actions">
+                <p *ngIf="confirmLockMessage" class="im-action-message">{{ confirmLockMessage }}</p>
+                <button type="button" class="im-btn-primary" (click)="confirmCorrectionPayrollMonth()">確定</button>
+            </div>
+        </div>
+
+        <div *ngIf="hasCorrectionPayrollData()" class="monthly-salary-list-container__content">
             <table class="monthly-salary-list-container__content__table">
                 <thead>
                     <tr>
                         <th>社員ID</th>
                         <th>社員名</th>
-                        <th *ngIf="!isBonus">勤務日数</th>
-                        <th *ngIf="!isBonus">勤務時間</th>
+                        <th>勤務日数</th>
+                        <th>勤務時間</th>
                         <th>対象期間</th>
                         <th>支給日</th>
-                        <th *ngIf="!isBonus">固定給</th>
+                        <th>固定給</th>
                         <th>総支給額</th>
                         <th>登録日</th>
-                        <th *ngIf="correctionMode">更新日</th>
+                        <th>更新日</th>
                         <th *ngIf="!disabled"></th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr *ngFor="let payroll of allPayrollListForMonth()">
-                        <td>{{ payroll.employeeId }}</td>
-                        <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: payroll.employeeId }">{{ commonService.getEmployeeName(payroll.employeeId!) }}</a></td>
-                        <td *ngIf="!isBonus">{{ payroll.actualWorkingDays }}日</td>
-                        <td *ngIf="!isBonus">{{ payroll.actualWorkingHours }}時間</td>
-                        <td>{{ commonService.formatDate(payroll.targetPeriod?.[0]) }} ～ {{
-                            commonService.formatDate(payroll.targetPeriod?.[1]) }}</td>
-                        <td>{{ commonService.formatDate(payroll.paymentDate) }}</td>
-                        <td *ngIf="!isBonus">{{ payroll.fixedSalary | number }}円</td>
-                        <td>{{ payroll.actualPaymentAmount | number }}円</td>
-                        <td>{{ commonService.formatDate(payroll.createdAt) }}</td>
-                        <td *ngIf="correctionMode">{{ commonService.formatDate(payroll.updatedAt) }}</td>
-                        <td *ngIf="!disabled"><button class="im-btn-soft" (click)="editPayroll(payroll)" [disabled]="disabled">{{ getEditButtonLabel() }}</button>
-                            <span *ngIf="!correctionMode">&nbsp;</span>
-                        <button *ngIf="!correctionMode" class="im-btn-soft im-btn-soft--danger" (click)="deletePayroll(payroll)" [disabled]="disabled">削除</button></td>
+                    <tr *ngFor="let row of correctionEmployeeRows()">
+                        <td>{{ row.employeeId }}</td>
+                        <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: row.employeeId }">{{ commonService.getEmployeeName(row.employeeId) }}</a></td>
+                        <td>{{ row.payroll ? (row.payroll.actualWorkingDays + '日') : '未登録' }}</td>
+                        <td>{{ row.payroll ? (row.payroll.actualWorkingHours + '時間') : '未登録' }}</td>
+                        <td>
+                            <ng-container *ngIf="row.payroll; else unregisteredPeriod">
+                                {{ commonService.formatDate(row.payroll.targetPeriod?.[0]) }} ～ {{ commonService.formatDate(row.payroll.targetPeriod?.[1]) }}
+                            </ng-container>
+                            <ng-template #unregisteredPeriod>未登録</ng-template>
+                        </td>
+                        <td>{{ row.payroll ? commonService.formatDate(row.payroll.paymentDate) : '未登録' }}</td>
+                        <td>{{ row.payroll ? ((row.payroll.fixedSalary | number) + '円') : '未登録' }}</td>
+                        <td>{{ row.payroll ? ((row.payroll.actualPaymentAmount | number) + '円') : '未登録' }}</td>
+                        <td>{{ row.payroll ? commonService.formatDate(row.payroll.createdAt) : '未登録' }}</td>
+                        <td>{{ row.payroll ? commonService.formatDate(row.payroll.updatedAt) : '未登録' }}</td>
+                        <td *ngIf="!disabled">
+                            <button class="im-btn-soft" (click)="row.payroll ? editPayroll(row.payroll) : openAddPayroll(row.employeeId)" [disabled]="disabled">{{ getEditButtonLabel() }}</button>
+                        </td>
                     </tr>
                 </tbody>
             </table>
         </div>
-    </div>
+    </ng-container>
+
+    <ng-container *ngIf="!correctionMode || isBonus">
+        <div *ngIf="allPayrollListForMonth().length === 0" style="text-align: center; margin-top: 16px; color: var(--im-color-black);">
+            <p>給与・勤務実績が登録されていません</p>
+        </div>
+
+        <div class="monthly-salary-list-container__content">
+            <div *ngIf="allPayrollListForMonth().length > 0">
+                <table class="monthly-salary-list-container__content__table">
+                    <thead>
+                        <tr>
+                            <th>社員ID</th>
+                            <th>社員名</th>
+                            <th *ngIf="!isBonus">勤務日数</th>
+                            <th *ngIf="!isBonus">勤務時間</th>
+                            <th>対象期間</th>
+                            <th>支給日</th>
+                            <th *ngIf="!isBonus">固定給</th>
+                            <th>総支給額</th>
+                            <th>登録日</th>
+                            <th *ngIf="correctionMode">更新日</th>
+                            <th *ngIf="!disabled"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let payroll of allPayrollListForMonth()">
+                            <td>{{ payroll.employeeId }}</td>
+                            <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: payroll.employeeId }">{{ commonService.getEmployeeName(payroll.employeeId!) }}</a></td>
+                            <td *ngIf="!isBonus">{{ payroll.actualWorkingDays }}日</td>
+                            <td *ngIf="!isBonus">{{ payroll.actualWorkingHours }}時間</td>
+                            <td>{{ commonService.formatDate(payroll.targetPeriod?.[0]) }} ～ {{ commonService.formatDate(payroll.targetPeriod?.[1]) }}</td>
+                            <td>{{ commonService.formatDate(payroll.paymentDate) }}</td>
+                            <td *ngIf="!isBonus">{{ payroll.fixedSalary | number }}円</td>
+                            <td>{{ payroll.actualPaymentAmount | number }}円</td>
+                            <td>{{ commonService.formatDate(payroll.createdAt) }}</td>
+                            <td *ngIf="correctionMode">{{ commonService.formatDate(payroll.updatedAt) }}</td>
+                            <td *ngIf="!disabled">
+                                <button class="im-btn-soft" (click)="editPayroll(payroll)" [disabled]="disabled">{{ getEditButtonLabel() }}</button>
+                                <span *ngIf="!correctionMode">&nbsp;</span>
+                                <button *ngIf="!correctionMode" class="im-btn-soft im-btn-soft--danger" (click)="deletePayroll(payroll)" [disabled]="disabled">削除</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </ng-container>
 
     <div class="salary-edit-modal" *ngIf="editPayrollModalOpen">
         <div class="salary-edit-modal__panel">
             <div class="salary-edit-modal__header">
                 <h2>
-                    {{ isBonus ? '賞与編集' : '給与・勤務実績編集' }}
+                    {{ getModalTitle() }}
                     <span class="salary-edit-modal__payroll-id">社員ID：{{ form.value.employeeId }}　名前：{{commonService.getEmployeeName(form.value.employeeId!)}}　{{ isBonus ? '支給月' : '対象月' }}：{{ form.value.payrollId }}</span>
                 </h2>
             </div>
@@ -140,7 +342,6 @@
                         </div>
                         <div class="im-field-row__control">
                             <input type="number" id="editActualPaymentAmount" formControlName="actualPaymentAmount">
-
                             <div class="error">
                                 <p *ngIf="form.get('actualPaymentAmount')?.errors?.['required'] && form.get('actualPaymentAmount')?.touched">総支給額は必須です</p>
                                 <p *ngIf="form.get('actualPaymentAmount')?.errors?.['min'] && form.get('actualPaymentAmount')?.touched">0以上で入力してください</p>
@@ -151,7 +352,7 @@
                 </div>
 
                 <div class="salary-edit-actions">
-                    <button type="submit" class="im-btn-primary" [disabled]="disabled">{{ correctionMode && isBonus ? '保険料確認' : '保存' }}</button>
+                    <button type="submit" class="im-btn-primary" [disabled]="disabled">{{ isAddMode ? '登録' : (correctionMode && isBonus ? '保険料確認' : '保存') }}</button>
                     <button type="button" class="im-btn-soft" (click)="closeEditPayrollModal()">キャンセル</button>
                 </div>
             </form>

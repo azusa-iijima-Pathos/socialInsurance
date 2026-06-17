@@ -23,6 +23,12 @@
                     <p
                         *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">
                         社員IDが正しくありません</p>
+                    <p
+                        *ngIf="form.get('employeeId')?.errors?.['employeeAlreadyRetired'] && form.get('employeeId')?.touched">
+                        退社済みです</p>
+                    <p
+                        *ngIf="form.get('employeeId')?.errors?.['retireScheduledAlreadyRegistered'] && form.get('employeeId')?.touched">
+                        退社予定は登録済みです</p>
                 </div>
             </div>
         </div>
@@ -77,8 +83,64 @@
             </div>
         </div>
 
+        <p class="retire-entry-retroactive-notice" *ngIf="isRetireBeforeCurrentWorkPeriod">
+            現在の作業対象期間より前の退社になります。<br>
+            退社登録後に、遡及修正より保険情報の喪失登録をおこなってください。
+        </p>
+
         <div class="retire-entry-actions">
             <button type="submit" class="im-btn-primary">退職処理を登録</button>
         </div>
     </form>
+
+    <section class="employee-detail-section retire-entry-scheduled-list">
+        <h2>退社予定者一覧</h2>
+        <p *ngIf="scheduledListMessage" class="im-action-message">{{ scheduledListMessage }}</p>
+        <p *ngIf="scheduledListRetroactiveMessage" class="retire-entry-retroactive-notice"
+            [innerHTML]="scheduledListRetroactiveMessage"></p>
+        <div *ngIf="scheduledRetires.length === 0" class="employee-detail-empty">退社予定者はいません</div>
+        <div *ngIf="scheduledRetires.length > 0" class="employee-detail-events-table-wrap">
+            <table class="employee-detail-events-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>社員ID</th>
+                        <th>氏名</th>
+                        <th>退職予定日</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let employee of scheduledRetires">
+                        <td>
+                            <span class="retire-entry-attention" *ngIf="needsScheduledRetireAttention(employee.resignationDate)"
+                                title="作業対象期間以前の退職予定日です">!</span>
+                        </td>
+                        <td>{{ employee.employeeId }}</td>
+                        <td>{{ getScheduledEmployeeName(employee) }}</td>
+                        <td>
+                            <ng-container *ngIf="!isEditingScheduledRetireDate(employee.employeeId); else retireDateEdit">
+                                {{ commonService.formatDate(employee.resignationDate) }}
+                                <button type="button" class="im-btn-soft im-btn-sm"
+                                    (click)="startEditingScheduledRetireDate(employee)">編集</button>
+                            </ng-container>
+                            <ng-template #retireDateEdit>
+                                <input type="date" [(ngModel)]="scheduledRetireDateEdits[employee.employeeId]"
+                                    [ngModelOptions]="{standalone: true}">
+                                <button type="button" class="im-btn-soft im-btn-sm"
+                                    (click)="saveScheduledRetireDate(employee)">登録</button>
+                            </ng-template>
+                        </td>
+                        <td class="employee-detail-events-table__actions">
+                            <button type="button" class="im-btn-primary im-btn-sm"
+                                *ngIf="needsScheduledRetireAttention(employee.resignationDate)"
+                                (click)="approveScheduledRetire(employee)">退社承認</button>
+                            <button type="button" class="im-btn-soft im-btn-sm"
+                                (click)="cancelScheduledRetire(employee)">退社取り消し</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>

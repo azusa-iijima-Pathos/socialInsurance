@@ -301,10 +301,13 @@
 
         <p class="hire-entry-retroactive-notice" *ngIf="!isExistingMode && isHireBeforeCurrentWorkPeriod">
             現在の作業対象期間より前の入社になります。<br>
-            入社登録後に、給与修正より保険料を算出したい月の給与を入力し、その後遡及修正より保険情報の登録をおこなってください。<br>
+            給与修正より保険料を算出したい月の給与を入力し、その後遡及修正より保険情報の登録をおこなってください。
         </p>
 
         <span class="hire-entry-section-title">《保険情報》</span>
+        <p class="hire-entry-scheduled-insurance-notice" *ngIf="!isExistingMode && isInsuranceReadonly()">
+            入社確定時に保険情報を登録します
+        </p>
         <div class="im-fields-grid hire-entry-insurance-section" formGroupName="insurance"
             [class.hire-entry-insurance-disabled]="!isExistingMode && (isHireBeforeCurrentWorkPeriod || isInsuranceReadonly())">
             <div class="hire-entry-grade-row">
@@ -571,6 +574,9 @@
 
     <section class="employee-detail-section hire-entry-scheduled-list" *ngIf="!isExistingMode">
         <h2>入社予定者一覧</h2>
+        <p *ngIf="scheduledListMessage" class="im-action-message">{{ scheduledListMessage }}</p>
+        <p *ngIf="scheduledListRetroactiveMessage" class="hire-entry-retroactive-notice"
+            [innerHTML]="scheduledListRetroactiveMessage"></p>
         <div *ngIf="scheduledHires.length === 0" class="employee-detail-empty">入社予定者はいません</div>
         <div *ngIf="scheduledHires.length > 0" class="employee-detail-events-table-wrap">
             <table class="employee-detail-events-table">
@@ -592,13 +598,21 @@
                         <td>{{ temp.employeeId }}</td>
                         <td>{{ getScheduledEmployeeName(temp) }}</td>
                         <td>
-                            <input type="date" [(ngModel)]="scheduledHireDateEdits[temp.employeeId]"
-                                [ngModelOptions]="{standalone: true}">
-                            <button type="button" class="im-btn-soft im-btn-sm"
-                                (click)="saveScheduledHireDate(temp)">保存</button>
+                            <ng-container *ngIf="!isEditingScheduledHireDate(temp.employeeId); else hireDateEdit">
+                                {{ commonService.formatDate(temp.hireDate) }}
+                                <button type="button" class="im-btn-soft im-btn-sm"
+                                    (click)="startEditingScheduledHireDate(temp)">編集</button>
+                            </ng-container>
+                            <ng-template #hireDateEdit>
+                                <input type="date" [(ngModel)]="scheduledHireDateEdits[temp.employeeId]"
+                                    [ngModelOptions]="{standalone: true}">
+                                <button type="button" class="im-btn-soft im-btn-sm"
+                                    (click)="saveScheduledHireDate(temp)">登録</button>
+                            </ng-template>
                         </td>
                         <td class="employee-detail-events-table__actions">
                             <button type="button" class="im-btn-primary im-btn-sm"
+                                *ngIf="needsScheduledHireAttention(temp.hireDate)"
                                 (click)="approveScheduledHire(temp)">入社承認</button>
                             <button type="button" class="im-btn-soft im-btn-sm"
                                 (click)="cancelScheduledHire(temp)">入社取り消し</button>

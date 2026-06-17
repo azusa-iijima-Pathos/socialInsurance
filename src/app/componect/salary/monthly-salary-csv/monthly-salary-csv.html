@@ -14,10 +14,10 @@
     </p>
     <div class="monthly-salary-csv-file-actions">
         <button type="button" class="im-btn-soft" (click)="downloadCsvTemplate()">CSVひな形ダウンロード</button>
-        <label class="im-btn-primary monthly-salary-csv-file-select" for="monthlySalaryCsvFile">CSVファイルを選択</label>
+        <label class="im-btn-primary monthly-salary-csv-file-select" [attr.for]="fileInputId">CSVファイルを選択</label>
     </div>
     <div class="monthly-salary-csv-actions">
-        <input id="monthlySalaryCsvFile" class="monthly-salary-csv-file-input" type="file" accept=".csv" (change)="onCsvFileSelected($event)">
+        <input [id]="fileInputId" class="monthly-salary-csv-file-input" type="file" accept=".csv" (change)="onCsvFileSelected($event)">
         <p *ngIf="selectedCsvFileName">選択中のファイル：{{ selectedCsvFileName }}</p>
         <button type="button" class="im-btn-primary" (click)="importCsv()" [disabled]="!selectedCsvFile">
             CSV内容を確認する

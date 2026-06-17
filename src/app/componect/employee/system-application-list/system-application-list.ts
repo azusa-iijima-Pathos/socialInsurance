@@ -17,6 +17,12 @@ import {
 } from '../../../service/logic/employee-event-approval.service';
 import { ReachAgeService } from '../../../service/logic/reach-age';
 import { EmployeeEventDisplayService } from '../../../service/logic/employee-event-display.service';
+import {
+  DISABILITY_STATUSES,
+  DISABILITY_TYPES,
+  STUDENT_STATUSES,
+  STUDENT_TYPES,
+} from '../../../constants/model-constants';
 
 type InsuranceStatus = 'joined' | 'notJoined' | 'lost';
 
@@ -40,6 +46,11 @@ export class SystemApplicationList {
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? '';
   workingYear = Number(sessionStorage.getItem('workingYear'));
   workingMonth = Number(sessionStorage.getItem('workingMonth'));
+
+  DISABILITY_STATUSES = DISABILITY_STATUSES;
+  DISABILITY_TYPES = DISABILITY_TYPES;
+  STUDENT_STATUSES = STUDENT_STATUSES;
+  STUDENT_TYPES = STUDENT_TYPES;
 
   reachAgeEvents: EmployeeEventItem[] = [];
   fixedSalaryRuns: SystemCalculationRunItem[] = [];

@@ -5,6 +5,11 @@ export function parseDateInputValue(value: string): Date {
   return new Date(`${value}T00:00:00`);
 }
 
+export function isValidDateInputValue(value: string | null | undefined): value is string {
+  if (!value) return false;
+  return !Number.isNaN(parseDateInputValue(value).getTime());
+}
+
 export function formatDateForDateInput(date?: Date | null): string {
   if (!date) return '';
   const year = date.getFullYear();
@@ -19,5 +24,15 @@ export function formatTimestampForDateInput(value?: Timestamp | null): string {
 }
 
 export function timestampFromDateInput(value: string): Timestamp {
+  const date = parseDateInputValue(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new RangeError(`Invalid date input: "${value}"`);
+  }
+  return Timestamp.fromDate(date);
+}
+
+/** 未入力・不正な日付は undefined を返す（判定表示用） */
+export function optionalTimestampFromDateInput(value: string | null | undefined): Timestamp | undefined {
+  if (!isValidDateInputValue(value)) return undefined;
   return Timestamp.fromDate(parseDateInputValue(value));
 }

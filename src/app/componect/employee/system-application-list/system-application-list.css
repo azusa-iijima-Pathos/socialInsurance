@@ -35,3 +35,92 @@
   margin: 0;
   color: var(--im-color-slate-600);
 }
+
+.employee-approval-modal.employee-approval-modal--hire {
+  max-width: none;
+}
+
+.hire-approval-modal__body {
+  gap: var(--im-size-16);
+}
+
+.hire-approval-modal__summary {
+  margin: 0;
+}
+
+.hire-approval-modal__grade-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-12);
+}
+
+.hire-approval-modal__insurance-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--im-size-12);
+}
+
+.hire-approval-modal__dependents h3 {
+  margin: 0 0 var(--im-size-8);
+  font-size: var(--im-font-14);
+}
+
+.hire-approval-dependent-card {
+  padding: var(--im-size-12);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+}
+
+.hire-approval-dependent-card + .hire-approval-dependent-card {
+  margin-top: var(--im-size-12);
+}
+
+.hire-approval-dependent-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-8) var(--im-size-16);
+}
+
+.hire-approval-compact-field.im-field-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.25rem 0.5rem;
+  align-items: center;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+}
+
+.hire-approval-compact-field .im-field-row__label {
+  margin-bottom: 0;
+  padding-top: 0;
+  white-space: nowrap;
+}
+
+.hire-approval-compact-field .im-field-row__control {
+  gap: var(--im-size-2);
+  min-width: 0;
+}
+
+.hire-approval-compact-field .im-field-row__control input:not([type='radio']):not([type='checkbox']),
+.hire-approval-compact-field .im-field-row__control select {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.hire-approval-modal__insurance-row .employee-approval-insurance-block {
+  height: 100%;
+}
+
+.hire-approval-modal__insurance-row .hire-entry-auto-judgement {
+  margin-top: var(--im-size-2);
+}
+
+@media (max-width: 900px) {
+  .hire-approval-modal__grade-row,
+  .hire-approval-modal__insurance-row,
+  .hire-approval-dependent-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -123,6 +123,41 @@
   width: 100%;
 }
 
+.salary-correction-empty-state {
+  margin-top: var(--im-size-16);
+}
+
+.salary-correction-empty-message {
+  margin: 0 0 var(--im-size-16);
+  padding: var(--im-size-12) var(--im-size-16);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-gray-50);
+  color: var(--im-color-slate-700);
+  line-height: 1.6;
+}
+
+.salary-correction-registration-layout {
+  margin-top: var(--im-size-8);
+}
+
+.salary-correction-register-card {
+  margin-top: 0;
+}
+
+.salary-correction-confirm-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--im-size-8);
+  margin-top: var(--im-size-24);
+}
+
+.salary-correction-register-card form {
+  display: grid;
+  gap: var(--im-size-16);
+}
+
 @media (max-width: 720px) {
   .salary-edit-grid,
   .salary-edit-grid--dates,

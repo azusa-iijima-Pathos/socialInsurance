@@ -20,6 +20,11 @@
   pointer-events: none;
 }
 
+.hire-entry-scheduled-insurance-notice {
+  margin: 0 0 0.5rem;
+  color: #555;
+}
+
 .hire-entry-retroactive-notice {
   margin: 1rem 0 0;
   padding: 12px 16px;

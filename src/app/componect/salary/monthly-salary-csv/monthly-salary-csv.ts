@@ -1,4 +1,4 @@
-import { Component, inject, Input } from '@angular/core';
+import { Component, EventEmitter, inject, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { createEmployeeCsvTemplateCsv } from '../../../CSVtemplate/monthlySalaryDate-import';
 import { AddMonthlySalaryByCSVService, CsvMonthlySalaryPreviewRow } from '../../../service/CSV/addMonthlySalaryByCSV-service';
@@ -15,6 +15,8 @@ export class MonthlySalaryCSV {
 
   @Input() payrollId = '';
   @Input() inputFormat: 1 | 2 = 2;
+  @Input() fileInputId = 'monthlySalaryCsvFile';
+  @Output() payrollRegistered = new EventEmitter<void>();
   selectedCsvFile: File | null = null;
   selectedCsvFileName = '';
   csvImportMessage = '';
@@ -87,6 +89,7 @@ export class MonthlySalaryCSV {
       await this.payrollService.getAllPayrollListForMonth(this.payrollId, true);
       this.csvPreviewModalOpen = false;
       this.setCsvImportStatus(result.message);
+      this.payrollRegistered.emit();
     } catch (error) {
       console.error(error);
       this.setCsvImportStatus('チェックした給与・勤務実績の登録に失敗しました');

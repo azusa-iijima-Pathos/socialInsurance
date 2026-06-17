@@ -8,6 +8,7 @@ import { parseDateInputValue } from './date-input.util';
 import { OfficeService } from '../Firestore/office-service';
 import { UserService } from '../Firestore/user-service';
 import { User } from '../../model/user';
+import { EventService } from '../Firestore/event-service';
 
 @Injectable({
   providedIn: 'root',
@@ -19,6 +20,7 @@ export class ValidationService {
   private tempEmployeeService = inject(TempEmployeeService);
   private officeService = inject(OfficeService);
   private userService = inject(UserService);
+  private eventService = inject(EventService);
 
   /** 会社名のバリデーション */
   validateCompanyName = async (control: AbstractControl): Promise<ValidationErrors | null> => {
@@ -58,6 +60,36 @@ export class ValidationService {
     if (!allEmployeeIds.includes(employeeId)) {
       return { employeeIdIncorrect: true };
     }
+    return null;
+  }
+
+  /** 退社処理：社員IDの存在・退社済み・退社予定登録済みチェック */
+  validateRetireEntryEmployeeId = async (control: AbstractControl): Promise<ValidationErrors | null> => {
+    const employeeId = control.value;
+    if (!employeeId || employeeId === '') {
+      return null;
+    }
+
+    await this.employeeService.getAllEmployees(true);
+    const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
+    if (!employee) {
+      return { employeeIdIncorrect: true };
+    }
+    if (employee.workStatus === '退社済み') {
+      return { employeeAlreadyRetired: true };
+    }
+    if (employee.workStatus === '退社予定') {
+      return { retireScheduledAlreadyRegistered: true };
+    }
+
+    const pendingEvents = await this.eventService.getPendingEmployeeEvents(employeeId);
+    const hasPendingRetireEvent = pendingEvents.some(
+      event => event.eventType === '退社' && event.applicantType === '管理者',
+    );
+    if (hasPendingRetireEvent) {
+      return { retireScheduledAlreadyRegistered: true };
+    }
+
     return null;
   }
 
@@ -168,8 +200,7 @@ export class ValidationService {
     const name = parent.get('name')?.value;
     const birthDate = parent.get('birthDate')?.value;
     const relationship = parent.get('relationship')?.value;
-    const dependentStartDate = parent.get('dependentStartDate')?.value;
-    const hasAnyValue = Boolean(name || birthDate || relationship || dependentStartDate);
+    const hasAnyValue = Boolean(name || birthDate || relationship);
 
     return hasAnyValue && !control.value ? { required: true } : null;
   };

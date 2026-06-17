@@ -13,6 +13,7 @@ import { InsuranceRates } from '../Firestore/insurance-rates';
 import { PayrollService } from '../Firestore/payroll-service';
 import { InsuranceDisplayService } from './insurance-display.service';
 import { CalculationRun } from '../../model/calculation-run';
+import { parseDateInputValue } from '../common/date-input.util';
 
 export type MonthlyInsuranceDiff = {
   payrollId: string;
@@ -80,6 +81,113 @@ export class CorrectionLogicService {
     return `${year}-${String(month).padStart(2, '0')}`;
   }
 
+  parsePayrollId(payrollId: string): { year: number; month: number } {
+    const [yearText, monthText] = payrollId.split('-');
+    return { year: Number(yearText), month: Number(monthText) };
+  }
+
+  /** 対象月の給与入力初期値（会社設定ベース） */
+  async getDefaultPayrollPeriodDates(payrollId: string): Promise<{
+    paymentDate: string;
+    targetPeriodStart: string;
+    targetPeriodEnd: string;
+  }> {
+    await this.companyService.getCompany();
+    const settings = this.companyService.company()?.settings;
+    const { year: workingYear, month: workingMonth } = this.parsePayrollId(payrollId);
+    const paymentDateDay = settings?.paymentDate ?? 25;
+    const targetPeriod = settings?.targetPeriod ?? [1, 31];
+    const paymentMonthNumber = this.getPaymentMonthNumber(
+      workingMonth,
+      settings?.paymentMonth ?? '翌月',
+      targetPeriod[0],
+    );
+
+    return {
+      paymentDate: this.payrollService.toDateInputValue(workingYear, paymentMonthNumber, paymentDateDay),
+      targetPeriodStart: this.payrollService.toDateInputValue(workingYear, workingMonth, targetPeriod[0]),
+      targetPeriodEnd: this.payrollService.toDateInputValue(
+        workingYear,
+        targetPeriod[1] < targetPeriod[0] ? workingMonth + 1 : workingMonth,
+        targetPeriod[1],
+      ),
+    };
+  }
+
+  /** 対象月の在籍判定用期間 */
+  async getPayrollPeriodBounds(payrollId: string): Promise<{ periodStart: Date; periodEnd: Date }> {
+    const dates = await this.getDefaultPayrollPeriodDates(payrollId);
+    const periodStart = parseDateInputValue(dates.targetPeriodStart);
+    const periodEnd = parseDateInputValue(dates.targetPeriodEnd);
+    periodStart.setHours(0, 0, 0, 0);
+    periodEnd.setHours(23, 59, 59, 999);
+    return { periodStart, periodEnd };
+  }
+
+  /** 対象期間に1日でも在籍しているか */
+  wasEmployedInPayrollPeriod(employee: Employee, periodStart: Date, periodEnd: Date): boolean {
+    const hire = employee.hireDate?.toDate();
+    if (!hire) return false;
+
+    const hireDate = new Date(hire);
+    hireDate.setHours(0, 0, 0, 0);
+    if (hireDate > periodEnd) return false;
+
+    const resign = employee.resignationDate?.toDate();
+    if (resign) {
+      const resignationDate = new Date(resign);
+      resignationDate.setHours(0, 0, 0, 0);
+      if (resignationDate < periodStart) return false;
+    }
+
+    return true;
+  }
+
+  isTargetPeriodStartInPayrollMonth(targetPeriodStart: string, payrollId: string): boolean {
+    const { year, month } = this.parsePayrollId(payrollId);
+    const date = parseDateInputValue(targetPeriodStart);
+    if (Number.isNaN(date.getTime())) return false;
+    return date.getFullYear() === year && date.getMonth() + 1 === month;
+  }
+
+  /** 月額給与修正：対象期間開始日のバリデーション */
+  async validateSalaryCorrectionTargetPeriod(targetPeriodStart: string): Promise<string | null> {
+    if (!targetPeriodStart) return null;
+    const isBefore = await this.isDateBeforeCurrentWorkingMonth(new Date(targetPeriodStart));
+    if (!isBefore) {
+      return '対象期間開始日は現在の作業月より前の日付を指定してください';
+    }
+    return null;
+  }
+
+  /** 月額給与修正：対象期間開始日が対象月に含まれるか */
+  async validateSalaryCorrectionTargetPeriodStart(targetPeriodStart: string, payrollId: string): Promise<string | null> {
+    if (!targetPeriodStart) return null;
+
+    const beforeError = await this.validateSalaryCorrectionTargetPeriod(targetPeriodStart);
+    if (beforeError) return beforeError;
+
+    if (!this.isTargetPeriodStartInPayrollMonth(targetPeriodStart, payrollId)) {
+      return '対象期間開始日は対象月の日付で入力してください';
+    }
+    return null;
+  }
+
+  private getPaymentMonthNumber(
+    workingMonth: number,
+    paymentMonth: '当月' | '翌月',
+    targetPeriodStartDay: number,
+  ): number {
+    let paymentMonthNumber: number;
+    if (paymentMonth === '当月') {
+      paymentMonthNumber = targetPeriodStartDay === 1 ? workingMonth : workingMonth + 1;
+    } else {
+      paymentMonthNumber = targetPeriodStartDay === 1 ? workingMonth + 1 : workingMonth + 2;
+    }
+    if (paymentMonthNumber > 12) paymentMonthNumber -= 12;
+    return paymentMonthNumber;
+  }
+
   /** 過去Nか月の作業月オプション（先頭=現在作業月） */
   getPastYearMonthOptions(count = 12): { label: string; year: number; month: number; payrollId: string }[] {
     const working = getWorkingYearMonth();
@@ -132,16 +240,6 @@ export class CorrectionLogicService {
     const working = getWorkingYearMonth();
     const workMonth = await this.getWorkMonthForInputDate(date);
     return workMonth.year * 12 + workMonth.month < working.year * 12 + working.month;
-  }
-
-  /** 月額給与修正：対象期間開始日のバリデーション */
-  async validateSalaryCorrectionTargetPeriod(targetPeriodStart: string): Promise<string | null> {
-    if (!targetPeriodStart) return null;
-    const isBefore = await this.isDateBeforeCurrentWorkingMonth(new Date(targetPeriodStart));
-    if (!isBefore) {
-      return '対象期間開始日は現在の作業月より前の日付を指定してください';
-    }
-    return null;
   }
 
   /** 適用作業月から作業月1つ前までの保険料比較（ポップ表示用） */

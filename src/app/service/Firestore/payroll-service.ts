@@ -79,6 +79,28 @@ export class PayrollService {
     );
   }
 
+  /** 確定済み月の給与修正用新規登録（ロック済みでも登録可能） */
+  async registerPayrollForCorrection(employeeId: string, payroll: Partial<Payroll>) {
+    const payrollId = this.createPayrollId(payroll);
+    const existingPayroll = await this.getPayroll(employeeId, payroll);
+    if (existingPayroll) {
+      return false;
+    }
+
+    const result = await this.crudService.create<Payroll>(
+      `${this.path}/${employeeId}/payroll/${payrollId}`,
+      {
+        ...payroll,
+        payrollId,
+        employeeId,
+      },
+    );
+    if (result) {
+      await this.getAllPayrollListForMonth(payrollId, true);
+    }
+    return result;
+  }
+
   //全従業員の該当月の給与・勤務実績一覧を取得
   allPayrollListForMonth = signal<{payrollId: string, payrollList: Payroll[]}[]>([]);
   isAllPayrollListForMonthLoaded: { [key: string]: boolean } = {};
