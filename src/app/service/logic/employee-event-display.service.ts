@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { Timestamp } from '@angular/fire/firestore';
-import { Employee } from '../../model/employee';
+import { Employee, EmploymentContract } from '../../model/employee';
 import { Dependent } from '../../model/dependent';
 import { Event } from '../../model/event';
 import { CommonService } from '../common/common-service';
@@ -35,7 +35,13 @@ export class EmployeeEventDisplayService {
     }
 
     if (event.eventType === '扶養情報変更') {
-      return this.getDependentChangeLines(before, after, event.lifeEventType);
+      return this.getDependentChangeLines(
+        before,
+        after,
+        event.lifeEventType,
+        event.changeType,
+        payload['appliedDate'],
+      );
     }
 
     if (event.eventType === '勤務状況変更') {
@@ -54,7 +60,9 @@ export class EmployeeEventDisplayService {
           `平均総支給額：${summary.averageSalary !== undefined ? `${summary.averageSalary.toLocaleString()}円` : '—'}`,
         ];
       }
-      return [`固定給：${beforeEmployee?.employmentContract?.fixedSalary ?? '—'}円 → ${afterEmployee?.employmentContract?.fixedSalary ?? '—'}円`];
+      const beforeSalary = typeof before === 'number' ? before : beforeEmployee?.employmentContract?.fixedSalary;
+      const afterSalary = typeof after === 'number' ? after : afterEmployee?.employmentContract?.fixedSalary;
+      return [`固定給：${beforeSalary ?? '—'}円 → ${afterSalary ?? '—'}円`];
     }
 
     if (event.eventType === '入社') {
@@ -63,7 +71,13 @@ export class EmployeeEventDisplayService {
     }
 
     if (event.eventType === '雇用形態変更') {
-      return this.getEmploymentChangeLines(beforeEmployee, afterEmployee);
+      const beforeContract = this.isEmploymentContractPayload(before)
+        ? before
+        : beforeEmployee?.employmentContract;
+      const afterContract = this.isEmploymentContractPayload(after)
+        ? after
+        : afterEmployee?.employmentContract;
+      return this.getEmploymentContractChangeLines(beforeContract, afterContract);
     }
 
     if (event.eventType === '退社') {
@@ -80,11 +94,28 @@ export class EmployeeEventDisplayService {
     ];
   }
 
-  private getDependentChangeLines(before: unknown, after: unknown, lifeEventType?: string): string[] {
+  private getDependentChangeLines(
+    before: unknown,
+    after: unknown,
+    lifeEventType?: string,
+    changeType?: string,
+    appliedDate?: Timestamp,
+  ): string[] {
+    const headerLines: string[] = [];
+    if (changeType) {
+      headerLines.push(`変更タイプ：${changeType}`);
+    }
+    if (appliedDate) {
+      headerLines.push(`適用日：${this.formatPayloadDate(appliedDate)}`);
+    }
+    if (lifeEventType) {
+      headerLines.push(`ライフイベント：${lifeEventType}`);
+    }
+
     if (this.isDependentArrayPayload(before) || this.isDependentArrayPayload(after)) {
       const beforeDeps = this.extractDependents(before);
       const afterDeps = this.extractDependents(after);
-      const lines: string[] = [];
+      const lines: string[] = [...headerLines];
       const maxLength = Math.max(beforeDeps.length, afterDeps.length);
       for (let i = 0; i < maxLength; i++) {
         const beforeDep = beforeDeps[i] ?? null;
@@ -94,18 +125,12 @@ export class EmployeeEventDisplayService {
           lines.push('—');
         }
       }
-      if (lifeEventType) {
-        lines.unshift(`ライフイベント：${lifeEventType}`);
-      }
       return lines.length ? lines : ['変更内容を確認してください'];
     }
 
     const beforeDep = this.extractDependent(before);
     const afterDep = this.extractDependent(after);
-    const lines = this.formatSingleDependentChangeLines(beforeDep, afterDep);
-    if (lifeEventType) {
-      lines.unshift(`ライフイベント：${lifeEventType}`);
-    }
+    const lines = [...headerLines, ...this.formatSingleDependentChangeLines(beforeDep, afterDep)];
     return lines.length ? lines : ['変更内容を確認してください'];
   }
 
@@ -162,16 +187,30 @@ export class EmployeeEventDisplayService {
     beforeEmployee: Employee | undefined,
     afterEmployee: Employee | undefined,
   ): string[] {
-    const beforeOffice = beforeEmployee?.employmentContract?.officeId ?? '';
-    const afterOffice = afterEmployee?.employmentContract?.officeId ?? '';
+    return this.getEmploymentContractChangeLines(
+      beforeEmployee?.employmentContract,
+      afterEmployee?.employmentContract,
+    );
+  }
+
+  private getEmploymentContractChangeLines(
+    beforeContract: EmploymentContract | undefined,
+    afterContract: EmploymentContract | undefined,
+  ): string[] {
+    const beforeOffice = beforeContract?.officeId ?? '';
+    const afterOffice = afterContract?.officeId ?? '';
 
     return [
-      `雇用形態：${beforeEmployee?.employmentContract?.employmentCategory ?? '—'} → ${afterEmployee?.employmentContract?.employmentCategory ?? '—'}`,
-      `勤務スタイル：${beforeEmployee?.employmentContract?.workStyle ?? '—'} → ${afterEmployee?.employmentContract?.workStyle ?? '—'}`,
+      `雇用形態：${beforeContract?.employmentCategory ?? '—'} → ${afterContract?.employmentCategory ?? '—'}`,
+      `勤務スタイル：${beforeContract?.workStyle ?? '—'} → ${afterContract?.workStyle ?? '—'}`,
       `事業所：${this.formatOfficeName(beforeOffice)} → ${this.formatOfficeName(afterOffice)}`,
-      `週労働時間：${this.formatNumber(beforeEmployee?.employmentContract?.contractedWorkingHoursPerWeek)} → ${this.formatNumber(afterEmployee?.employmentContract?.contractedWorkingHoursPerWeek)}`,
-      `月労働日数：${this.formatNumber(beforeEmployee?.employmentContract?.contractedWorkingDaysPerMonth)} → ${this.formatNumber(afterEmployee?.employmentContract?.contractedWorkingDaysPerMonth)}`,
+      `週労働時間：${this.formatNumber(beforeContract?.contractedWorkingHoursPerWeek)} → ${this.formatNumber(afterContract?.contractedWorkingHoursPerWeek)}`,
+      `月労働日数：${this.formatNumber(beforeContract?.contractedWorkingDaysPerMonth)} → ${this.formatNumber(afterContract?.contractedWorkingDaysPerMonth)}`,
     ];
+  }
+
+  private isEmploymentContractPayload(value: unknown): value is EmploymentContract {
+    return !!value && typeof value === 'object' && 'employmentCategory' in (value as object);
   }
 
   private formatOfficeName(officeId: string): string {
@@ -193,7 +232,37 @@ export class EmployeeEventDisplayService {
   ): string[] {
     const expectedBirthDate = event.payload?.['expectedBirthDate'];
     const isMultipleBirth = event.payload?.['isMultipleBirth'] as boolean | undefined;
+    const beforePayload = event.payload?.['before'] as Record<string, unknown> | undefined;
+    const afterPayload = event.payload?.['after'] as Record<string, unknown> | undefined;
     const lines: string[] = [];
+
+    if (event.changeType === '休職開始') {
+      lines.push(`勤務状況：${this.formatText(beforePayload?.['workStatus'] ?? beforeEmp?.workStatus)} → 休職中`);
+      if (afterPayload?.['leaveTypes']) {
+        lines.push(`休業種別：${this.formatText(afterPayload['leaveTypes'])}`);
+      }
+      if (afterPayload?.['leaveStartDate'] || event.occurredDate) {
+        lines.push(`休職開始日：${this.formatPayloadDate(afterPayload?.['leaveStartDate'] ?? event.occurredDate)}`);
+      }
+      if (afterPayload?.['leaveEndDate']) {
+        lines.push(`終了予定日：${this.formatPayloadDate(afterPayload['leaveEndDate'])}`);
+      }
+      return lines;
+    }
+
+    if (event.changeType === '休職終了') {
+      lines.push(`勤務状況：休職中 → 通常勤務`);
+      if (beforePayload?.['leaveTypes']) {
+        lines.push(`休業種別：${this.formatText(beforePayload['leaveTypes'])}`);
+      }
+      if (beforePayload?.['leaveStartDate']) {
+        lines.push(`休職開始日：${this.formatPayloadDate(beforePayload['leaveStartDate'])}`);
+      }
+      if (afterPayload?.['leaveEndDate'] || event.occurredDate) {
+        lines.push(`休職終了日：${this.formatPayloadDate(afterPayload?.['leaveEndDate'] ?? event.occurredDate)}`);
+      }
+      return lines;
+    }
 
     if (beforeEmp?.workStatus !== afterEmp?.workStatus) {
       lines.push(`勤務状況：${beforeEmp?.workStatus ?? '—'} → ${afterEmp?.workStatus ?? '—'}`);

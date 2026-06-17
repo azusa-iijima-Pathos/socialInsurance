@@ -19,6 +19,7 @@ import { SocialInsuranceFormCsvService } from '../../../service/CSV/social-insur
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { CalculationRun } from '../../../model/calculation-run';
 import { InsuranceDisplayService, InsuranceNoticeSummary, OfficeInsuranceSummary } from '../../../service/logic/insurance-display.service';
+import { CompanyService } from '../../../service/Firestore/company-service';
 
 type BonusInsurance = {
   employeeId: string;
@@ -85,6 +86,7 @@ export class InsuranceForBonus {
   private formCsvService = inject(SocialInsuranceFormCsvService);
   private calculationRunService = inject(CalculationRunService);
   private insuranceDisplayService = inject(InsuranceDisplayService);
+  private companyService = inject(CompanyService);
 
   payrollId = '';
   targetYearMonth = '';
@@ -133,8 +135,9 @@ export class InsuranceForBonus {
     this.editButtonDisabled = this.isOutputMode || await this.payrollLockService.isPayrollLocked(this.payrollId);
     await this.payrollService.getAllPayrollListForMonth(this.payrollId);
     this.bonusData = this.payrollService.allPayrollListForMonth().find(item => item.payrollId === this.payrollId)?.payrollList ?? [];
+    await this.companyService.getCompany();
     await this.employeeService.getAllEmployees();
-    this.employeeData = this.employeeService.allEmployees();
+    this.employeeData = this.employeeService.employeesEligibleForPayrollPeriod(this.payrollId);
     const drafts = await this.insuranceDraftService.getDrafts(this.payrollId);
     this.insuranceDraftMap = drafts.reduce<Record<string, InsuranceDraft>>((map, draft) => {
       map[draft.employeeId] = draft;

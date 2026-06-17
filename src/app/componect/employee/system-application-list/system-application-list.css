@@ -124,3 +124,9 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.system-application-priority-mark {
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 1.1rem;
+}

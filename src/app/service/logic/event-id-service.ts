@@ -1,4 +1,5 @@
 import { ApplicantType, EmployeeEventType } from '../../constants/model-constants';
+import { Timestamp } from '@angular/fire/firestore';
 
 export type YearMonth = { year: number; month: number };
 
@@ -7,6 +8,39 @@ export function getWorkingYearMonth(): YearMonth {
     year: Number(sessionStorage.getItem('workingYear')),
     month: Number(sessionStorage.getItem('workingMonth')),
   };
+}
+
+/** 作業月を appliedFromMonth 用の数値に変換（YYYYMM） */
+export function encodeAppliedFromMonth(year: number, month: number): number {
+  return year * 100 + month;
+}
+
+/** appliedFromMonth（YYYYMM）を作業月に変換 */
+export function decodeAppliedFromMonth(value: number): YearMonth {
+  return {
+    year: Math.floor(value / 100),
+    month: value % 100,
+  };
+}
+
+/** 現在の作業月を appliedFromMonth 用の数値に変換 */
+export function getCurrentAppliedFromMonth(): number {
+  const { year, month } = getWorkingYearMonth();
+  return encodeAppliedFromMonth(year, month);
+}
+
+/** 前月以前の未処理申請（IDの作業月が現在作業月より前） */
+export function isPriorMonthUnprocessedId(itemId: string, workingYear: number, workingMonth: number): boolean {
+  const parsed = parseEventYearMonth(itemId, workingYear, workingMonth);
+  if (!parsed) return false;
+  return parsed.year * 12 + parsed.month < workingYear * 12 + workingMonth;
+}
+
+/** イベントIDが指定作業月と一致するか */
+export function isEventIdForWorkMonth(itemId: string, targetYear: number, targetMonth: number, workingYear: number, workingMonth: number): boolean {
+  const parsed = parseEventYearMonth(itemId, workingYear, workingMonth);
+  if (!parsed) return false;
+  return parsed.year === targetYear && parsed.month === targetMonth;
 }
 
 /** 日付が属する作業月を返す */
@@ -56,13 +90,26 @@ export function buildHireQualificationAcquisitionRunId(
   return `資格取得_${formatYearMonth(workMonth.year, workMonth.month)}_${employeeId}`;
 }
 
-/** 退社時の資格喪失システム計算ID（例: 資格喪失_2026_04_emp001） */
+/** 退職日の翌日（資格喪失日） */
+export function getQualificationLossDate(resignationDate: Date): Date {
+  const lossDate = new Date(resignationDate);
+  lossDate.setHours(0, 0, 0, 0);
+  lossDate.setDate(lossDate.getDate() + 1);
+  return lossDate;
+}
+
+export function getQualificationLossTimestamp(resignationDate: Timestamp): Timestamp {
+  return Timestamp.fromDate(getQualificationLossDate(resignationDate.toDate()));
+}
+
+/** 退社時の資格喪失システム計算ID（例: 資格喪失_2026_05_emp001） */
 export function buildRetireQualificationLossRunId(
   resignationDate: Date,
   employeeId: string,
   targetPeriodStart: number,
 ): string {
-  const workMonth = getWorkMonthForDate(resignationDate, targetPeriodStart);
+  const lossDate = getQualificationLossDate(resignationDate);
+  const workMonth = getWorkMonthForDate(lossDate, targetPeriodStart);
   return `資格喪失_${formatYearMonth(workMonth.year, workMonth.month)}_${employeeId}`;
 }
 
@@ -72,9 +119,34 @@ export function buildQualificationAcquisitionRunId(acquiredDate: Date, targetPer
   return `資格取得_${formatYearMonth(workMonth.year, workMonth.month)}`;
 }
 
-export function buildDependentChangeEventBaseId(acquiredDate: Date, targetPeriodStart: number): string {
-  const workMonth = getWorkMonthForDate(acquiredDate, targetPeriodStart);
-  return `扶養変更_${formatYearMonth(workMonth.year, workMonth.month)}`;
+/** 保険情報変更の資格喪失システム計算ID（例: 資格喪失_2026_04_healthInsurance） */
+export function buildQualificationLossRunId(lostDate: Date, targetPeriodStart: number): string {
+  const workMonth = getWorkMonthForDate(lostDate, targetPeriodStart);
+  return `資格喪失_${formatYearMonth(workMonth.year, workMonth.month)}`;
+}
+
+export type InsuranceChangeKey = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
+
+/** 保険情報変更の資格取得/喪失システム計算ID（保険種別ごと） */
+export function buildInsuranceChangeRunId(
+  type: '資格取得' | '資格喪失',
+  date: Date,
+  targetPeriodStart: number,
+  insuranceKey: InsuranceChangeKey,
+): string {
+  const workMonth = getWorkMonthForDate(date, targetPeriodStart);
+  return `${type}_${formatYearMonth(workMonth.year, workMonth.month)}_${insuranceKey}`;
+}
+
+/** 等級変更システム計算ID（例: 等級変更_2026_04） */
+export function buildGradeChangeRunId(applicationDate: Date, targetPeriodStart: number): string {
+  const workMonth = getWorkMonthForDate(applicationDate, targetPeriodStart);
+  return `等級変更_${formatYearMonth(workMonth.year, workMonth.month)}`;
+}
+
+export function buildDependentChangeEventBaseId(date: Date, targetPeriodStart: number): string {
+  const workMonth = getWorkMonthForDate(date, targetPeriodStart);
+  return `扶養情報変更_${formatYearMonth(workMonth.year, workMonth.month)}`;
 }
 
 export function buildRetireSystemEventId(resignationDate: Date, targetPeriodStart: number): string {
@@ -90,9 +162,9 @@ export function buildFixedSalarySystemEventId(working?: YearMonth): string {
   return `固定給変更_${formatYearMonth(future.year, future.month)}`;
 }
 
-/** 随時改定 calculationRun ID（例: 随時改定_2025_12） */
-export function buildAdHocRevisionRunId(revisionMonth: YearMonth): string {
-  return `随時改定_${formatYearMonth(revisionMonth.year, revisionMonth.month)}`;
+/** 随時改定 calculationRun ID（例: 随時改定_2026_04_emp001） */
+export function buildAdHocRevisionRunId(revisionMonth: YearMonth, employeeId: string): string {
+  return `随時改定_${formatYearMonth(revisionMonth.year, revisionMonth.month)}_${employeeId}`;
 }
 
 /** 入社・年齢到達など従来ルール */
@@ -234,4 +306,48 @@ export function getFixedSalarySystemOccurredDate(working?: YearMonth): Date {
   const current = working ?? getWorkingYearMonth();
   const future = addMonths(current.year, current.month, 3);
   return new Date(future.year, future.month - 1, 1);
+}
+
+function compareYearMonth(left: YearMonth, right: YearMonth): number {
+  return left.year * 12 + left.month - (right.year * 12 + right.month);
+}
+
+/** 日付が作業対象期間内か */
+export function isDateInWorkPeriod(date: Date, periodStart: Date, periodEnd: Date): boolean {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  const start = new Date(periodStart);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(periodEnd);
+  end.setHours(23, 59, 59, 999);
+  return normalized >= start && normalized <= end;
+}
+
+/** 日付が作業対象期間より前か */
+export function isDateBeforeWorkPeriod(date: Date, periodStart: Date): boolean {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  const start = new Date(periodStart);
+  start.setHours(0, 0, 0, 0);
+  return normalized < start;
+}
+
+/** 日付の作業月が現在の作業月以降か */
+export function isWorkMonthAtOrAfterCurrent(date: Date, targetPeriodStart: number): boolean {
+  const workMonth = getWorkMonthForDate(date, targetPeriodStart);
+  const current = getWorkingYearMonth();
+  return compareYearMonth(workMonth, current) >= 0;
+}
+
+/** 日付の作業月が現在の作業月より先か */
+export function isWorkMonthAfterCurrent(date: Date, targetPeriodStart: number): boolean {
+  const workMonth = getWorkMonthForDate(date, targetPeriodStart);
+  const current = getWorkingYearMonth();
+  return compareYearMonth(workMonth, current) > 0;
+}
+
+/** イベントID用の作業月ベースID */
+export function buildWorkMonthEventId(eventType: EmployeeEventType, date: Date, targetPeriodStart: number): string {
+  const workMonth = getWorkMonthForDate(date, targetPeriodStart);
+  return `${eventType}_${formatYearMonth(workMonth.year, workMonth.month)}`;
 }

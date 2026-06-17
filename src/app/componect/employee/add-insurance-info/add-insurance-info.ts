@@ -13,6 +13,7 @@ import { CompanyService } from '../../../service/Firestore/company-service';
 import { DependentService } from '../../../service/Firestore/dependent-service';
 import { Dependent } from '../../../model/dependent';
 import { InsuranceFormService, InsuranceName, InsuranceStatus } from '../../../service/logic/insurance-form.service';
+import { ReachAgeService } from '../../../service/logic/reach-age';
 
 @Component({
   selector: 'app-add-insurance-info',
@@ -31,6 +32,7 @@ export class AddInsuranceInfo {
   private route = inject(ActivatedRoute);
   private companyService = inject(CompanyService);
   private dependentService = inject(DependentService);
+  private reachAgeService = inject(ReachAgeService);
   private insuranceFormService = inject(InsuranceFormService);
 
   mode = this.route.snapshot.queryParamMap.get('mode');
@@ -243,6 +245,7 @@ export class AddInsuranceInfo {
 
     sessionStorage.setItem('workingYear', workingYear.toString());
     sessionStorage.setItem('workingMonth', workingMonth.toString());
+    await this.reachAgeService.createEvent();
     this.router.navigate(['/top-for-manage']);
   }
 

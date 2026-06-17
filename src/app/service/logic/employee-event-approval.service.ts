@@ -18,7 +18,7 @@ import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { SystemCalculationRunItem } from '../Firestore/calculation-run-service';
 import { UserService } from '../Firestore/user-service';
 import { EmployeeDetailEventService } from './employee-detail-event-service';
-import { getWorkMonthForDate, getWorkingYearMonth } from './event-id-service';
+import { getCurrentAppliedFromMonth, getQualificationLossTimestamp, getWorkMonthForDate, getWorkingYearMonth } from './event-id-service';
 
 type InsuranceStatusKind = 'joined' | 'notJoined' | 'lost';
 
@@ -97,6 +97,7 @@ export type HireInsuranceApprovalDraft = {
 
 export type RetireInsuranceDetailView = {
   resignationDate?: Timestamp;
+  qualificationLossDate?: Timestamp;
   currentGrade: number;
   healthInsurance: InsuranceDetail;
   nursingCareInsurance: InsuranceDetail;
@@ -159,6 +160,87 @@ export class EmployeeEventApprovalService {
       averageSalary: revision.averageSalary,
       targetPayrolls: revision.targetPayrolls ?? [],
     };
+  }
+
+  async buildInsuranceChangeApprovalDraft(run: SystemCalculationRunItem): Promise<InsuranceApprovalDraft | null> {
+    const beforeInsurance = run.payload?.['before'] as EmployeeInsurance | undefined;
+    const afterInsurance = run.payload?.['after'] as EmployeeInsurance | undefined;
+    if (!afterInsurance) return null;
+
+    const employee = await this.employeeService.getEmployeeByEmployeeId(run.employeeId);
+    if (!employee) return null;
+
+    const syntheticEvent: Event = {
+      eventId: run.runId!,
+      companyId: sessionStorage.getItem('companyId') ?? '',
+      occurredDate: run.detectedDate as Timestamp,
+      payload: {
+        before: { ...employee, insurance: beforeInsurance ?? employee.insurance },
+        after: { ...employee, insurance: afterInsurance },
+      },
+    };
+    return this.buildInsuranceApprovalDraft(syntheticEvent);
+  }
+
+  getInsuranceChangeLabel(run: SystemCalculationRunItem): string {
+    const key = String(run.payload?.['insuranceKey'] ?? '');
+    switch (key) {
+      case 'healthInsurance': return '健康保険';
+      case 'nursingCareInsurance': return '介護保険';
+      case 'employeePensionInsurance': return '厚生年金';
+      default: return run.type === '資格喪失' ? '資格喪失' : '資格取得';
+    }
+  }
+
+  async approveInsuranceChangeRun(
+    run: SystemCalculationRunItem,
+    draft: InsuranceApprovalDraft,
+    loginEmployeeId: string,
+  ): Promise<boolean> {
+    const validationError = this.validateInsuranceApprovalDraft(draft);
+    if (validationError) return false;
+
+    const employee = await this.employeeService.getEmployeeByEmployeeId(run.employeeId);
+    if (!employee) return false;
+
+    const insurance: EmployeeInsurance = {
+      currentGrade: this.resolveApprovedGrade(draft.healthStatus, draft.currentGrade, draft.autoGrade),
+      healthInsurance: this.buildInsuranceDetailFromDraft(
+        draft.healthStatus,
+        draft.healthAcquiredDate,
+        draft.healthLostDate,
+        employee.insurance?.healthInsurance,
+      ),
+      nursingCareInsurance: this.buildInsuranceDetailFromDraft(
+        draft.nursingStatus,
+        draft.nursingAcquiredDate,
+        draft.nursingLostDate,
+        employee.insurance?.nursingCareInsurance,
+        employee.insurance?.healthInsurance?.number,
+      ),
+      employeePensionInsurance: this.buildInsuranceDetailFromDraft(
+        draft.pensionStatus,
+        draft.pensionAcquiredDate,
+        draft.pensionLostDate,
+        employee.insurance?.employeePensionInsurance,
+      ),
+      basicPensionNumber: employee.insurance?.basicPensionNumber,
+    };
+
+    const updated = await this.employeeService.updateEmployeeInsurance(run.employeeId, insurance);
+    if (!updated) return false;
+
+    if (!insurance.healthInsurance?.joined) {
+      const dependentsUpdated = await this.setAllDependentsNotDependent(run.employeeId);
+      if (!dependentsUpdated) return false;
+    }
+
+    return this.calculationRunService.markRunApproved(
+      run.runId,
+      loginEmployeeId,
+      undefined,
+      getCurrentAppliedFromMonth(),
+    );
   }
 
   async buildInsuranceApprovalDraft(event: Event): Promise<InsuranceApprovalDraft | null> {
@@ -269,16 +351,70 @@ export class EmployeeEventApprovalService {
     loginEmployeeId: string,
     runId?: string,
   ): Promise<boolean> {
+    const revisionSummary = {
+      currentGrade: draft.currentGrade,
+      approvedGrade: draft.approvedGrade,
+      averageSalary: draft.averageSalary,
+      targetPayrolls: draft.targetPayrolls ?? [],
+    };
     if (runId) {
-      return this.calculationRunService.markRunApproved(runId, loginEmployeeId, {
-        revisionSummary: {
-          currentGrade: draft.currentGrade,
-          approvedGrade: draft.approvedGrade,
-          averageSalary: draft.averageSalary,
-        },
-      });
+      return this.calculationRunService.markRunApproved(runId, loginEmployeeId, { revisionSummary });
     }
     return this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  async rejectFixedSalaryRun(
+    runId: string,
+    draft: FixedSalaryApprovalDraft | null,
+    loginEmployeeId: string,
+  ): Promise<boolean> {
+    const payloadExtension = draft ? {
+      revisionSummary: {
+        currentGrade: draft.currentGrade,
+        approvedGrade: draft.approvedGrade,
+        averageSalary: draft.averageSalary,
+        targetPayrolls: draft.targetPayrolls ?? [],
+        rejected: true,
+      },
+    } : undefined;
+    return this.calculationRunService.markRunRejected(runId, loginEmployeeId, payloadExtension);
+  }
+
+  /** 承認済み随時改定を選択適用 */
+  async applySelectedAdHocRevisions(
+    runIds: string[],
+    loginEmployeeId: string,
+  ): Promise<{ appliedCount: number }> {
+    if (runIds.length === 0) return { appliedCount: 0 };
+
+    const allApplicable = await this.calculationRunService.getApplicableApprovedAdHocRevisionRuns();
+    const applicableMap = new Map(allApplicable.map(run => [run.runId, run]));
+    let appliedCount = 0;
+
+    for (const runId of runIds) {
+      const run = applicableMap.get(runId);
+      if (!run) continue;
+
+      const approvedGrade = await this.resolveApprovedGradeFromRun(run);
+      if (approvedGrade === null) continue;
+
+      const employee = await this.employeeService.getEmployeeByEmployeeId(run.employeeId);
+      if (!employee) continue;
+
+      const updated = await this.employeeService.updateEmployee({
+        employeeId: run.employeeId,
+        insurance: {
+          ...employee.insurance,
+          currentGrade: approvedGrade,
+        } as EmployeeInsurance,
+      });
+      if (!updated) continue;
+
+      const ok = await this.calculationRunService.markRunApplied(run.runId, loginEmployeeId);
+      if (ok) appliedCount++;
+    }
+
+    return { appliedCount };
   }
 
   /** 承認済み随時改定を従業員等級へ反映し、計算結果を適用済みに更新 */
@@ -418,8 +554,11 @@ export class EmployeeEventApprovalService {
       });
     }
 
+    const healthJoined = detail.healthInsurance.joined === true;
+    const resolvedGrade = healthJoined ? (autoGrade ?? detail.currentGrade ?? 0) : 0;
+
     return {
-      currentGrade: detail.currentGrade,
+      currentGrade: resolvedGrade,
       autoGrade: autoGrade ?? null,
       basicPensionNumber: detail.basicPensionNumber ?? '',
       healthJoined: detail.healthInsurance.joined === true,
@@ -594,7 +733,9 @@ export class EmployeeEventApprovalService {
     }
 
     return {
-      resignationDate: run.payload?.['occurredDate'] as Timestamp | undefined,
+      resignationDate: (run.payload?.['resignationDate'] as Timestamp | undefined)
+        ?? (run.payload?.['occurredDate'] as Timestamp | undefined),
+      qualificationLossDate: run.payload?.['occurredDate'] as Timestamp | undefined,
       currentGrade: insurance.currentGrade ?? 0,
       healthInsurance: insurance.healthInsurance ?? { joined: false },
       nursingCareInsurance: insurance.nursingCareInsurance ?? { joined: false },
@@ -610,15 +751,15 @@ export class EmployeeEventApprovalService {
     const employee = await this.employeeService.getEmployeeByEmployeeId(run.employeeId);
     if (!employee) return false;
 
-    const resignationDate = run.payload?.['occurredDate'] as Timestamp | undefined;
-    if (!resignationDate) return false;
+    const qualificationLossDate = run.payload?.['occurredDate'] as Timestamp | undefined;
+    if (!qualificationLossDate) return false;
 
     const currentGrade = employee.insurance?.currentGrade ?? 0;
     const insurance: EmployeeInsurance = {
       currentGrade,
-      healthInsurance: this.buildLostInsuranceDetail(employee.insurance?.healthInsurance, resignationDate),
-      nursingCareInsurance: this.buildLostInsuranceDetail(employee.insurance?.nursingCareInsurance, resignationDate),
-      employeePensionInsurance: this.buildLostInsuranceDetail(employee.insurance?.employeePensionInsurance, resignationDate),
+      healthInsurance: this.buildLostInsuranceDetail(employee.insurance?.healthInsurance, qualificationLossDate),
+      nursingCareInsurance: this.buildLostInsuranceDetail(employee.insurance?.nursingCareInsurance, qualificationLossDate),
+      employeePensionInsurance: this.buildLostInsuranceDetail(employee.insurance?.employeePensionInsurance, qualificationLossDate),
     };
 
     const employeeUpdated = await this.employeeService.updateEmployeeInsurance(run.employeeId, insurance);
@@ -680,6 +821,7 @@ export class EmployeeEventApprovalService {
     const resignationDate = after?.resignationDate ?? event.occurredDate;
     if (!resignationDate) return false;
 
+    const qualificationLossDate = getQualificationLossTimestamp(resignationDate);
     const currentGrade = employee.insurance?.currentGrade ?? 0;
     const updated: Partial<Employee> = {
       employeeId,
@@ -687,9 +829,9 @@ export class EmployeeEventApprovalService {
       resignationDate,
       insurance: {
         currentGrade,
-        healthInsurance: this.buildLostInsuranceDetail(employee.insurance?.healthInsurance, resignationDate),
-        nursingCareInsurance: this.buildLostInsuranceDetail(employee.insurance?.nursingCareInsurance, resignationDate),
-        employeePensionInsurance: this.buildLostInsuranceDetail(employee.insurance?.employeePensionInsurance, resignationDate),
+        healthInsurance: this.buildLostInsuranceDetail(employee.insurance?.healthInsurance, qualificationLossDate),
+        nursingCareInsurance: this.buildLostInsuranceDetail(employee.insurance?.nursingCareInsurance, qualificationLossDate),
+        employeePensionInsurance: this.buildLostInsuranceDetail(employee.insurance?.employeePensionInsurance, qualificationLossDate),
       },
     };
 
@@ -855,10 +997,151 @@ export class EmployeeEventApprovalService {
   }
 
   async approveSimpleEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    if (event.eventType === '固定給変更' && event.applicantType === '管理者') {
+      return this.approveAdminFixedSalaryEvent(employeeId, event, loginEmployeeId);
+    }
+    if (event.eventType === '雇用形態変更' && event.applicantType === '管理者') {
+      return this.approveAdminEmploymentChangeEvent(employeeId, event, loginEmployeeId);
+    }
+    if (event.eventType === '勤務状況変更' && event.applicantType === '管理者') {
+      return this.approveAdminWorkStatusEvent(employeeId, event, loginEmployeeId);
+    }
+    if (event.eventType === '扶養情報変更') {
+      return this.approveAdminDependentChangeEvent(employeeId, event, loginEmployeeId);
+    }
     return this.markEventApproved(employeeId, event, loginEmployeeId);
   }
 
-  /** 従業員ライフイベント申請の承認（内容を従業員情報へ反映） */
+  async approveAdminDependentChangeEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    const afterRecord = event.payload?.['after'] as { dependents?: Dependent[] } | Dependent | undefined;
+    if (afterRecord && 'dependentId' in afterRecord) {
+      return this.approveEmployeeDependentChange(employeeId, event, loginEmployeeId);
+    }
+
+    const afterDependents = (afterRecord as { dependents?: Dependent[] } | undefined)?.dependents;
+    if (!afterDependents) return false;
+
+    for (const dependent of afterDependents) {
+      const saved = await this.dependentService.updateDependent(employeeId, dependent);
+      if (!saved) return false;
+    }
+
+    return this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  async approveAdminFixedSalaryEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
+    if (!employee) return false;
+
+    const afterSalary = event.payload?.['after'] as number | undefined;
+    if (afterSalary === undefined) return false;
+
+    const beforeEmployee: Employee = {
+      ...employee,
+      employmentContract: employee.employmentContract ? { ...employee.employmentContract } : undefined,
+    };
+    const afterEmployee: Employee = {
+      ...employee,
+      employmentContract: {
+        ...employee.employmentContract,
+        fixedSalary: afterSalary,
+      },
+    };
+
+    const updated = await this.employeeService.updateEmployee({
+      employeeId,
+      employmentContract: afterEmployee.employmentContract,
+    });
+    if (!updated) return false;
+
+    const occurredDate = event.occurredDate ?? Timestamp.now();
+    await this.employeeDetailEventService.createAdHocRevisionOnApproval(
+      employeeId,
+      beforeEmployee,
+      afterEmployee,
+      occurredDate,
+      loginEmployeeId,
+    );
+
+    return this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  async approveAdminEmploymentChangeEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
+    if (!employee) return false;
+
+    const afterContract = event.payload?.['after'] as Employee['employmentContract'] | undefined;
+    if (!afterContract) return false;
+
+    const beforeEmployee: Employee = {
+      ...employee,
+      employmentContract: employee.employmentContract ? { ...employee.employmentContract } : undefined,
+    };
+    const afterEmployee: Employee = {
+      ...employee,
+      employmentContract: { ...employee.employmentContract, ...afterContract },
+    };
+
+    const updated = await this.employeeService.updateEmployee({
+      employeeId,
+      employmentContract: afterEmployee.employmentContract,
+    });
+    if (!updated) return false;
+
+    if (this.employeeDetailEventService.shouldCreateEmploymentSystemRun(beforeEmployee, afterEmployee)) {
+      const occurredDate = event.occurredDate ?? Timestamp.now();
+      await this.employeeDetailEventService.createEmploymentSystemRunOnApproval(
+        employeeId,
+        beforeEmployee,
+        afterEmployee,
+        occurredDate,
+      );
+    }
+
+    return this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  async approveAdminWorkStatusEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    const after = event.payload?.['after'] as Record<string, unknown> | undefined;
+    if (!after) return false;
+
+    const update: Partial<Employee> = { employeeId };
+
+    if (event.changeType === '休職開始') {
+      update.workStatus = '休職中';
+      update.leaveTypes = after['leaveTypes'] as Employee['leaveTypes'];
+      if (after['leaveStartDate']) update.leaveStartDate = after['leaveStartDate'] as Timestamp;
+      if (after['leaveEndDate']) update.leaveEndDate = after['leaveEndDate'] as Timestamp;
+    } else if (event.changeType === '休職終了') {
+      update.workStatus = '通常勤務';
+      update.leaveTypes = null;
+      if (after['leaveEndDate']) update.leaveEndDate = after['leaveEndDate'] as Timestamp;
+    } else {
+      update.workStatus = after['workStatus'] as Employee['workStatus'];
+      update.leaveTypes = after['leaveTypes'] as Employee['leaveTypes'];
+    }
+
+    const updated = await this.employeeService.updateEmployee(update);
+    if (!updated) return false;
+    return this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  /** 従業員ライフイベント申請の承認（マスター未反映） */
+  async approveEmployeeApplicationOnly(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    return this.markEventApproved(employeeId, event, loginEmployeeId);
+  }
+
+  /** 承認済み従業員申請をマスターへ適用 */
+  async applyApprovedEmployeeApplicationEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    if (event.approval?.approvalStatus !== '承認済み') return false;
+
+    const applied = await this.applyEmployeeApplicationToMaster(employeeId, event);
+    if (!applied) return false;
+
+    return this.markEventApplied(employeeId, event, loginEmployeeId);
+  }
+
+  /** @deprecated approveEmployeeApplicationOnly / applyApprovedEmployeeApplicationEvent を使用 */
   async approveEmployeeApplicationEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
     switch (event.eventType) {
       case '氏名変更':
@@ -873,6 +1156,99 @@ export class EmployeeEventApprovalService {
     }
   }
 
+  private async applyEmployeeApplicationToMaster(employeeId: string, event: Event): Promise<boolean> {
+    switch (event.eventType) {
+      case '氏名変更': {
+        const afterName = String(event.payload?.['after'] ?? '');
+        return this.employeeService.updateEmployee({ employeeId, firstName: afterName });
+      }
+      case '扶養情報変更':
+        return this.applyEmployeeDependentChange(employeeId, event);
+      case '雇用形態変更':
+      case '勤務状況変更':
+        return this.applyEmployeeWorkChange(employeeId, event);
+      default:
+        return false;
+    }
+  }
+
+  private async applyEmployeeDependentChange(employeeId: string, event: Event): Promise<boolean> {
+    const after = event.payload?.['after'] as Dependent | undefined;
+    if (!after?.dependentId) return false;
+
+    const dependent: Partial<Dependent> = {
+      dependentId: after.dependentId,
+      name: after.name,
+      relationship: after.relationship as Relationship,
+      birthDate: after.birthDate,
+      isDependent: after.isDependent !== false,
+      dependentStartDate: after.dependentStartDate,
+      dependentEndDate: after.dependentEndDate,
+      cohabitationType: after.cohabitationType,
+      annualIncome: after.annualIncome,
+      occupation: after.occupation,
+      hasDisability: after.hasDisability,
+      disabilityType: after.disabilityType,
+      isStudent: after.isStudent,
+      studentType: after.studentType,
+    };
+
+    const before = event.payload?.['before'] as Dependent | null | undefined;
+    return before
+      ? this.dependentService.updateDependent(employeeId, dependent)
+      : this.dependentService.registerDependents(employeeId, [dependent]);
+  }
+
+  private async applyEmployeeWorkChange(employeeId: string, event: Event): Promise<boolean> {
+    if (event.changeType === '休職開始' || event.changeType === '休職終了') {
+      return this.applyAdminWorkStatusEvent(employeeId, event);
+    }
+
+    const after = event.payload?.['after'] as Employee | undefined;
+    if (!after) return false;
+
+    return this.employeeService.updateEmployee({
+      employeeId,
+      workStatus: after.workStatus,
+      leaveTypes: after.leaveTypes,
+      ...(after.leaveStartDate ? { leaveStartDate: after.leaveStartDate } : {}),
+      ...(after.leaveEndDate ? { leaveEndDate: after.leaveEndDate } : {}),
+    });
+  }
+
+  private async applyAdminWorkStatusEvent(employeeId: string, event: Event): Promise<boolean> {
+    const after = event.payload?.['after'] as Record<string, unknown> | undefined;
+    if (!after) return false;
+
+    const update: Partial<Employee> = { employeeId };
+
+    if (event.changeType === '休職開始') {
+      update.workStatus = '休職中';
+      update.leaveTypes = after['leaveTypes'] as Employee['leaveTypes'];
+      if (after['leaveStartDate']) update.leaveStartDate = after['leaveStartDate'] as Timestamp;
+      if (after['leaveEndDate']) update.leaveEndDate = after['leaveEndDate'] as Timestamp;
+    } else if (event.changeType === '休職終了') {
+      update.workStatus = '通常勤務';
+      update.leaveTypes = null;
+      if (after['leaveEndDate']) update.leaveEndDate = after['leaveEndDate'] as Timestamp;
+    } else {
+      update.workStatus = after['workStatus'] as Employee['workStatus'];
+      update.leaveTypes = after['leaveTypes'] as Employee['leaveTypes'];
+    }
+
+    return this.employeeService.updateEmployee(update);
+  }
+
+  private async markEventApplied(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    event.approval = {
+      approvalStatus: '適用済み',
+      approvedDate: event.approval?.approvedDate ?? Timestamp.now(),
+      approvedBy: event.approval?.approvedBy ?? loginEmployeeId,
+      appliedFromMonth: getCurrentAppliedFromMonth(),
+    };
+    return this.eventService.updateEvent(employeeId, event.eventId, event);
+  }
+
   private async approveEmployeeNameChange(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
     const afterName = String(event.payload?.['after'] ?? '');
     const updated = await this.employeeService.updateEmployee({ employeeId, firstName: afterName });
@@ -881,6 +1257,10 @@ export class EmployeeEventApprovalService {
   }
 
   private async approveEmployeeWorkChange(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
+    if (event.changeType === '休職開始' || event.changeType === '休職終了') {
+      return this.approveAdminWorkStatusEvent(employeeId, event, loginEmployeeId);
+    }
+
     const after = event.payload?.['after'] as Employee | undefined;
     if (!after) return false;
 
@@ -888,6 +1268,8 @@ export class EmployeeEventApprovalService {
       employeeId,
       workStatus: after.workStatus,
       leaveTypes: after.leaveTypes,
+      ...(after.leaveStartDate ? { leaveStartDate: after.leaveStartDate } : {}),
+      ...(after.leaveEndDate ? { leaveEndDate: after.leaveEndDate } : {}),
     });
     if (!updated) return false;
     return this.markEventApproved(employeeId, event, loginEmployeeId);

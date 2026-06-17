@@ -46,9 +46,11 @@
         </div>
         <h2>従業員情報</h2>
         <div class="employee-infomation-area">
-            <section class="employee-detail-section">
+            <section class="employee-detail-section" style="margin-bottom: 20px;">
                 <div class="employee-detail-section__header">
                     <h2>基本情報</h2>
+                        <button type="button" class="im-btn-soft" [disabled]="isRetiredEmployee()"
+                            (click)="editWorkStatus()">勤務状況を変更</button>
                 </div>
                 <dl class="employee-detail-info-grid">
                     <div class="employee-detail-info-grid__item">
@@ -81,7 +83,12 @@
                     </div>
                     <div class="employee-detail-info-grid__item">
                         <dt>勤務状況</dt>
-                        <dd>{{ selectedEmployee.workStatus! }}</dd>
+                        <dd>
+                            {{ selectedEmployee.workStatus! }}
+                            <p class="employee-detail-scheduled-leave" *ngIf="scheduledLeaveInfo">
+                                予定：{{ scheduledLeaveInfo.leaveTypes }}（{{ formatScheduledLeave(scheduledLeaveInfo) }}）
+                            </p>
+                        </dd>
                     </div>
                     <div class="employee-detail-info-grid__item" *ngIf="selectedEmployee.workStatus === '休職中'">
                         <dt>休職種別</dt>
@@ -92,14 +99,21 @@
                         <dd>{{ commonService.formatDate(selectedEmployee.resignationDate!) }}</dd>
                     </div>
                 </dl>
+
             </section>
 
             <div class="employee-detail-muted-area" [class.employee-detail-muted-area--active]="isRetiredEmployee()">
             <section class="employee-detail-section">
                 <div class="employee-detail-section__header">
-                    <h2>雇用契約情報</h2>
+                    <div class="employee-detail-section__title-inline">
+                        <h2>雇用契約情報</h2>
+                        <span class="employee-detail-scheduled-leave employee-detail-scheduled-leave--inline"
+                            *ngIf="scheduledEmploymentContractInfo">
+                            {{ formatScheduledEmploymentContract(scheduledEmploymentContractInfo) }}
+                        </span>
+                    </div>
                     <button type="button" class="im-btn-soft" [disabled]="isRetiredEmployee()"
-                        (click)="editContractInfo()">勤務状況・雇用契約情報を編集</button>
+                        (click)="editEmploymentContractInfo()">雇用契約情報を変更</button>
                 </div>
                 <dl class="employee-detail-info-grid">
                     <div class="employee-detail-info-grid__item">
@@ -146,7 +160,12 @@
                     <dl class="employee-detail-info-grid employee-detail-info-grid--compact">
                         <div class="employee-detail-info-grid__item">
                             <dt>登録値</dt>
-                            <dd>{{ selectedEmployee.insurance?.currentGrade ?? '未登録' }}</dd>
+                            <dd>
+                                {{ selectedEmployee.insurance?.currentGrade ?? '未登録' }}
+                                <p class="employee-detail-scheduled-leave" *ngIf="gradeApplicationLabel">
+                                    {{ gradeApplicationLabel }}
+                                </p>
+                            </dd>
                         </div>
                         <div class="employee-detail-info-grid__item">
                             <dt>自動計算</dt>
@@ -191,6 +210,9 @@
                                 <dd>{{ selectedEmployee.insurance?.healthInsurance?.companyBurdenRate! }}%</dd>
                             </div>
                         </dl>
+                        <p class="employee-detail-insurance-card__pending" *ngIf="formatPendingInsuranceSchedule('healthInsurance') as pendingLabel">
+                            {{ pendingLabel }}
+                        </p>
                     </article>
 
                     <article class="employee-detail-insurance-card">
@@ -225,6 +247,9 @@
                                 <dd>{{ selectedEmployee.insurance?.nursingCareInsurance?.companyBurdenRate! }}%</dd>
                             </div>
                         </dl>
+                        <p class="employee-detail-insurance-card__pending" *ngIf="formatPendingInsuranceSchedule('nursingCareInsurance') as pendingLabel">
+                            {{ pendingLabel }}
+                        </p>
                     </article>
 
                     <article class="employee-detail-insurance-card">
@@ -259,6 +284,9 @@
                                 <dd>{{ selectedEmployee.insurance?.employeePensionInsurance?.companyBurdenRate! }}%</dd>
                             </div>
                         </dl>
+                        <p class="employee-detail-insurance-card__pending" *ngIf="formatPendingInsuranceSchedule('employeePensionInsurance') as pendingLabel">
+                            {{ pendingLabel }}
+                        </p>
                     </article>
                 </div>
             </section>
@@ -446,58 +474,132 @@
 </div>
 
 <!-- 勤務状況・雇用契約情報 編集モーダル -->
-<div class="employee-edit-modal" *ngIf="contractModalOpen">
-    <div class="employee-edit-modal__panel">
+<!-- 勤務状況 編集モーダル -->
+<div class="employee-edit-modal" *ngIf="workStatusModalOpen">
+    <div class="employee-edit-modal__panel" (click)="$event.stopPropagation()">
         <div class="employee-edit-modal__header">
             <h2>
-                勤務状況・雇用契約情報を編集
+                勤務状況を変更
                 <span class="employee-edit-modal__employee-id">社員ID：{{ selectedEmployeeId }}</span>
             </h2>
         </div>
-        <form class="employee-edit-form" [formGroup]="contractForm" (ngSubmit)="submitContractModal()">
+        <form class="employee-edit-form" [formGroup]="workStatusForm" (ngSubmit)="submitWorkStatusModal()">
+            <p class="employee-edit-modal__form-message" *ngIf="workStatusModalError">{{ workStatusModalError }}</p>
             <div class="employee-edit-grid">
                 <div class="im-field-block im-field-row employee-edit-field">
                     <div class="im-field-row__label">
-                        <label for="detailWorkStatus">勤務状況</label>
+                        <label for="detailWorkStatusChange">勤務状況</label>
                     </div>
                     <div class="im-field-row__control">
-                        <select id="detailWorkStatus" formControlName="workStatus">
-                            <option *ngFor="let workStatus of WORK_STATUSES" [value]="workStatus">{{ workStatus }}
-                            </option>
+                        <select id="detailWorkStatusChange" formControlName="workStatus">
+                            <option *ngFor="let workStatus of WORK_STATUS_CHANGE_OPTIONS" [value]="workStatus">{{
+                                workStatus }}</option>
                         </select>
-                        <div class="error">
-                            <p
-                                *ngIf="contractForm.get('workStatus')?.errors?.['required'] && contractForm.get('workStatus')?.touched">
-                                勤務状況は必須です</p>
-                        </div>
                     </div>
                 </div>
-                <div class="im-field-block im-field-row employee-edit-field" *ngIf="showLeaveTypesField()">
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="showWorkStatusLeaveTypesField()">
                     <div class="im-field-row__label">
-                        <label for="detailLeaveTypes">休職種別</label>
+                        <label for="detailWorkLeaveTypes">休職種別</label>
                     </div>
                     <div class="im-field-row__control">
-                        <select id="detailLeaveTypes" formControlName="leaveTypes">
+                        <select id="detailWorkLeaveTypes" formControlName="leaveTypes">
                             <option value="">休職種別を選択してください</option>
                             <option *ngFor="let leaveType of LEAVE_TYPES" [value]="leaveType">{{ leaveType }}</option>
                         </select>
                         <div class="error">
                             <p
-                                *ngIf="contractForm.get('leaveTypes')?.errors?.['required'] && contractForm.get('leaveTypes')?.touched">
+                                *ngIf="workStatusForm.get('leaveTypes')?.errors?.['required'] && workStatusForm.get('leaveTypes')?.touched">
                                 休職種別は必須です</p>
                         </div>
                     </div>
                 </div>
-                <div class="im-field-block im-field-row employee-edit-field" *ngIf="showResignationDateField()">
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="showWorkStatusLeaveStartField()">
                     <div class="im-field-row__label">
-                        <label for="detailResignationDate">退社日</label>
+                        <label for="detailLeaveStartDate">休職開始日</label>
                     </div>
                     <div class="im-field-row__control">
-                        <input id="detailResignationDate" type="date" formControlName="resignationDate">
+                        <input id="detailLeaveStartDate" type="date" formControlName="leaveStartDate">
                         <div class="error">
                             <p
-                                *ngIf="contractForm.get('resignationDate')?.errors?.['required'] && contractForm.get('resignationDate')?.touched">
-                                退社日は必須です</p>
+                                *ngIf="workStatusForm.get('leaveStartDate')?.errors?.['required'] && workStatusForm.get('leaveStartDate')?.touched">
+                                休職開始日は必須です</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="showWorkStatusLeaveStartField()">
+                    <div class="im-field-row__label">
+                        <label for="detailLeaveEndDateOptional">終了予定日</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input id="detailLeaveEndDateOptional" type="date" formControlName="leaveEndDate">
+                        <div class="error">
+                            <p
+                                *ngIf="workStatusForm.get('leaveEndDate')?.errors?.['leaveEndBeforeStart'] && workStatusForm.get('leaveEndDate')?.touched">
+                                終了予定日は休職開始日以降にしてください</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="showWorkStatusLeaveEndField()">
+                    <div class="im-field-row__label">
+                        <label for="detailLeaveEndDate">休職終了日</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input id="detailLeaveEndDate" type="date" formControlName="leaveEndDate">
+                        <div class="error">
+                            <p
+                                *ngIf="workStatusForm.get('leaveEndDate')?.errors?.['required'] && workStatusForm.get('leaveEndDate')?.touched">
+                                休職終了日は必須です</p>
+                            <p
+                                *ngIf="workStatusForm.get('leaveEndDate')?.errors?.['leaveEndBeforeStart'] && workStatusForm.get('leaveEndDate')?.touched">
+                                休職終了日は休職開始日以降にしてください</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="showWorkStatusSwitchDateField()">
+                    <div class="im-field-row__label">
+                        <label for="detailLeaveSwitchDate">切り替え日</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input id="detailLeaveSwitchDate" type="date" formControlName="switchDate">
+                        <div class="error">
+                            <p
+                                *ngIf="workStatusForm.get('switchDate')?.errors?.['required'] && workStatusForm.get('switchDate')?.touched">
+                                切り替え日は必須です</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="employee-edit-actions">
+                <button type="submit" class="im-btn-primary">保存</button>
+                <button type="button" class="im-btn-soft" (click)="closeWorkStatusModal()">キャンセル</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 雇用契約情報 編集モーダル -->
+<div class="employee-edit-modal" *ngIf="employmentContractModalOpen">
+    <div class="employee-edit-modal__panel" (click)="$event.stopPropagation()">
+        <div class="employee-edit-modal__header">
+            <h2>
+                雇用契約情報を変更
+                <span class="employee-edit-modal__employee-id">社員ID：{{ selectedEmployeeId }}</span>
+            </h2>
+        </div>
+        <form class="employee-edit-form" [formGroup]="employmentContractForm" (ngSubmit)="submitEmploymentContractModal()">
+            <p class="employee-edit-modal__form-message" *ngIf="employmentContractModalError">{{ employmentContractModalError }}</p>
+            <div class="employee-edit-grid">
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label">
+                        <label for="detailEffectiveDate">適用日</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input id="detailEffectiveDate" type="date" formControlName="effectiveDate">
+                        <div class="error">
+                            <p
+                                *ngIf="employmentContractForm.get('effectiveDate')?.errors?.['required'] && employmentContractForm.get('effectiveDate')?.touched">
+                                適用日は必須です</p>
                         </div>
                     </div>
                 </div>
@@ -516,7 +618,7 @@
                         </select>
                         <div class="error">
                             <p
-                                *ngIf="contractForm.get('employmentContract.employmentCategory')?.errors?.['required'] && contractForm.get('employmentContract.employmentCategory')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.employmentCategory')?.errors?.['required'] && employmentContractForm.get('employmentContract.employmentCategory')?.touched">
                                 雇用区分は必須です</p>
                         </div>
                     </div>
@@ -531,7 +633,7 @@
                         </select>
                         <div class="error">
                             <p
-                                *ngIf="contractForm.get('employmentContract.workStyle')?.errors?.['required'] && contractForm.get('employmentContract.workStyle')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.workStyle')?.errors?.['required'] && employmentContractForm.get('employmentContract.workStyle')?.touched">
                                 勤務形態は必須です</p>
                         </div>
                     </div>
@@ -548,7 +650,7 @@
                         </select>
                         <div class="error">
                             <p
-                                *ngIf="contractForm.get('employmentContract.officeId')?.errors?.['required'] && contractForm.get('employmentContract.officeId')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.officeId')?.errors?.['required'] && employmentContractForm.get('employmentContract.officeId')?.touched">
                                 事業所は必須です</p>
                         </div>
                     </div>
@@ -562,10 +664,10 @@
                             formControlName="contractedWorkingHoursPerWeek">
                         <div class="error">
                             <p
-                                *ngIf="contractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.errors?.['required'] && contractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.errors?.['required'] && employmentContractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.touched">
                                 契約労働時間は必須です</p>
                             <p
-                                *ngIf="contractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.errors?.['min'] && contractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.errors?.['min'] && employmentContractForm.get('employmentContract.contractedWorkingHoursPerWeek')?.touched">
                                 0以上で入力してください</p>
                         </div>
                     </div>
@@ -579,10 +681,10 @@
                             formControlName="contractedWorkingDaysPerMonth">
                         <div class="error">
                             <p
-                                *ngIf="contractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.errors?.['required'] && contractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.errors?.['required'] && employmentContractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.touched">
                                 契約労働日数は必須です</p>
                             <p
-                                *ngIf="contractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.errors?.['min'] && contractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.errors?.['min'] && employmentContractForm.get('employmentContract.contractedWorkingDaysPerMonth')?.touched">
                                 0以上で入力してください</p>
                         </div>
                     </div>
@@ -595,10 +697,10 @@
                         <input type="number" id="detailFixedSalary" min="0" formControlName="fixedSalary">
                         <div class="error">
                             <p
-                                *ngIf="contractForm.get('employmentContract.fixedSalary')?.errors?.['required'] && contractForm.get('employmentContract.fixedSalary')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.fixedSalary')?.errors?.['required'] && employmentContractForm.get('employmentContract.fixedSalary')?.touched">
                                 固定給は必須です</p>
                             <p
-                                *ngIf="contractForm.get('employmentContract.fixedSalary')?.errors?.['min'] && contractForm.get('employmentContract.fixedSalary')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.fixedSalary')?.errors?.['min'] && employmentContractForm.get('employmentContract.fixedSalary')?.touched">
                                 0以上で入力してください</p>
                         </div>
                     </div>
@@ -612,10 +714,10 @@
                             formControlName="transportationExpenses">
                         <div class="error">
                             <p
-                                *ngIf="contractForm.get('employmentContract.transportationExpenses')?.errors?.['required'] && contractForm.get('employmentContract.transportationExpenses')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.transportationExpenses')?.errors?.['required'] && employmentContractForm.get('employmentContract.transportationExpenses')?.touched">
                                 通勤手当は必須です</p>
                             <p
-                                *ngIf="contractForm.get('employmentContract.transportationExpenses')?.errors?.['min'] && contractForm.get('employmentContract.transportationExpenses')?.touched">
+                                *ngIf="employmentContractForm.get('employmentContract.transportationExpenses')?.errors?.['min'] && employmentContractForm.get('employmentContract.transportationExpenses')?.touched">
                                 0以上で入力してください</p>
                         </div>
                     </div>
@@ -624,7 +726,7 @@
 
             <div class="employee-edit-actions">
                 <button type="submit" class="im-btn-primary">保存</button>
-                <button type="button" class="im-btn-soft" (click)="closeContractModal()">キャンセル</button>
+                <button type="button" class="im-btn-soft" (click)="closeEmploymentContractModal()">キャンセル</button>
             </div>
         </form>
     </div>
@@ -632,7 +734,7 @@
 
 <!-- 保険情報 編集モーダル -->
 <div class="employee-edit-modal" *ngIf="insuranceModalOpen">
-    <div class="employee-edit-modal__panel employee-edit-modal__panel--wide">
+    <div class="employee-edit-modal__panel employee-edit-modal__panel--wide" (click)="$event.stopPropagation()">
         <div class="employee-edit-modal__header">
             <h2>
                 保険情報を編集
@@ -641,6 +743,7 @@
         </div>
         <form class="employee-edit-form employee-insurance-form" [formGroup]="insuranceForm"
             (ngSubmit)="submitInsuranceModal()">
+            <p class="employee-edit-modal__form-message" *ngIf="insuranceModalError">{{ insuranceModalError }}</p>
             <div class="employee-insurance-grade-row">
                 <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
                     <div class="im-field-row__label">
@@ -672,6 +775,21 @@
                             <p
                                 *ngIf="insuranceForm.get('basicPensionNumber')?.errors?.['pattern'] && insuranceForm.get('basicPensionNumber')?.touched">
                                 半角英数字で入力してください</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="employee-insurance-grade-row" *ngIf="showInsuranceEffectiveDateField()">
+                <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                    <div class="im-field-row__label">
+                        <label for="detailInsuranceEffectiveDate">適用日</label>
+                    </div>
+                    <div class="im-field-row__control">
+                        <input type="date" id="detailInsuranceEffectiveDate" formControlName="insuranceEffectiveDate">
+                        <div class="error">
+                            <p
+                                *ngIf="insuranceForm.get('insuranceEffectiveDate')?.errors?.['required'] && insuranceForm.get('insuranceEffectiveDate')?.touched">
+                                適用日は必須です</p>
                         </div>
                     </div>
                 </div>
@@ -768,9 +886,10 @@
             <div class="employee-insurance-form-group" formGroupName="nursingCareInsurance">
                 <label>介護保険</label>
                 <div class="im-radio-group">
-                    <label class="im-radio-option" for="detailNursingJoined1">
+                    <label class="im-radio-option" for="detailNursingJoined1"
+                        [class.im-radio-option--disabled]="isSubInsuranceJoinedDisabled()">
                         <input type="radio" id="detailNursingJoined1" formControlName="joined"
-                            value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入</span>
+                            value="joined"><span>加入</span>
                     </label>
                     <label class="im-radio-option" for="detailNursingJoined2">
                         <input type="radio" id="detailNursingJoined2" formControlName="joined"
@@ -846,9 +965,10 @@
             <div class="employee-insurance-form-group" formGroupName="employeePensionInsurance">
                 <label>厚生年金</label>
                 <div class="im-radio-group">
-                    <label class="im-radio-option" for="detailPensionJoined1">
+                    <label class="im-radio-option" for="detailPensionJoined1"
+                        [class.im-radio-option--disabled]="isSubInsuranceJoinedDisabled()">
                         <input type="radio" id="detailPensionJoined1" formControlName="joined"
-                            value="joined" [disabled]="isSubInsuranceJoinedDisabled()"><span>加入</span>
+                            value="joined"><span>加入</span>
                     </label>
                     <label class="im-radio-option" for="detailPensionJoined2">
                         <input type="radio" id="detailPensionJoined2" formControlName="joined"
@@ -1012,6 +1132,14 @@
                             </div>
                         </div>
                         <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
+                            *ngIf="isExistingDependentRow(i)">
+                            <div class="im-field-row__label"><label [for]="'detailDependentAppliedDate' + i">適用日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'detailDependentAppliedDate' + i" formControlName="appliedDate">
+                                <p class="employee-detail-field-note">変更がある場合に入力してください</p>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
                             *ngIf="isExistingDependentRow(i) && dependent.get('isDependentStatus')?.value === 'notDependent'">
                             <div class="im-field-row__label"><label [for]="'detailDependentEndDate' + i">扶養終了日</label></div>
                             <div class="im-field-row__control">
@@ -1057,10 +1185,10 @@
                             <div class="im-field-row__label"><span>現在の扶養状況</span></div>
                             <div class="im-field-row__control">
                                 <div class="im-radio-group">
-                                    <label class="im-radio-option" [for]="'detailDependentStatus1_' + i">
+                                    <label class="im-radio-option" [for]="'detailDependentStatus1_' + i"
+                                        [class.im-radio-option--disabled]="!canRegisterDependent()">
                                         <input type="radio" [id]="'detailDependentStatus1_' + i"
-                                            formControlName="isDependentStatus" value="dependent"
-                                            [disabled]="!canRegisterDependent()">
+                                            formControlName="isDependentStatus" value="dependent">
                                         <span>扶養対象</span>
                                     </label>
                                     <label class="im-radio-option" [for]="'detailDependentStatus2_' + i">

@@ -114,6 +114,14 @@
                             </div>
                         </div>
                         <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
+                            *ngIf="dependent.get('isExisting')?.value">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentAppliedDate' + i">適用日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'marriageDependentAppliedDate' + i" formControlName="appliedDate">
+                                <p class="employee-detail-field-note">変更がある場合に入力してください</p>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
                             *ngIf="dependent.get('isExisting')?.value && dependent.get('isDependentStatus')?.value === 'notDependent'">
                             <div class="im-field-row__label"><label [for]="'marriageDependentEndDate' + i">扶養終了日</label></div>
                             <div class="im-field-row__control">
@@ -414,6 +422,14 @@
                                 <div class="error">
                                     <p *ngIf="dependent.get('dependentStartDate')?.errors?.['required'] && dependent.get('dependentStartDate')?.touched">扶養開始日は必須です</p>
                                 </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
+                            *ngIf="dependent.get('isExisting')?.value">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeAppliedDate' + i">適用日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'dependentChangeAppliedDate' + i" formControlName="appliedDate">
+                                <p class="employee-detail-field-note">変更がある場合に入力してください</p>
                             </div>
                         </div>
                         <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"

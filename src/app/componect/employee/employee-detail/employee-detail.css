@@ -89,7 +89,30 @@
   gap: var(--im-size-8);
 }
 
+.employee-detail-scheduled-leave {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.employee-detail-scheduled-leave--inline {
+  margin: 0;
+  font-weight: normal;
+}
+
+.employee-detail-section__title-inline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--im-size-8);
+}
+
+.employee-detail-section__header--inline {
+  margin-top: var(--im-size-12);
+}
+
 .employee-detail-muted-area {
+
   display: grid;
   gap: var(--im-size-16);
 }
@@ -202,6 +225,16 @@
   margin: 0 0 var(--im-size-10);
   color: var(--im-color-slate-600);
   font-size: var(--im-font-13);
+}
+
+.employee-detail-insurance-card__pending {
+  position: absolute;
+  right: var(--im-size-8);
+  bottom: var(--im-size-8);
+  margin: 0;
+  font-size: 0.85rem;
+  color: #9ca3af;
+  text-align: right;
 }
 
 .employee-detail-dependent-list {
@@ -407,6 +440,32 @@
 .employee-edit-modal__panel:not(.employee-edit-modal__panel--wide) .employee-edit-section-title {
   margin-top: var(--im-size-8);
   margin-bottom: var(--im-size-4);
+}
+
+.employee-edit-modal__panel .employee-edit-field {
+  height: auto;
+  min-height: 0;
+}
+
+.employee-edit-modal__panel:not(.employee-edit-modal__panel--wide) .error {
+  width: auto;
+  max-width: 100%;
+  white-space: normal;
+  overflow: visible;
+}
+
+.employee-edit-modal__form-message {
+  margin: 0;
+  color: var(--im-color-red-600);
+  font-size: var(--im-font-13);
+  line-height: 1.4;
+  text-align: center;
+}
+
+.im-radio-option--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 
 .employee-edit-form .employee-edit-actions {

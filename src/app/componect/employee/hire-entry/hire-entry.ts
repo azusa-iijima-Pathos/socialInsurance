@@ -665,16 +665,18 @@ export class HireEntry {
     const dependentEventIds: string[] = [];
     const dependentBaseId = buildDependentChangeEventBaseId(hireDate.toDate(), targetPeriodStart);
     for (const dependent of dependents) {
+      const effectiveDate = dependent.dependentStartDate ?? hireDate;
       const dependentEventId = await this.eventService.createEventWithBaseId(employee.employeeId!, dependentBaseId, {
-        occurredDate: dependent.dependentStartDate ?? hireDate,
+        occurredDate: effectiveDate,
         eventType: '扶養情報変更',
+        changeType: '追加',
         lifeEventType: '入社',
         appliedDate: Timestamp.now(),
         applicantType: '管理者',
         approval: {
           approvalStatus: '申請中',
         },
-        payload: { before: null, after: dependent },
+        payload: { before: null, after: dependent, appliedDate: effectiveDate },
       });
       if (!dependentEventId) return false;
       dependentEventIds.push(dependentEventId);

@@ -161,6 +161,47 @@ export class EventService {
     return results.sort(compareEventsByAppliedDateDesc);
   }
 
+  /** 全社員の申請中イベント（従業員申請・作業月不問） */
+  async getAllPendingEmployeeApplicationEvents(): Promise<EmployeeEventItem[]> {
+    await this.employeeService.getAllEmployees();
+    const results: EmployeeEventItem[] = [];
+
+    for (const employee of this.employeeService.allEmployees()) {
+      const events = await this.getEmployeeEvents(employee.employeeId);
+      for (const event of events) {
+        if (event.applicantType !== '社員') continue;
+        if (event.approval?.approvalStatus !== '申請中') continue;
+        results.push({ ...event, employeeId: employee.employeeId });
+      }
+    }
+
+    return results.sort(compareEventsByAppliedDateDesc);
+  }
+
+  /** 承認済みの従業員申請（現在作業月のIDと一致） */
+  async getApprovedEmployeeApplicationEventsForCurrentWorkMonth(): Promise<EmployeeEventItem[]> {
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return [];
+
+    await this.employeeService.getAllEmployees();
+    const results: EmployeeEventItem[] = [];
+
+    for (const employee of this.employeeService.allEmployees()) {
+      const events = await this.getEmployeeEvents(employee.employeeId);
+      for (const event of events) {
+        if (event.applicantType !== '社員') continue;
+        if (event.approval?.approvalStatus !== '承認済み') continue;
+        if (!event.eventId) continue;
+        if (!isEventInTargetMonth(event.eventId, year, month, year, month, event.appliedDate as { toDate?: () => Date; seconds?: number } | undefined)) {
+          continue;
+        }
+        results.push({ ...event, employeeId: employee.employeeId });
+      }
+    }
+
+    return results.sort(compareEventsByAppliedDateDesc);
+  }
+
   /** 全社員のイベント（指定作業月・全承認状況） */
   async getAllEventsForTargetMonth(targetYear: number, targetMonth: number): Promise<EmployeeEventItem[]> {
     await this.employeeService.getAllEmployees();

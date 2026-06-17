@@ -12,6 +12,10 @@ import { ActivatedRoute } from '@angular/router';
 import { DependentService } from '../../../service/Firestore/dependent-service';
 import { Dependent } from '../../../model/dependent';
 import { EmployeeDetailEventService } from '../../../service/logic/employee-detail-event-service';
+import {
+  DependentChangeEventService,
+  getDependentChangeEffectiveDateInput,
+} from '../../../service/logic/dependent-change-event.service';
 import { InsuranceFormService } from '../../../service/logic/insurance-form.service';
 import { EmployeeEventApprovalService, FixedSalaryApprovalDraft, InsuranceApprovalDraft } from '../../../service/logic/employee-event-approval.service';
 import { EmployeeEventDisplayService } from '../../../service/logic/employee-event-display.service';
@@ -30,8 +34,9 @@ import { InsuranceSnapshot } from '../../../model/insurance-snapshot';
 import { InsuranceDraftService } from '../../../service/Firestore/insurance-draft-service';
 import { InsuranceDraft } from '../../../model/insurance-draft';
 import { CalculationRun } from '../../../model/calculation-run';
-import { getWorkingYearMonth } from '../../../service/logic/event-id-service';
-import { formatTimestampForDateInput, timestampFromDateInput } from '../../../service/common/date-input.util';
+import { ScheduledEmploymentContractInfo, ScheduledLeaveInfo, WorkStatusChangeInput, PendingInsuranceSchedule } from '../../../service/logic/employee-detail-event-service';
+import { getWorkingYearMonth, isDateBeforeWorkPeriod, isWorkMonthAtOrAfterCurrent } from '../../../service/logic/event-id-service';
+import { formatTimestampForDateInput, parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
 import {
   EMPLOYMENT_CATEGORIES,
   EmploymentCategory,
@@ -109,6 +114,7 @@ export class EmployeeDetail {
   private fb = inject(FormBuilder);
   private validationService = inject(ValidationService);
   private employeeDetailEventService = inject(EmployeeDetailEventService);
+  private dependentChangeEventService = inject(DependentChangeEventService);
   private insuranceFormService = inject(InsuranceFormService);
   private employeeEventApprovalService = inject(EmployeeEventApprovalService);
   private employeeEventDisplayService = inject(EmployeeEventDisplayService);
@@ -139,6 +145,7 @@ export class EmployeeDetail {
   insuranceApprovalValidationError = '';
 
   WORK_STATUSES = WORK_STATUSES;
+  WORK_STATUS_CHANGE_OPTIONS = ['通常勤務', '休職中'] as const;
   LEAVE_TYPES = LEAVE_TYPES;
   EMPLOYMENT_CATEGORIES = EMPLOYMENT_CATEGORIES;
   WORK_STYLES = WORK_STYLES;
@@ -157,9 +164,13 @@ export class EmployeeDetail {
   insuranceHistoryRows: InsuranceHistoryRow[] = [];
 
   message: string = '';
+  workStatusModalError = '';
+  employmentContractModalError = '';
+  insuranceModalError = '';
   private messageTimer: MessageTimer = null;
 
-  contractModalOpen = false;
+  workStatusModalOpen = false;
+  employmentContractModalOpen = false;
   insuranceModalOpen = false;
   dependentModalOpen = false;
   employeeReviewModalOpen = false;
@@ -169,10 +180,21 @@ export class EmployeeDetail {
   modalAutoInsuranceJudgement: InsuranceJudgement | null = null;
   modalAutoInsuranceGrade: number | null = null;
 
-  contractForm = this.fb.nonNullable.group({
+  scheduledLeaveInfo: ScheduledLeaveInfo | null = null;
+  scheduledEmploymentContractInfo: ScheduledEmploymentContractInfo | null = null;
+  gradeApplicationLabel: string | null = null;
+  pendingInsuranceSchedules: Partial<Record<InsuranceName, PendingInsuranceSchedule>> = {};
+
+  workStatusForm = this.fb.nonNullable.group({
     workStatus: ['通常勤務', [Validators.required]],
     leaveTypes: [''],
-    resignationDate: [''],
+    leaveStartDate: [''],
+    leaveEndDate: [''],
+    switchDate: [''],
+  });
+
+  employmentContractForm = this.fb.nonNullable.group({
+    effectiveDate: ['', [Validators.required]],
     employmentContract: this.fb.nonNullable.group({
       employmentCategory: ['正社員', [Validators.required]],
       workStyle: ['フルタイム', [Validators.required]],
@@ -186,6 +208,7 @@ export class EmployeeDetail {
 
   insuranceForm = this.fb.nonNullable.group({
     currentGrade: [0, [Validators.required, Validators.min(0), Validators.max(50)]],
+    insuranceEffectiveDate: [''],
     basicPensionNumber: ['', [Validators.pattern('^[a-zA-Z0-9]*$')]],
     healthInsurance: this.fb.nonNullable.group({
       joined: ['notJoined' as InsuranceStatus, [Validators.required]],
@@ -224,9 +247,10 @@ export class EmployeeDetail {
     await this.officeService.getAllOffice();
     this.isSpecificApplicableOffice = await this.companyService.isSpecificApplicableOffice();
 
-    this.setupContractFormValidation();
+    this.setupWorkStatusFormValidation();
+    this.setupEmploymentContractFormValidation();
     this.setupInsuranceFormValidation();
-    this.setupWorkStyleAutoSelection();
+    this.setupEmploymentWorkStyleAutoSelection();
 
     const employeeId = this.route.snapshot.queryParamMap.get('employeeId');
     if (employeeId) {
@@ -235,15 +259,13 @@ export class EmployeeDetail {
     }
   }
 
-  private setupWorkStyleAutoSelection() {
-    const employmentContract = this.contractForm.controls.employmentContract;
-  
+  private setupEmploymentWorkStyleAutoSelection() {
+    const employmentContract = this.employmentContractForm.controls.employmentContract;
+
     employmentContract.controls.employmentCategory.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(category => {
-  
         const workStyleControl = employmentContract.controls.workStyle;
-  
         if (category === 'パート') {
           workStyleControl.setValue('パート', { emitEvent: false });
         } else if (workStyleControl.value === 'パート') {
@@ -289,6 +311,10 @@ export class EmployeeDetail {
       this.adHocRevisionRuns = [];
       this.eventListItems = [];
       this.insuranceHistoryRows = [];
+      this.scheduledLeaveInfo = null;
+      this.scheduledEmploymentContractInfo = null;
+      this.gradeApplicationLabel = null;
+      this.pendingInsuranceSchedules = {};
       // this.showEventNotice = false;
       this.resetAutoCalculationResult();
       this.message = '従業員情報が見つかりませんでした';
@@ -369,14 +395,40 @@ export class EmployeeDetail {
     });
   }
 
-  editContractInfo() {
+  editWorkStatus() {
     if (this.isRetiredEmployee()) return;
     if (!this.selectedEmployee) return;
 
-    this.contractForm.patchValue({
-      workStatus: this.selectedEmployee.workStatus ?? '通常勤務',
+    this.closeOtherEditModals('workStatus');
+    this.workStatusModalError = '';
+
+    const currentStatus = this.selectedEmployee.workStatus === '休職中' ? '休職中' : '通常勤務';
+    this.workStatusForm.reset({
+      workStatus: currentStatus,
       leaveTypes: this.selectedEmployee.leaveTypes ?? '',
-      resignationDate: this.formatDateForInput(this.selectedEmployee.resignationDate),
+      leaveStartDate: '',
+      leaveEndDate: '',
+      switchDate: '',
+    });
+    this.updateWorkStatusFieldValidation();
+    this.workStatusModalOpen = true;
+  }
+
+  closeWorkStatusModal() {
+    this.workStatusModalOpen = false;
+    this.workStatusModalError = '';
+    this.workStatusForm.reset();
+  }
+
+  editEmploymentContractInfo() {
+    if (this.isRetiredEmployee()) return;
+    if (!this.selectedEmployee) return;
+
+    this.closeOtherEditModals('employment');
+    this.employmentContractModalError = '';
+
+    this.employmentContractForm.reset({
+      effectiveDate: '',
       employmentContract: {
         employmentCategory: this.selectedEmployee.employmentContract?.employmentCategory ?? '正社員',
         workStyle: this.selectedEmployee.employmentContract?.workStyle ?? 'フルタイム',
@@ -387,21 +439,107 @@ export class EmployeeDetail {
         transportationExpenses: this.selectedEmployee.employmentContract?.transportationExpenses?.toString() ?? '',
       },
     });
-    this.updateLeaveTypesValidation();
-    this.updateResignationDateValidation();
     this.updateTransportationExpensesValidation();
-    this.contractModalOpen = true;
+    this.employmentContractModalOpen = true;
   }
 
-  closeContractModal() {
-    this.contractModalOpen = false;
-    this.contractForm.reset();
+  closeEmploymentContractModal() {
+    this.employmentContractModalOpen = false;
+    this.employmentContractModalError = '';
+    this.employmentContractForm.reset();
   }
 
-  /** 勤務状況・雇用契約情報を送信 */
-  async submitContractModal() {
-    if (this.contractForm.invalid) {
-      this.contractForm.markAllAsTouched();
+  private closeOtherEditModals(except: 'workStatus' | 'employment' | 'insurance' | 'dependent') {
+    if (except !== 'workStatus') {
+      this.workStatusModalOpen = false;
+      this.workStatusModalError = '';
+    }
+    if (except !== 'employment') {
+      this.employmentContractModalOpen = false;
+      this.employmentContractModalError = '';
+    }
+    if (except !== 'insurance') {
+      this.insuranceModalOpen = false;
+      this.insuranceModalError = '';
+    }
+    if (except !== 'dependent') {
+      this.dependentModalOpen = false;
+    }
+  }
+
+  async submitWorkStatusModal() {
+    this.workStatusModalError = '';
+    this.updateWorkStatusFieldValidation();
+    if (this.workStatusForm.invalid) {
+      this.workStatusForm.markAllAsTouched();
+      this.workStatusModalError = '入力内容を確認してください';
+      return;
+    }
+
+    const previousEmployee: Employee = { ...this.selectedEmployee! };
+    const targetStatus = this.workStatusForm.controls.workStatus.value as WorkStatus;
+    const currentStatus = previousEmployee.workStatus === '休職中' ? '休職中' : '通常勤務';
+    const input = this.buildWorkStatusChangeInput(currentStatus, targetStatus);
+    if (!input) {
+      this.workStatusModalError = '変更内容がありません';
+      return;
+    }
+
+    const dateError = await this.validateWorkStatusDates(input);
+    if (dateError) {
+      this.workStatusModalError = dateError;
+      return;
+    }
+
+    const pendingEvents = await this.employeeDetailEventService.getPendingWorkStatusLeaveEvents(this.selectedEmployeeId);
+    if (pendingEvents.length > 0) {
+      const confirmed = window.confirm(
+        '現在申請中の休職イベントがあります。変更すると申請中のイベントは却下されます。変更しますか？',
+      );
+      if (!confirmed) return;
+      const rejected = await this.employeeDetailEventService.rejectPendingEvents(
+        this.selectedEmployeeId,
+        pendingEvents,
+        this.loginEmployeeId,
+      );
+      if (!rejected) {
+        this.showMessage(UPDATE_MESSAGES.FAILED);
+        return;
+      }
+    }
+
+    if (!window.confirm('勤務状況を変更しますか？')) return;
+
+    const { createdIds } = await this.employeeDetailEventService.createEventsFromWorkStatusChange(
+      this.selectedEmployeeId,
+      previousEmployee,
+      input,
+      this.loginEmployeeId,
+    );
+    if (createdIds.length === 0) {
+      this.showMessage(UPDATE_MESSAGES.FAILED);
+      return;
+    }
+
+    await this.handleCreatedEvents(createdIds, `勤務状況を${UPDATE_MESSAGES.SUCCESS}`);
+    await this.employeeService.getAllEmployees(true);
+    this.closeWorkStatusModal();
+    await this.selectEmployee(false);
+  }
+
+  async submitEmploymentContractModal() {
+    this.employmentContractModalError = '';
+    if (this.employmentContractForm.invalid) {
+      this.employmentContractForm.markAllAsTouched();
+      this.employmentContractModalError = '入力内容を確認してください';
+      return;
+    }
+
+    const effectiveDateStr = this.employmentContractForm.controls.effectiveDate.value;
+    const effectiveDateError = await this.validateEffectiveDateAtOrAfterCurrentPeriod(effectiveDateStr);
+    if (effectiveDateError) {
+      this.employmentContractModalError = effectiveDateError;
+      this.employmentContractForm.controls.effectiveDate.markAsTouched();
       return;
     }
 
@@ -412,22 +550,7 @@ export class EmployeeDetail {
         : undefined,
     };
 
-    const newWorkStatus = this.contractForm.controls.workStatus.value as WorkStatus;
-    const wasRetireStatus = previousEmployee.workStatus === '退社済み';
-    const isNewRetireStatus = newWorkStatus === '退社済み';
-    if (isNewRetireStatus && !wasRetireStatus) {
-      const confirmed = window.confirm(
-        '退社にした場合、勤務状況と退社日が登録されます。保険・扶養の変更は申請一覧から承認してください。',
-      );
-      if (!confirmed) return;
-    } else {
-      const confirmed = window.confirm(
-        '勤務状況・契約情報を変更しますか？',
-      );
-      if (!confirmed) return;
-    }
-
-    const contractControls = this.contractForm.controls.employmentContract.controls;
+    const contractControls = this.employmentContractForm.controls.employmentContract.controls;
     const transportationExpenses = this.toNumberOrUndefined(contractControls.transportationExpenses.value);
     const employmentContract: Partial<EmploymentContract> = {
       employmentCategory: contractControls.employmentCategory.value as EmploymentCategory,
@@ -436,62 +559,74 @@ export class EmployeeDetail {
       contractedWorkingHoursPerWeek: Number(contractControls.contractedWorkingHoursPerWeek.value),
       contractedWorkingDaysPerMonth: Number(contractControls.contractedWorkingDaysPerMonth.value),
       fixedSalary: Number(contractControls.fixedSalary.value),
-      ...(this.showTransportationExpensesField()
+      ...(this.showEmploymentTransportationExpensesField()
         ? { transportationExpenses: transportationExpenses ?? 0 }
         : {}),
     };
 
-    const employee: Partial<Employee> = {
-      employeeId: this.selectedEmployeeId,
-      workStatus: this.contractForm.controls.workStatus.value as WorkStatus,
-      ...(this.contractForm.controls.workStatus.value === '休職中'
-        ? { leaveTypes: this.contractForm.controls.leaveTypes.value as LeaveType }
-        : { leaveTypes: null }),
-      ...(this.showResignationDateField()
-        ? { resignationDate: timestampFromDateInput(this.contractForm.controls.resignationDate.value) }
-        : {}),
-      employmentContract,
-    };
-
     const updatedEmployee: Employee = {
       ...previousEmployee,
-      ...employee,
       employmentContract: {
         ...previousEmployee.employmentContract,
         ...employmentContract,
       },
     } as Employee;
 
-    const result = await this.employeeService.updateEmployee(employee);
-    if (!result) {
+    const hasChange = JSON.stringify(previousEmployee.employmentContract) !== JSON.stringify(updatedEmployee.employmentContract);
+    if (!hasChange) {
+      this.employmentContractModalError = '変更内容がありません';
+      return;
+    }
+
+    const pendingEvents = await this.employeeDetailEventService.getPendingEmploymentContractEvents(this.selectedEmployeeId);
+    if (pendingEvents.length > 0) {
+      const confirmed = window.confirm(
+        '現在申請中の雇用契約変更があります。変更すると申請中のイベントは却下されます。変更しますか？',
+      );
+      if (!confirmed) return;
+      const rejected = await this.employeeDetailEventService.rejectPendingEvents(
+        this.selectedEmployeeId,
+        pendingEvents,
+        this.loginEmployeeId,
+      );
+      if (!rejected) {
+        this.showMessage(UPDATE_MESSAGES.FAILED);
+        return;
+      }
+    }
+
+    if (!window.confirm('雇用契約情報を変更しますか？')) return;
+
+    const effectiveDate = timestampFromDateInput(effectiveDateStr);
+    const { createdIds } = await this.employeeDetailEventService.createEventsFromEmploymentContractChange(
+      this.selectedEmployeeId,
+      previousEmployee,
+      updatedEmployee,
+      effectiveDate,
+      this.loginEmployeeId,
+    );
+    if (createdIds.length === 0) {
       this.showMessage(UPDATE_MESSAGES.FAILED);
       return;
     }
 
-    const { createdIds, needsRetroactiveNotice } = await this.employeeDetailEventService.createEventsFromContractChange(
-      this.selectedEmployeeId,
-      previousEmployee,
-      updatedEmployee,
-      this.loginEmployeeId,
-    );
-    let successMessage = `勤務状況・雇用契約情報を${UPDATE_MESSAGES.SUCCESS}`;
-    if (needsRetroactiveNotice) {
-      successMessage += ' 退職日が現在の作業対象期間よりも前になります。遡及修正より、保険情報と扶養情報の変更をお願いします。';
-    }
-    await this.handleCreatedEvents(createdIds, successMessage);
+    await this.handleCreatedEvents(createdIds, `雇用契約情報を${UPDATE_MESSAGES.SUCCESS}`);
     await this.employeeService.getAllEmployees(true);
-    this.closeContractModal();
+    this.closeEmploymentContractModal();
     await this.selectEmployee(false);
   }
-
 
   editInsuranceInfo() {
     if (this.isRetiredEmployee()) return;
     if (!this.selectedEmployee) return;
 
+    this.closeOtherEditModals('insurance');
+    this.insuranceModalError = '';
+
     const insurance = this.selectedEmployee.insurance;
-    this.insuranceForm.patchValue({
+    this.insuranceForm.reset({
       currentGrade: insurance?.currentGrade ?? 0,
+      insuranceEffectiveDate: '',
       basicPensionNumber: insurance?.basicPensionNumber ?? '',
       healthInsurance: this.patchInsuranceGroup(insurance?.healthInsurance),
       nursingCareInsurance: this.patchInsuranceGroup(insurance?.nursingCareInsurance),
@@ -504,6 +639,7 @@ export class EmployeeDetail {
     this.updateInsuranceDetailControls(this.insuranceForm.controls.nursingCareInsurance.controls.joined.value, 'nursingCareInsurance');
     this.updateInsuranceDetailControls(this.insuranceForm.controls.employeePensionInsurance.controls.joined.value, 'employeePensionInsurance');
     this.syncSubInsuranceStatusesWithHealth(this.insuranceForm.controls.healthInsurance.controls.joined.value);
+    this.updateInsuranceEffectiveDateValidation();
 
     void this.updateModalAutoCalculation();
     this.insuranceModalOpen = true;
@@ -511,6 +647,7 @@ export class EmployeeDetail {
 
   closeInsuranceModal() {
     this.insuranceModalOpen = false;
+    this.insuranceModalError = '';
     this.insuranceForm.reset();
     this.modalAutoInsuranceJudgement = null;
     this.modalAutoInsuranceGrade = null;
@@ -518,13 +655,37 @@ export class EmployeeDetail {
 
   /** 保険情報を送信 */
   async submitInsuranceModal() {
+    this.insuranceModalError = '';
     this.insuranceFormService.syncSharedInsuranceNumbers(this.insuranceForm);
+    this.updateInsuranceEffectiveDateValidation();
     this.insuranceForm.updateValueAndValidity({ emitEvent: false });
 
     if (this.insuranceForm.invalid) {
       this.insuranceForm.markAllAsTouched();
-      this.showMessage('保険情報の入力内容を確認してください');
+      this.insuranceModalError = '保険情報の入力内容を確認してください';
       return;
+    }
+
+    const joinLossError = this.validateInsuranceJoinLossConflict();
+    if (joinLossError) {
+      this.insuranceModalError = joinLossError;
+      return;
+    }
+
+    const qualificationDateError = this.validateInsuranceQualificationDatesInModal();
+    if (qualificationDateError) {
+      this.insuranceModalError = qualificationDateError;
+      return;
+    }
+
+    if (this.isInsuranceGradeChanged()) {
+      const effectiveDate = this.insuranceForm.controls.insuranceEffectiveDate.value;
+      const dateError = this.validateInsuranceEffectiveDateInCurrentPeriod(effectiveDate);
+      if (dateError) {
+        this.insuranceModalError = dateError;
+        this.insuranceForm.controls.insuranceEffectiveDate.markAsTouched();
+        return;
+      }
     }
 
     const insuranceInfo = this.insuranceFormService.createEmployeeInsuranceForSave(this.insuranceForm, {
@@ -532,8 +693,63 @@ export class EmployeeDetail {
       basicPensionNumber: this.insuranceForm.controls.basicPensionNumber.value,
     });
 
+    const beforeInsurance = this.selectedEmployee?.insurance;
+    const gradeChanged = this.isInsuranceGradeChanged();
+    const qualChanged = this.employeeDetailEventService.hasInsuranceQualificationChange(beforeInsurance, insuranceInfo);
+    const changedInsuranceKeys = this.employeeDetailEventService.getChangedInsuranceKeys(beforeInsurance, insuranceInfo);
+
+    if (changedInsuranceKeys.length > 0) {
+      const rejected = await this.employeeDetailEventService.confirmAndRejectPendingInsuranceChanges(
+        this.selectedEmployeeId,
+        beforeInsurance,
+        insuranceInfo,
+        this.loginEmployeeId,
+      );
+      if (!rejected) {
+        return;
+      }
+    }
+
+    let gradeChangeRunId: string | null | undefined;
+    if (gradeChanged) {
+      await this.companyService.getCompany();
+      const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+      const applicationDate = timestampFromDateInput(this.insuranceForm.controls.insuranceEffectiveDate.value).toDate();
+      gradeChangeRunId = await this.employeeDetailEventService.resolveGradeChangeRunId(
+        this.selectedEmployeeId,
+        applicationDate,
+        targetPeriodStart,
+      );
+      if (gradeChangeRunId === null) {
+        return;
+      }
+    }
+
     if (!window.confirm('保険情報を更新しますか？')) {
       return;
+    }
+
+    if (qualChanged || gradeChanged) {
+      const gradeChange = gradeChanged
+        ? {
+          beforeGrade: beforeInsurance?.currentGrade ?? 0,
+          afterGrade: insuranceInfo.currentGrade ?? 0,
+          applicationDate: timestampFromDateInput(this.insuranceForm.controls.insuranceEffectiveDate.value),
+        }
+        : null;
+      const runResult = await this.employeeDetailEventService.createInsuranceChangeRuns(
+        this.selectedEmployeeId,
+        beforeInsurance,
+        insuranceInfo,
+        gradeChange,
+        this.loginEmployeeId,
+        gradeChangeRunId,
+        this.employeeService.currentWorkPeriodBounds(),
+      );
+      if (!runResult.success) {
+        this.showMessage(UPDATE_MESSAGES.FAILED);
+        return;
+      }
     }
 
     const result = await this.employeeService.updateEmployeeInsurance(this.selectedEmployeeId, insuranceInfo);
@@ -614,74 +830,132 @@ export class EmployeeDetail {
       return;
     }
 
-    const previousDependents = this.dependents.map(dependent => ({ ...dependent }));
-    const existingUpdates: Partial<Dependent>[] = [];
-    const newDependents: Partial<Dependent>[] = [];
-    let nextId = this.getNextDependentId();
-
-    for (const control of this.dependentsArray.controls) {
-      const value = control.getRawValue();
-      if (value.isExisting) {
-        existingUpdates.push({
-          dependentId: value.dependentId,
-          name: value.name,
-          birthDate: timestampFromDateInput(value.birthDate),
-          relationship: value.relationship as Relationship,
-          ...mapDependentPeriodFromForm(value),
-          ...this.mapDependentExtraFields(value),
-        });
-        continue;
-      }
-
-      if (!value.name && !value.birthDate && !value.relationship) continue;
-
-      if (!this.canRegisterDependent()) {
-        this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
-        return;
-      }
-
-      newDependents.push({
-        dependentId: `${nextId++}`,
-        name: value.name,
-        birthDate: timestampFromDateInput(value.birthDate),
-        relationship: value.relationship as Relationship,
-        isDependent: true,
-        ...mapDependentPeriodFromForm({ ...value, isDependentStatus: 'dependent' }),
-        ...this.mapDependentExtraFields(value),
-      });
+    const changes = this.collectDependentChangesFromForm();
+    if (changes.length === 0) {
+      this.showMessage('変更内容がありません');
+      return;
     }
 
-    if (!this.canRegisterDependent() && existingUpdates.some(dependent => dependent.isDependent === true)) {
+    if (!this.canRegisterDependent() && changes.some(change => !change.before || change.after.isDependent !== false)) {
       this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
       return;
     }
 
-    if (existingUpdates.length > 0) {
-      const updateResult = await this.dependentService.updateDependents(this.selectedEmployeeId, existingUpdates);
-      if (!updateResult) {
-        this.showMessage(UPDATE_MESSAGES.FAILED);
+    const inputs = this.dependentChangeEventService.buildChangeInputs(changes);
+    const requiredError = this.dependentChangeEventService.validateDependentChangeInputs(inputs);
+    if (requiredError) {
+      this.showMessage(requiredError);
+      return;
+    }
+
+    for (const input of inputs) {
+      const dateInput = getDependentChangeEffectiveDateInput(
+        input.changeType,
+        input.after,
+        input.appliedDateInput,
+      );
+      const dateError = await this.dependentChangeEventService.validateDependentChangeDate(dateInput);
+      if (dateError) {
+        this.showMessage(dateError);
         return;
       }
     }
-
-    if (newDependents.length > 0) {
-      const createResult = await this.dependentService.registerDependents(this.selectedEmployeeId, newDependents);
-      if (!createResult) {
-        this.showMessage(UPDATE_MESSAGES.FAILED);
-        return;
-      }
-    }
-
-    this.dependents = await this.dependentService.getDependents(this.selectedEmployeeId);
 
     const createdEventIds = await this.employeeDetailEventService.createEventFromDependentChange(
       this.selectedEmployeeId,
-      previousDependents,
-      this.dependents,
+      changes,
       this.loginEmployeeId,
     );
+    if (createdEventIds.length !== changes.length) {
+      this.showMessage(UPDATE_MESSAGES.FAILED);
+      return;
+    }
+
+    this.dependents = await this.dependentService.getDependents(this.selectedEmployeeId);
     await this.handleCreatedEvents(createdEventIds, `扶養情報を${UPDATE_MESSAGES.SUCCESS}`);
+    await this.employeeService.getAllEmployees(true);
     this.closeDependentModal();
+  }
+
+  private collectDependentChangesFromForm(): {
+    before: Dependent | null;
+    after: Partial<Dependent>;
+    appliedDateInput?: string;
+  }[] {
+    const results: {
+      before: Dependent | null;
+      after: Partial<Dependent>;
+      appliedDateInput?: string;
+    }[] = [];
+    let nextId = this.getNextDependentId();
+
+    for (const control of this.dependentsArray.controls) {
+      const value = control.getRawValue();
+      const before = value.isExisting
+        ? this.dependents.find(dependent => dependent.dependentId === value.dependentId) ?? null
+        : null;
+
+      if (!value.isExisting && !value.name && !value.birthDate && !value.relationship) {
+        continue;
+      }
+      if (before && !this.hasDependentFormValueChanged(value, before)) {
+        continue;
+      }
+
+      const after: Partial<Dependent> = {
+        dependentId: before?.dependentId ?? `${nextId++}`,
+        name: value.name,
+        birthDate: timestampFromDateInput(value.birthDate),
+        relationship: value.relationship as Relationship,
+        ...mapDependentPeriodFromForm(value),
+        ...this.mapDependentExtraFields(value),
+      };
+      if (!before) {
+        after.isDependent = true;
+      }
+
+      results.push({
+        before,
+        after,
+        appliedDateInput: value.appliedDate || undefined,
+      });
+    }
+
+    return results;
+  }
+
+  private hasDependentFormValueChanged(value: Record<string, unknown>, before: Dependent): boolean {
+    const afterPayload = {
+      name: String(value['name'] ?? '').trim(),
+      relationship: value['relationship'] ?? '',
+      birthDate: String(value['birthDate'] ?? ''),
+      isDependent: value['isDependentStatus'] === 'dependent',
+      dependentStartDate: String(value['dependentStartDate'] ?? ''),
+      dependentEndDate: String(value['dependentEndDate'] ?? ''),
+      cohabitationType: value['cohabitationType'] ?? '',
+      annualIncome: value['annualIncome'] ?? '',
+      occupation: value['occupation'] ?? '',
+      hasDisability: value['hasDisability'] ?? false,
+      disabilityType: value['disabilityType'] ?? '',
+      isStudent: value['isStudent'] ?? false,
+      studentType: value['studentType'] ?? '',
+    };
+    const beforePayload = {
+      name: before.name ?? '',
+      relationship: before.relationship ?? '',
+      birthDate: before.birthDate ? this.formatDateForInput(before.birthDate) : '',
+      isDependent: before.isDependent !== false,
+      dependentStartDate: getDependentStartDateFormDefault(before),
+      dependentEndDate: getDependentEndDateFormDefault(before),
+      cohabitationType: before.cohabitationType ?? '',
+      annualIncome: before.annualIncome ?? '',
+      occupation: before.occupation ?? '',
+      hasDisability: before.hasDisability ?? false,
+      disabilityType: before.disabilityType ?? '',
+      isStudent: before.isStudent ?? false,
+      studentType: before.studentType ?? '',
+    };
+    return JSON.stringify(beforePayload) !== JSON.stringify(afterPayload);
   }
 
   async loadEmployeeEvents() {
@@ -698,11 +972,19 @@ export class EmployeeDetail {
       const applicableRevisions = await this.calculationRunService.getApplicableApprovedAdHocRevisionRuns(this.selectedEmployeeId);
       this.canApplyApprovedFixedSalary = applicableRevisions.length > 0;
       this.eventListItems = this.buildEventListItems();
+      this.scheduledLeaveInfo = this.employeeDetailEventService.getScheduledLeaveInfo(this.employeeEvents);
+      this.scheduledEmploymentContractInfo = this.employeeDetailEventService.getScheduledEmploymentContractInfo(this.employeeEvents);
+      this.gradeApplicationLabel = await this.calculationRunService.getLatestGradeApplicationDisplayForEmployee(this.selectedEmployeeId);
+      this.pendingInsuranceSchedules = await this.employeeDetailEventService.getPendingInsuranceSchedules(this.selectedEmployeeId);
     } catch (error) {
       console.error(error);
       this.employeeEvents = [];
       this.adHocRevisionRuns = [];
       this.eventListItems = [];
+      this.scheduledLeaveInfo = null;
+      this.scheduledEmploymentContractInfo = null;
+      this.gradeApplicationLabel = null;
+      this.pendingInsuranceSchedules = {};
       this.canApplyApprovedFixedSalary = false;
       this.showMessage('イベント一覧の取得に失敗しました');
     }
@@ -1240,6 +1522,26 @@ export class EmployeeDetail {
         event,
         this.loginEmployeeId,
       );
+    } else if (
+      event.eventType === '勤務状況変更'
+      && event.applicantType === '管理者'
+      && event.approval?.approvalStatus === '申請中'
+    ) {
+      approved = await this.employeeEventApprovalService.approveAdminWorkStatusEvent(
+        this.selectedEmployeeId,
+        event,
+        this.loginEmployeeId,
+      );
+    } else if (
+      (event.eventType === '固定給変更' || event.eventType === '雇用形態変更')
+      && event.applicantType === '管理者'
+      && event.approval?.approvalStatus === '申請中'
+    ) {
+      approved = await this.employeeEventApprovalService.approveSimpleEvent(
+        this.selectedEmployeeId,
+        event,
+        this.loginEmployeeId,
+      );
     } else {
       approved = await this.employeeEventApprovalService.approveSimpleEvent(
         this.selectedEmployeeId,
@@ -1438,13 +1740,70 @@ export class EmployeeDetail {
     this.showMessage(baseMessage);
   }
 
+  showWorkStatusLeaveTypesField(): boolean {
+    return this.workStatusForm.controls.workStatus.value === '休職中';
+  }
+
+  showWorkStatusLeaveStartField(): boolean {
+    const current = this.selectedEmployee?.workStatus === '休職中' ? '休職中' : '通常勤務';
+    return current === '通常勤務' && this.workStatusForm.controls.workStatus.value === '休職中';
+  }
+
+  showWorkStatusLeaveEndField(): boolean {
+    const current = this.selectedEmployee?.workStatus === '休職中' ? '休職中' : '通常勤務';
+    return current === '休職中' && this.workStatusForm.controls.workStatus.value === '通常勤務';
+  }
+
+  showWorkStatusSwitchDateField(): boolean {
+    const current = this.selectedEmployee?.workStatus === '休職中' ? '休職中' : '通常勤務';
+    const target = this.workStatusForm.controls.workStatus.value;
+    const newLeaveType = this.workStatusForm.controls.leaveTypes.value;
+    return current === '休職中'
+      && target === '休職中'
+      && !!newLeaveType
+      && newLeaveType !== (this.selectedEmployee?.leaveTypes ?? '');
+  }
+
+  showEmploymentTransportationExpensesField(): boolean {
+    const employmentContract = this.employmentContractForm.controls.employmentContract;
+    return this.isTransportationExpensesRequired(
+      employmentContract.controls.employmentCategory.value as EmploymentCategory,
+      employmentContract.controls.workStyle.value as WorkStyle,
+    );
+  }
+
+  isInsuranceGradeChanged(): boolean {
+    const registered = this.selectedEmployee?.insurance?.currentGrade ?? 0;
+    return this.getCurrentGradeForSave() !== registered;
+  }
+
+  showInsuranceEffectiveDateField(): boolean {
+    return this.isInsuranceGradeChanged();
+  }
+
+  formatScheduledLeave(info: ScheduledLeaveInfo): string {
+    const start = this.commonService.formatDate(info.leaveStartDate);
+    const end = info.leaveEndDate ? this.commonService.formatDate(info.leaveEndDate) : '';
+    return end ? `${start}～${end}` : `${start}～`;
+  }
+
+  formatScheduledEmploymentContract(info: ScheduledEmploymentContractInfo): string {
+    const date = info.effectiveDate.toDate();
+    return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}変更予定あり`;
+  }
+
+  formatPendingInsuranceSchedule(insuranceName: InsuranceName): string | null {
+    const schedule = this.pendingInsuranceSchedules[insuranceName];
+    if (!schedule) return null;
+    return `${this.commonService.formatDate(schedule.date)} ${schedule.label}`;
+  }
+
   showLeaveTypesField(): boolean {
-    return this.contractForm.controls.workStatus.value === '休職中';
+    return this.showWorkStatusLeaveTypesField();
   }
 
   showResignationDateField(): boolean {
-    const status = this.contractForm.controls.workStatus.value;
-    return status === '退社済み' || status === '退社予定';
+    return false;
   }
 
   showResignationDateDisplay(): boolean {
@@ -1453,36 +1812,269 @@ export class EmployeeDetail {
   }
 
   showTransportationExpensesField(): boolean {
-    const employmentContract = this.contractForm.controls.employmentContract;
-    return this.isTransportationExpensesRequired(
-      employmentContract.controls.employmentCategory.value as EmploymentCategory,
-      employmentContract.controls.workStyle.value as WorkStyle,
-    );
+    return this.showEmploymentTransportationExpensesField();
   }
 
   isExistingDependentRow(index: number): boolean {
     return this.dependentsArray.at(index).controls['isExisting'].value === true;
   }
 
-  private setupContractFormValidation() {
-    this.updateLeaveTypesValidation();
-    this.updateResignationDateValidation();
-    this.updateTransportationExpensesValidation();
-
-    this.contractForm.controls.workStatus.valueChanges
+  private setupWorkStatusFormValidation() {
+    this.updateWorkStatusFieldValidation();
+    this.workStatusForm.controls.workStatus.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.updateLeaveTypesValidation();
-        this.updateResignationDateValidation();
-      });
+      .subscribe(() => this.updateWorkStatusFieldValidation());
+    this.workStatusForm.controls.leaveTypes.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.updateWorkStatusFieldValidation());
+    this.workStatusForm.controls.leaveStartDate.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.workStatusForm.controls.leaveEndDate.updateValueAndValidity({ emitEvent: false }));
+  }
 
-    const employmentContract = this.contractForm.controls.employmentContract;
+  private leaveEndAfterStartValidator = (control: AbstractControl): ValidationErrors | null => {
+    const end = control.value as string;
+    if (!end) return null;
+
+    const form = this.workStatusForm;
+    const current = this.selectedEmployee?.workStatus === '休職中' ? '休職中' : '通常勤務';
+    const target = form.controls.workStatus.value;
+
+    let start = '';
+    if (current === '休職中' && target === '通常勤務') {
+      start = this.formatDateForInput(this.selectedEmployee?.leaveStartDate);
+    } else {
+      start = form.controls.leaveStartDate.value;
+    }
+
+    if (!start) return null;
+    return end >= start ? null : { leaveEndBeforeStart: true };
+  };
+
+  private setupEmploymentContractFormValidation() {
+    this.updateTransportationExpensesValidation();
+    const employmentContract = this.employmentContractForm.controls.employmentContract;
     employmentContract.controls.employmentCategory.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.updateTransportationExpensesValidation());
     employmentContract.controls.workStyle.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.updateTransportationExpensesValidation());
+  }
+
+  private updateWorkStatusFieldValidation() {
+    const form = this.workStatusForm;
+    const current = this.selectedEmployee?.workStatus === '休職中' ? '休職中' : '通常勤務';
+    const target = form.controls.workStatus.value;
+
+    const leaveTypesRequired = target === '休職中';
+    form.controls.leaveTypes.setValidators(leaveTypesRequired ? [Validators.required] : null);
+    if (!leaveTypesRequired) form.controls.leaveTypes.setValue('', { emitEvent: false });
+
+    const leaveStartRequired = current === '通常勤務' && target === '休職中';
+    form.controls.leaveStartDate.setValidators(leaveStartRequired ? [Validators.required] : null);
+    if (!leaveStartRequired) form.controls.leaveStartDate.setValue('', { emitEvent: false });
+
+    const leaveEndRequired = current === '休職中' && target === '通常勤務';
+    const leaveEndValidators = [];
+    if (leaveEndRequired) leaveEndValidators.push(Validators.required);
+    if (leaveStartRequired || leaveEndRequired) leaveEndValidators.push(this.leaveEndAfterStartValidator);
+    form.controls.leaveEndDate.setValidators(leaveEndValidators.length ? leaveEndValidators : null);
+    if (!leaveEndRequired && !leaveStartRequired) form.controls.leaveEndDate.setValue('', { emitEvent: false });
+
+    const switchRequired = this.showWorkStatusSwitchDateField();
+    form.controls.switchDate.setValidators(switchRequired ? [Validators.required] : null);
+    if (!switchRequired) form.controls.switchDate.setValue('', { emitEvent: false });
+
+    form.controls.leaveTypes.updateValueAndValidity({ emitEvent: false });
+    form.controls.leaveStartDate.updateValueAndValidity({ emitEvent: false });
+    form.controls.leaveEndDate.updateValueAndValidity({ emitEvent: false });
+    form.controls.switchDate.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private updateInsuranceEffectiveDateValidation() {
+    const control = this.insuranceForm.controls.insuranceEffectiveDate;
+    control.setValidators(this.isInsuranceGradeChanged() ? [Validators.required] : null);
+    if (!this.isInsuranceGradeChanged()) control.setValue('', { emitEvent: false });
+    control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private buildWorkStatusChangeInput(
+    currentStatus: WorkStatus,
+    targetStatus: WorkStatus,
+  ): WorkStatusChangeInput | null {
+    const form = this.workStatusForm;
+    if (currentStatus === '通常勤務' && targetStatus === '休職中') {
+      return {
+        scenario: 'leaveStart',
+        leaveTypes: form.controls.leaveTypes.value as LeaveType,
+        leaveStartDate: timestampFromDateInput(form.controls.leaveStartDate.value),
+        ...(form.controls.leaveEndDate.value
+          ? { leaveEndDate: timestampFromDateInput(form.controls.leaveEndDate.value) }
+          : {}),
+      };
+    }
+    if (currentStatus === '休職中' && targetStatus === '通常勤務') {
+      return {
+        scenario: 'leaveEnd',
+        leaveEndDate: timestampFromDateInput(form.controls.leaveEndDate.value),
+      };
+    }
+    if (currentStatus === '休職中' && targetStatus === '休職中') {
+      const newType = form.controls.leaveTypes.value as LeaveType;
+      if (!newType || newType === this.selectedEmployee?.leaveTypes) return null;
+      return {
+        scenario: 'leaveSwitch',
+        leaveTypes: newType,
+        switchDate: timestampFromDateInput(form.controls.switchDate.value),
+      };
+    }
+    return null;
+  }
+
+  private async validateWorkStatusDates(input: WorkStatusChangeInput): Promise<string | null> {
+    if (input.scenario === 'leaveStart' && input.leaveStartDate && input.leaveEndDate) {
+      if (input.leaveEndDate.toMillis() < input.leaveStartDate.toMillis()) {
+        return '終了予定日は休職開始日以降にしてください';
+      }
+    }
+    if (input.scenario === 'leaveEnd' && input.leaveEndDate) {
+      const leaveStart = this.selectedEmployee?.leaveStartDate;
+      if (leaveStart && input.leaveEndDate.toMillis() < leaveStart.toMillis()) {
+        return '休職終了日は休職開始日以降にしてください';
+      }
+    }
+
+    const dates: Timestamp[] = [];
+    if (input.leaveStartDate) dates.push(input.leaveStartDate);
+    if (input.leaveEndDate) dates.push(input.leaveEndDate);
+    if (input.switchDate) dates.push(input.switchDate);
+    return this.validateDatesAtOrAfterCurrentPeriod(dates.map(date => this.formatDateForInput(date)));
+  }
+
+  private async validateEffectiveDateAtOrAfterCurrentPeriod(dateStr: string): Promise<string | null> {
+    if (!dateStr) return '適用日は必須です';
+    return this.validateDatesAtOrAfterCurrentPeriod([dateStr]);
+  }
+
+  private async validateDatesAtOrAfterCurrentPeriod(dateStrings: string[]): Promise<string | null> {
+    await this.companyService.getCompany();
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const bounds = this.employeeService.currentWorkPeriodBounds();
+    for (const dateStr of dateStrings) {
+      if (!dateStr) continue;
+      const date = parseDateInputValue(dateStr);
+      if (bounds && date < bounds.periodStart) {
+        return '日付は現在の作業対象期間以降で指定してください';
+      }
+      if (!isWorkMonthAtOrAfterCurrent(date, targetPeriodStart)) {
+        return '日付は現在の作業対象期間以降で指定してください';
+      }
+    }
+    return null;
+  }
+
+  private validateInsuranceEffectiveDateInCurrentPeriod(dateStr: string): string | null {
+    if (!dateStr) return '適用日は必須です';
+    const bounds = this.employeeService.currentWorkPeriodBounds();
+    if (!bounds) return null;
+    const date = parseDateInputValue(dateStr);
+    if (date < bounds.periodStart || date > bounds.periodEnd) {
+      return '適用日は現在の作業対象期間内で指定してください';
+    }
+    return null;
+  }
+
+  private validateInsuranceQualificationDatesInModal(): string | null {
+    if (!this.selectedEmployee?.insurance) return null;
+    const bounds = this.employeeService.currentWorkPeriodBounds();
+    if (!bounds) return null;
+
+    const before = this.selectedEmployee.insurance;
+    const checks: {
+      label: string;
+      beforeDetail?: InsuranceDetail;
+      form: FormGroup;
+    }[] = [
+      {
+        label: '健康保険',
+        beforeDetail: before.healthInsurance,
+        form: this.insuranceForm.controls.healthInsurance,
+      },
+      {
+        label: '介護保険',
+        beforeDetail: before.nursingCareInsurance,
+        form: this.insuranceForm.controls.nursingCareInsurance,
+      },
+      {
+        label: '厚生年金',
+        beforeDetail: before.employeePensionInsurance,
+        form: this.insuranceForm.controls.employeePensionInsurance,
+      },
+    ];
+
+    for (const { label, beforeDetail, form } of checks) {
+      const beforeStatus = this.getInsuranceStatusValue(beforeDetail);
+      const afterStatus = form.controls['joined'].value as InsuranceStatus;
+      const isJoining = beforeStatus !== 'joined' && afterStatus === 'joined';
+      const isLosing = beforeStatus === 'joined' && (afterStatus === 'lost' || afterStatus === 'notJoined');
+
+      if (isJoining) {
+        const dateStr = form.controls['acquiredDate'].value;
+        if (!dateStr) continue;
+        const date = parseDateInputValue(dateStr);
+        if (isDateBeforeWorkPeriod(date, bounds.periodStart)) {
+          return `${label}取得日は現在の作業対象期間内で指定してください`;
+        }
+      }
+
+      if (isLosing) {
+        const dateStr = form.controls['lostDate'].value;
+        if (!dateStr) continue;
+        const date = parseDateInputValue(dateStr);
+        if (isDateBeforeWorkPeriod(date, bounds.periodStart)) {
+          return `${label}喪失日は現在の作業対象期間内で指定してください`;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private validateInsuranceJoinLossConflict(): string | null {
+    if (!this.selectedEmployee?.insurance) return null;
+
+    const before = this.selectedEmployee.insurance;
+    const afterForm = this.insuranceForm;
+    const checks = [
+      {
+        before: this.getInsuranceStatusValue(before.healthInsurance),
+        after: afterForm.controls.healthInsurance.controls.joined.value,
+      },
+      {
+        before: this.getInsuranceStatusValue(before.nursingCareInsurance),
+        after: afterForm.controls.nursingCareInsurance.controls.joined.value,
+      },
+      {
+        before: this.getInsuranceStatusValue(before.employeePensionInsurance),
+        after: afterForm.controls.employeePensionInsurance.controls.joined.value,
+      },
+    ];
+
+    let hasJoin = false;
+    let hasLoss = false;
+    for (const check of checks) {
+      const wasJoined = check.before === 'joined';
+      const isJoining = !wasJoined && check.after === 'joined';
+      const isLosing = wasJoined && (check.after === 'lost' || check.after === 'notJoined');
+      if (isJoining) hasJoin = true;
+      if (isLosing) hasLoss = true;
+    }
+
+    if (hasJoin && hasLoss) {
+      return '加入と喪失（もしくは未加入）の処理は同時にできません';
+    }
+    return null;
   }
 
   private setupInsuranceFormValidation() {
@@ -1509,6 +2101,10 @@ export class EmployeeDetail {
     this.insuranceForm.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => void this.updateModalAutoCalculation());
+
+    this.insuranceForm.controls.currentGrade.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.updateInsuranceEffectiveDateValidation());
   }
 
   private setupInsuranceDetailControls(insuranceName: InsuranceName) {
@@ -1588,28 +2184,8 @@ export class EmployeeDetail {
     return selected <= today ? null : { futureBirthDate: true };
   };
 
-  private updateLeaveTypesValidation() {
-    const leaveTypesControl = this.contractForm.controls.leaveTypes;
-    const isLeaveTypesRequired = this.contractForm.controls.workStatus.value === '休職中';
-    leaveTypesControl.setValidators(isLeaveTypesRequired ? [Validators.required] : null);
-    if (!isLeaveTypesRequired) {
-      leaveTypesControl.setValue('', { emitEvent: false });
-    }
-    leaveTypesControl.updateValueAndValidity({ emitEvent: false });
-  }
-
-  private updateResignationDateValidation() {
-    const resignationDateControl = this.contractForm.controls.resignationDate;
-    const isRequired = this.showResignationDateField();
-    resignationDateControl.setValidators(isRequired ? [Validators.required] : null);
-    if (!isRequired) {
-      resignationDateControl.setValue('', { emitEvent: false });
-    }
-    resignationDateControl.updateValueAndValidity({ emitEvent: false });
-  }
-
   private updateTransportationExpensesValidation() {
-    const employmentContract = this.contractForm.controls.employmentContract;
+    const employmentContract = this.employmentContractForm.controls.employmentContract;
     const transportationExpensesControl = employmentContract.controls.transportationExpenses;
     const isRequired = this.isTransportationExpensesRequired(
       employmentContract.controls.employmentCategory.value as EmploymentCategory,
@@ -1709,6 +2285,7 @@ export class EmployeeDetail {
       isDependentStatus: [(dependent.isDependent !== false ? 'dependent' : 'notDependent') as DependentCoverageStatus],
       dependentStartDate: [getDependentStartDateFormDefault(dependent), [Validators.required]],
       dependentEndDate: [getDependentEndDateFormDefault(dependent)],
+      appliedDate: [''],
     });
     setupDependentDisabilityStudentValidators(group, this.destroyRef);
     setupDependentPeriodValidators(group, this.destroyRef, this.validationService, () => this.selectedEmployee);

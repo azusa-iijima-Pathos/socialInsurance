@@ -122,6 +122,12 @@ export class BonusCorrection {
       return;
     }
 
+    const enrollmentError = await this.correctionLogicService.validatePayrollEnrollment(employee, this.selectedPayrollId);
+    if (enrollmentError) {
+      this.showMessage(enrollmentError);
+      return;
+    }
+
     const newAmount = Number(row.editAmount ?? 0);
     const comparison = await this.correctionLogicService.calculateBonusInsuranceComparison(
       employee,

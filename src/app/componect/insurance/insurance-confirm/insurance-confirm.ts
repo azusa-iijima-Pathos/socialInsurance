@@ -20,6 +20,7 @@ import { CalculationRunService } from '../../../service/Firestore/calculation-ru
 import { CalculationRun } from '../../../model/calculation-run';
 import { InsuranceDisplayService, InsuranceNoticeSummary, OfficeInsuranceSummary } from '../../../service/logic/insurance-display.service';
 import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
+import { ReachAgeService } from '../../../service/logic/reach-age';
 
 type EmployeeInsurance = {
   employeeId: string;
@@ -90,6 +91,7 @@ export class InsuranceConfirm {
   private calculationRunService = inject(CalculationRunService);
   private insuranceDisplayService = inject(InsuranceDisplayService);
   private payrollLockService = inject(PayrollLockService);
+  private reachAgeService = inject(ReachAgeService);
 
   companyId = sessionStorage.getItem('companyId');
 
@@ -149,13 +151,9 @@ export class InsuranceConfirm {
     await this.payrollService.getAllPayrollListForMonth(this.payrollId);
     this.payrollData = this.payrollService.allPayrollListForMonth().find(item => item.payrollId === this.payrollId)?.payrollList ?? [];
 
-    console.log(this.payrollData);
+    await this.companyService.getCompany();
     await this.employeeService.getAllEmployees();
-    console.log(this.employeeService.allEmployees());
-
-    //従業員情報取得
-    this.employeeData = this.employeeService.allEmployees()
-      .filter(employee => employee.workStatus !== '退社済み');
+    this.employeeData = this.employeeService.employeesEligibleForPayrollPeriod(this.payrollId);
     const drafts = await this.insuranceDraftService.getDrafts(this.payrollId);
     this.insuranceDraftMap = drafts.reduce<Record<string, InsuranceDraft>>((map, draft) => {
       map[draft.employeeId] = draft;
@@ -680,6 +678,7 @@ export class InsuranceConfirm {
     }
     sessionStorage.setItem('workingMonth', newWorkingMonth.toString());
     sessionStorage.setItem('workingYear', newWorkingYear.toString());
+    await this.reachAgeService.createEvent();
 
     //編集・移動ボタンを押せなくする
     this.isDone = true;

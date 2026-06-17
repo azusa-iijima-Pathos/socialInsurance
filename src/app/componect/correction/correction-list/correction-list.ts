@@ -121,14 +121,12 @@ export class CorrectionList {
     }
 
     const targetEmployeeIds = new Set<string>();
+    const bounds = await this.correctionLogicService.getPayrollPeriodBounds(workMonthPayrollId);
+
     for (const employee of this.employeeService.allEmployees()) {
-      if (employee.workStatus === '退社済み') {
-        if (runsByEmployee.has(employee.employeeId)) {
-          targetEmployeeIds.add(employee.employeeId);
-        }
-        continue;
+      if (this.correctionLogicService.wasEmployedInPayrollPeriod(employee, bounds.periodStart, bounds.periodEnd)) {
+        targetEmployeeIds.add(employee.employeeId);
       }
-      targetEmployeeIds.add(employee.employeeId);
     }
     for (const employeeId of runsByEmployee.keys()) {
       targetEmployeeIds.add(employeeId);

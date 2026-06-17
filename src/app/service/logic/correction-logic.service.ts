@@ -14,6 +14,7 @@ import { PayrollService } from '../Firestore/payroll-service';
 import { InsuranceDisplayService } from './insurance-display.service';
 import { CalculationRun } from '../../model/calculation-run';
 import { parseDateInputValue } from '../common/date-input.util';
+import { buildPayrollPeriodBounds, parseMonthlyPayrollId, wasEmployedInPeriod } from './employee-enrollment.util';
 
 export type MonthlyInsuranceDiff = {
   payrollId: string;
@@ -82,8 +83,12 @@ export class CorrectionLogicService {
   }
 
   parsePayrollId(payrollId: string): { year: number; month: number } {
-    const [yearText, monthText] = payrollId.split('-');
-    return { year: Number(yearText), month: Number(monthText) };
+    const parsed = parseMonthlyPayrollId(payrollId);
+    if (!parsed) {
+      const [yearText, monthText] = payrollId.split('-');
+      return { year: Number(yearText), month: Number(monthText) };
+    }
+    return parsed;
   }
 
   /** 対象月の給与入力初期値（会社設定ベース） */
@@ -126,21 +131,19 @@ export class CorrectionLogicService {
 
   /** 対象期間に1日でも在籍しているか */
   wasEmployedInPayrollPeriod(employee: Employee, periodStart: Date, periodEnd: Date): boolean {
-    const hire = employee.hireDate?.toDate();
-    if (!hire) return false;
+    return wasEmployedInPeriod(employee, periodStart, periodEnd);
+  }
 
-    const hireDate = new Date(hire);
-    hireDate.setHours(0, 0, 0, 0);
-    if (hireDate > periodEnd) return false;
-
-    const resign = employee.resignationDate?.toDate();
-    if (resign) {
-      const resignationDate = new Date(resign);
-      resignationDate.setHours(0, 0, 0, 0);
-      if (resignationDate < periodStart) return false;
+  async validatePayrollEnrollment(
+    employee: Employee | null | undefined,
+    payrollId: string,
+  ): Promise<string | null> {
+    if (!employee) return '従業員が見つかりません';
+    const bounds = await this.getPayrollPeriodBounds(payrollId);
+    if (!this.wasEmployedInPayrollPeriod(employee, bounds.periodStart, bounds.periodEnd)) {
+      return '該当社員はこの期間に在籍していません';
     }
-
-    return true;
+    return null;
   }
 
   isTargetPeriodStartInPayrollMonth(targetPeriodStart: string, payrollId: string): boolean {
@@ -210,8 +213,28 @@ export class CorrectionLogicService {
 
   /** 遡及修正の適用日バリデーション（エラーメッセージを返す。OKならnull） */
   async validateRetroactiveApplyDate(employeeId: string, applyDate: Date, requireConfirmedMonths = true): Promise<string | null> {
-    const working = getWorkingYearMonth();
+    const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
+    if (!employee) return '従業員が見つかりません';
+
+    const hire = employee.hireDate?.toDate();
+    if (hire) {
+      const hireDate = new Date(hire);
+      hireDate.setHours(0, 0, 0, 0);
+      const apply = new Date(applyDate);
+      apply.setHours(0, 0, 0, 0);
+      if (apply < hireDate) {
+        return '適用日が入社日より前になります';
+      }
+    }
+
     const applyMonth = await this.getWorkMonthForInputDate(applyDate);
+    const payrollId = this.getPayrollId(applyMonth.year, applyMonth.month);
+    const bounds = await this.getPayrollPeriodBounds(payrollId);
+    if (!this.wasEmployedInPayrollPeriod(employee, bounds.periodStart, bounds.periodEnd)) {
+      return '該当社員はこの期間に在籍していません';
+    }
+
+    const working = getWorkingYearMonth();
     const applyKey = applyMonth.year * 12 + applyMonth.month;
     const workingKey = working.year * 12 + working.month;
 

@@ -16,6 +16,7 @@ import { InsuranceFormService, InsuranceName, InsuranceStatus } from '../../../s
 import { parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
 import { Router } from '@angular/router';
+import { CompanyService } from '../../../service/Firestore/company-service';
 import { DependentService } from '../../../service/Firestore/dependent-service';
 import { Dependent } from '../../../model/dependent';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
@@ -45,6 +46,9 @@ export class RetroactiveCorrection {
   private insuranceFormService = inject(InsuranceFormService);
   commonService = inject(CommonService);
   private router = inject(Router);
+  private companyService = inject(CompanyService);
+
+  eligibleEmployeesForApplyDate: Employee[] = [];
 
   activeTab: RetroactiveTab = 'insurance';
   selectedEmployee: Employee | null = null;
@@ -91,6 +95,7 @@ export class RetroactiveCorrection {
   });
 
   async ngOnInit() {
+    await this.companyService.getCompany();
     await this.employeeService.getAllEmployees();
     this.setupInsuranceDetailControls('healthInsurance');
     this.setupInsuranceDetailControls('nursingCareInsurance');
@@ -98,10 +103,28 @@ export class RetroactiveCorrection {
     this.setupInsuranceDependencyRules();
     this.form.controls.applyDate.valueChanges
       .pipe(debounceTime(200), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshInsuranceValidatorsForApplyDate());
+      .subscribe(() => {
+        void this.refreshEligibleEmployeesForApplyDate();
+        this.refreshInsuranceValidatorsForApplyDate();
+      });
     this.form.controls.employeeId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => void this.onEmployeeChange());
+  }
+
+  private async refreshEligibleEmployeesForApplyDate() {
+    const applyDate = this.form.controls.applyDate.value;
+    if (!applyDate) {
+      this.eligibleEmployeesForApplyDate = [];
+      return;
+    }
+    await this.companyService.getCompany();
+    const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(parseDateInputValue(applyDate));
+    const payrollId = this.correctionLogicService.getPayrollId(applyMonth.year, applyMonth.month);
+    const bounds = await this.correctionLogicService.getPayrollPeriodBounds(payrollId);
+    this.eligibleEmployeesForApplyDate = this.employeeService.allEmployees().filter(employee =>
+      this.correctionLogicService.wasEmployedInPayrollPeriod(employee, bounds.periodStart, bounds.periodEnd),
+    );
   }
 
   private refreshInsuranceValidatorsForApplyDate() {
@@ -131,11 +154,17 @@ export class RetroactiveCorrection {
   }
 
   getFilteredActiveEmployees(): Employee[] {
-    return this.filterEmployees(this.employeeService.allActiveEmployees());
+    const source = this.eligibleEmployeesForApplyDate.length > 0
+      ? this.eligibleEmployeesForApplyDate
+      : this.employeeService.allActiveEmployees();
+    return this.filterEmployees(source.filter(employee => employee.workStatus !== '退社済み'));
   }
 
   getFilteredRetiredEmployees(): Employee[] {
-    return this.filterEmployees(this.employeeService.allEmployees().filter(employee => employee.workStatus === '退社済み'));
+    const source = this.eligibleEmployeesForApplyDate.length > 0
+      ? this.eligibleEmployeesForApplyDate
+      : this.employeeService.allRetiredEmployeesInCurrentWorkPeriod();
+    return this.filterEmployees(source.filter(employee => employee.workStatus === '退社済み'));
   }
 
   // async selectEmployee() {
@@ -240,6 +269,7 @@ export class RetroactiveCorrection {
     if (error) {
       this.form.controls.applyDate.setErrors({ retroactiveApplyDate: true });
       this.form.controls.applyDate.markAsTouched();
+      this.showMessage(error);
       return false;
     }
 

@@ -131,7 +131,8 @@
                         <option *ngFor="let workStatus of WORK_STATUSES" [value]="workStatus">{{ workStatus }}</option>
                     </select>
                     <div class="error">
-                        <p *ngIf="form.get('workStatus')?.errors?.['required'] && form.get('workStatus')?.touched">勤務状況は必須です
+                        <p *ngIf="form.get('workStatus')?.errors?.['required'] && form.get('workStatus')?.touched">
+                            勤務状況は必須です
                         </p>
                     </div>
                 </div>
@@ -146,7 +147,8 @@
                         <option *ngFor="let leaveType of LEAVE_TYPES" [value]="leaveType">{{ leaveType }}</option>
                     </select>
                     <div class="error">
-                        <p *ngIf="form.get('leaveTypes')?.errors?.['required'] && form.get('leaveTypes')?.touched">休職種別は必須です
+                        <p *ngIf="form.get('leaveTypes')?.errors?.['required'] && form.get('leaveTypes')?.touched">
+                            休職種別は必須です
                         </p>
                     </div>
                 </div>
@@ -158,7 +160,9 @@
                 <div class="im-field-row__control">
                     <input type="date" id="leaveStartDate" formControlName="leaveStartDate">
                     <div class="error">
-                        <p *ngIf="form.get('leaveStartDate')?.errors?.['required'] && form.get('leaveStartDate')?.touched">休職開始日は必須です
+                        <p
+                            *ngIf="form.get('leaveStartDate')?.errors?.['required'] && form.get('leaveStartDate')?.touched">
+                            休職開始日は必須です
                         </p>
                     </div>
                 </div>
@@ -180,7 +184,9 @@
                 <div class="im-field-row__control">
                     <input type="date" id="resignationDate" formControlName="resignationDate">
                     <div class="error">
-                        <p *ngIf="form.get('resignationDate')?.errors?.['required'] && form.get('resignationDate')?.touched">退社日は必須です
+                        <p
+                            *ngIf="form.get('resignationDate')?.errors?.['required'] && form.get('resignationDate')?.touched">
+                            退社日は必須です
                         </p>
                     </div>
                 </div>
@@ -299,12 +305,13 @@
             </div>
         </div>
 
+        <span class="hire-entry-section-title">《保険情報》</span>
+
         <p class="hire-entry-retroactive-notice" *ngIf="!isExistingMode && isHireBeforeCurrentWorkPeriod">
             現在の作業対象期間より前の入社になります。<br>
             給与修正より保険料を算出したい月の給与を入力し、その後遡及修正より保険情報の登録をおこなってください。
         </p>
 
-        <span class="hire-entry-section-title">《保険情報》</span>
         <p class="hire-entry-scheduled-insurance-notice" *ngIf="!isExistingMode && isInsuranceReadonly()">
             入社確定時に保険情報を登録します
         </p>
@@ -566,7 +573,8 @@
 
 
         <div class="hire-entry-actions">
-            <button type="submit" class="im-btn-primary" *ngIf="!isExistingMode">{{ isScheduledHireMode() ? '入社予定者を登録' : '入社処理を登録' }}</button>
+            <button type="submit" class="im-btn-primary" *ngIf="!isExistingMode">{{ isScheduledHireMode() ? '入社予定者を登録' :
+                '入社処理を登録' }}</button>
             <button type="submit" class="im-btn-primary" *ngIf="isExistingMode">既存社員を登録</button>
             <button type="button" class="im-btn-soft" (click)="resetForm()">リセット</button>
         </div>

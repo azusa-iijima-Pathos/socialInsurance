@@ -58,10 +58,10 @@ export class SalaryList implements OnChanges {
 
   allPayrollListForMonth = computed(() => {
     const payrollId = this.payrollIdState();
-    const retiredIds = this.employeeService.retiredEmployeeIdSet();
+    const eligibleIds = this.employeeService.getPayrollEligibleEmployeeIdSet(payrollId);
     return this.payrollService.allPayrollListForMonth()
       .find(item => item.payrollId === payrollId)?.payrollList
-      .filter(payroll => !retiredIds.has(payroll.employeeId ?? '')) ?? [];
+      .filter(payroll => eligibleIds.has(payroll.employeeId ?? '')) ?? [];
   });
 
   isEmptyCorrectionMonth = computed(() =>
@@ -137,6 +137,7 @@ export class SalaryList implements OnChanges {
 
   async ngOnInit() {
     this.payrollIdState.set(this.payrollId);
+    await this.companyService.getCompany();
     if (this.correctionMode && !this.isBonus) {
       await this.companyService.getCompany();
       this.inputFormat = this.companyService.company()?.settings?.salaryInputFormat ?? 2;
@@ -173,6 +174,7 @@ export class SalaryList implements OnChanges {
     await this.loadPayrollList(forceReload);
 
     if (this.correctionMode && !this.isBonus) {
+      await this.companyService.getCompany();
       await this.employeeService.getAllEmployees(true);
       const bounds = await this.correctionLogicService.getPayrollPeriodBounds(this.payrollId);
       this.periodBoundsState.set(bounds);
@@ -184,6 +186,8 @@ export class SalaryList implements OnChanges {
 
   private async loadPayrollList(forceReload = false) {
     if (!this.payrollId) return;
+    await this.companyService.getCompany();
+    await this.employeeService.getAllEmployees(forceReload);
     await this.payrollService.getAllPayrollListForMonth(this.payrollId, forceReload);
   }
 
@@ -500,8 +504,9 @@ export class SalaryList implements OnChanges {
 
     const employeeId = payroll.employeeId!;
     const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
-    if (this.employeeService.isRetired(employee)) {
-      showError(`社員ID ${employeeId} は退社済みのため、給与入力の対象外です`);
+    const enrollmentError = await this.correctionLogicService.validatePayrollEnrollment(employee, this.payrollId);
+    if (enrollmentError) {
+      showError(enrollmentError);
       return false;
     }
 

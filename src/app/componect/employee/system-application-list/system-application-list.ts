@@ -15,8 +15,8 @@ import {
   InsuranceApprovalDraft,
   RetireInsuranceDetailView,
 } from '../../../service/logic/employee-event-approval.service';
-import { ReachAgeService } from '../../../service/logic/reach-age';
 import { EmployeeEventDisplayService } from '../../../service/logic/employee-event-display.service';
+import { isPriorMonthUnprocessedId } from '../../../service/logic/event-id-service';
 import {
   DISABILITY_STATUSES,
   DISABILITY_TYPES,
@@ -25,6 +25,8 @@ import {
 } from '../../../constants/model-constants';
 
 type InsuranceStatus = 'joined' | 'notJoined' | 'lost';
+
+const SCHEDULED_EVENT_TYPES = ['勤務状況変更', '固定給変更', '雇用形態変更', '扶養情報変更'] as const;
 
 @Component({
   selector: 'app-system-application-list',
@@ -39,9 +41,9 @@ export class SystemApplicationList {
   private employeeService = inject(EmployeeService);
   private employeeDetailEventService = inject(EmployeeDetailEventService);
   private employeeEventApprovalService = inject(EmployeeEventApprovalService);
-  private reachAgeService = inject(ReachAgeService);
   private employeeEventDisplayService = inject(EmployeeEventDisplayService);
   commonService = inject(CommonService);
+  private router = inject(Router);
 
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? '';
   workingYear = Number(sessionStorage.getItem('workingYear'));
@@ -56,14 +58,27 @@ export class SystemApplicationList {
   fixedSalaryRuns: SystemCalculationRunItem[] = [];
   hireRuns: SystemCalculationRunItem[] = [];
   canBulkApplyFixedSalary = false;
+  applicableAdHocRevisions: SystemCalculationRunItem[] = [];
   retireRuns: SystemCalculationRunItem[] = [];
-  otherSystemRuns: SystemCalculationRunItem[] = [];
+  qualificationRuns: SystemCalculationRunItem[] = [];
+  scheduledSystemRuns: SystemCalculationRunItem[] = [];
+  scheduledEvents: EmployeeEventItem[] = [];
   employeeApplicationEvents: EmployeeEventItem[] = [];
-  otherEvents: EmployeeEventItem[] = [];
+  approvedEmployeeApplicationEvents: EmployeeEventItem[] = [];
 
   selectedReachAge = new Set<string>();
   selectedRetire = new Set<string>();
   selectedHire = new Set<string>();
+  selectedAdHocRevisions = new Set<string>();
+  selectedApprovedEmployeeApps = new Set<string>();
+
+  adHocApplyModalOpen = false;
+  employeeApplyModalOpen = false;
+  reviewingApprovedEmployeeEvent: EmployeeEventItem | null = null;
+
+  scheduledReviewModalOpen = false;
+  reviewingScheduledEvent: EmployeeEventItem | null = null;
+  reviewingScheduledSystemRun: SystemCalculationRunItem | null = null;
 
   approvalModalOpen = false;
   approvalModalType: 'fixedSalary' | 'insurance' | null = null;
@@ -87,9 +102,7 @@ export class SystemApplicationList {
   retireInsuranceDetail: RetireInsuranceDetailView | null = null;
 
   message = '';
-  reachAgeMessage = '';
   private messageTimer: MessageTimer = null;
-  private reachAgeMessageTimer: MessageTimer = null;
 
   async ngOnInit() {
     await this.employeeService.getAllEmployees();
@@ -108,38 +121,215 @@ export class SystemApplicationList {
     this.fixedSalaryRuns = sortRuns(systemRuns.filter(run => run.eventType === '固定給変更'));
     this.hireRuns = sortRuns(await this.calculationRunService.getPendingHireQualificationRunsUpToWorkingMonth());
     this.retireRuns = sortRuns(await this.calculationRunService.getPendingRetireQualificationLossRunsUpToWorkingMonth());
-    this.otherSystemRuns = sortRuns(systemRuns.filter(run => run.eventType === '雇用形態変更'));
-    this.employeeApplicationEvents = events
-      .filter(event => event.applicantType === '社員')
-      .sort(compareEventsByAppliedDateDesc);
-    this.otherEvents = events
+    this.qualificationRuns = sortRuns(await this.calculationRunService.getPendingInsuranceChangeRunsUpToWorkingMonth());
+    this.scheduledSystemRuns = sortRuns(await this.calculationRunService.getPendingScheduledSystemRunsUpToWorkingMonth());
+    this.scheduledEvents = events
       .filter(event =>
-        event.applicantType !== '社員'
-        && event.eventType !== '一定年齢到達'
-        && event.applicantType !== 'システム'
-        && !(event.eventType === '扶養情報変更' && event.lifeEventType === '入社')
-        && !(event.eventType === '扶養情報変更' && event.lifeEventType === '退社'),
+        SCHEDULED_EVENT_TYPES.includes(event.eventType as typeof SCHEDULED_EVENT_TYPES[number])
+        && event.applicantType !== '社員'
+        && !(event.eventType === '扶養情報変更' && (event.lifeEventType === '入社' || event.lifeEventType === '退社')),
       )
       .sort(compareEventsByAppliedDateDesc);
+    this.employeeApplicationEvents = await this.eventService.getAllPendingEmployeeApplicationEvents();
+    this.approvedEmployeeApplicationEvents = await this.eventService.getApprovedEmployeeApplicationEventsForCurrentWorkMonth();
     this.selectedReachAge.clear();
     this.selectedRetire.clear();
     this.selectedHire.clear();
-    const applicableRevisions = await this.calculationRunService.getApplicableApprovedAdHocRevisionRuns();
-    this.canBulkApplyFixedSalary = applicableRevisions.length > 0;
+    this.selectedAdHocRevisions.clear();
+    this.selectedApprovedEmployeeApps.clear();
+    this.applicableAdHocRevisions = await this.calculationRunService.getApplicableApprovedAdHocRevisionRuns();
+    this.canBulkApplyFixedSalary = this.applicableAdHocRevisions.length > 0;
   }
 
-  async bulkApplyFixedSalary() {
-    if (!this.canBulkApplyFixedSalary) return;
-    if (!window.confirm('承認済みの随時改定を従業員情報に反映しますか？')) return;
+  isPriorMonthUnprocessed(id: string): boolean {
+    return isPriorMonthUnprocessedId(id, this.workingYear, this.workingMonth);
+  }
 
-    const { appliedCount } = await this.employeeEventApprovalService.applyApprovedAdHocRevisions(this.loginEmployeeId);
+  getAdHocRevisionPreviousGrade(run: SystemCalculationRunItem): number {
+    const summary = run.payload?.['revisionSummary'] as { currentGrade?: number } | undefined;
+    if (summary?.currentGrade != null) return Number(summary.currentGrade);
+    const after = run.payload?.['after'] as { insurance?: { currentGrade?: number } } | undefined;
+    return after?.insurance?.currentGrade ?? 0;
+  }
+
+  getAdHocRevisionApprovedGrade(run: SystemCalculationRunItem): number {
+    const summary = run.payload?.['revisionSummary'] as { approvedGrade?: number } | undefined;
+    if (summary?.approvedGrade != null) return Number(summary.approvedGrade);
+    return this.getAdHocRevisionPreviousGrade(run);
+  }
+
+  openAdHocApplyModal() {
+    this.selectedAdHocRevisions.clear();
+    this.applicableAdHocRevisions.forEach(run => this.selectedAdHocRevisions.add(run.runId));
+    this.adHocApplyModalOpen = true;
+  }
+
+  closeAdHocApplyModal() {
+    this.adHocApplyModalOpen = false;
+    this.selectedAdHocRevisions.clear();
+  }
+
+  toggleAdHocRevision(run: SystemCalculationRunItem, checked: boolean) {
+    if (checked) this.selectedAdHocRevisions.add(run.runId);
+    else this.selectedAdHocRevisions.delete(run.runId);
+  }
+
+  async applySelectedAdHocRevisions() {
+    if (this.selectedAdHocRevisions.size === 0) return;
+    if (!window.confirm('選択した随時改定を従業員情報に適用しますか？')) return;
+
+    const { appliedCount } = await this.employeeEventApprovalService.applySelectedAdHocRevisions(
+      [...this.selectedAdHocRevisions],
+      this.loginEmployeeId,
+    );
     if (appliedCount > 0) {
       await this.employeeService.getAllEmployees(true);
       this.showMessage(`${appliedCount}件の随時改定を適用しました`);
+      this.closeAdHocApplyModal();
       await this.loadEvents();
     } else {
       this.showMessage('適用に失敗しました');
     }
+  }
+
+  openEmployeeApplyModal() {
+    this.selectedApprovedEmployeeApps.clear();
+    this.approvedEmployeeApplicationEvents.forEach(event => this.selectedApprovedEmployeeApps.add(this.getEventKey(event)));
+    this.employeeApplyModalOpen = true;
+  }
+
+  closeEmployeeApplyModal() {
+    this.employeeApplyModalOpen = false;
+    this.reviewingApprovedEmployeeEvent = null;
+    this.selectedApprovedEmployeeApps.clear();
+  }
+
+  toggleApprovedEmployeeApp(event: EmployeeEventItem, checked: boolean) {
+    const key = this.getEventKey(event);
+    if (checked) this.selectedApprovedEmployeeApps.add(key);
+    else this.selectedApprovedEmployeeApps.delete(key);
+  }
+
+  openApprovedEmployeeDetail(event: EmployeeEventItem) {
+    this.reviewingApprovedEmployeeEvent = event;
+  }
+
+  async applySelectedApprovedEmployeeEvents() {
+    if (this.selectedApprovedEmployeeApps.size === 0) return;
+    if (!window.confirm('選択した承認済みイベントを適用しますか？')) return;
+
+    let count = 0;
+    for (const key of this.selectedApprovedEmployeeApps) {
+      const event = this.approvedEmployeeApplicationEvents.find(item => this.getEventKey(item) === key);
+      if (!event) continue;
+      const applied = await this.employeeEventApprovalService.applyApprovedEmployeeApplicationEvent(
+        event.employeeId,
+        event,
+        this.loginEmployeeId,
+      );
+      if (applied) count++;
+    }
+
+    if (count > 0) {
+      await this.employeeService.getAllEmployees(true);
+      this.showMessage(`${count}件のイベントを適用しました`);
+      this.closeEmployeeApplyModal();
+      await this.loadEvents();
+    } else {
+      this.showMessage('適用に失敗しました');
+    }
+  }
+
+  openScheduledEventReview(event: EmployeeEventItem) {
+    this.reviewingScheduledEvent = event;
+    this.reviewingScheduledSystemRun = null;
+    this.scheduledReviewModalOpen = true;
+  }
+
+  openScheduledSystemRunReview(run: SystemCalculationRunItem) {
+    this.reviewingScheduledSystemRun = run;
+    this.reviewingScheduledEvent = null;
+    this.scheduledReviewModalOpen = true;
+  }
+
+  closeScheduledReview() {
+    this.scheduledReviewModalOpen = false;
+    this.reviewingScheduledEvent = null;
+    this.reviewingScheduledSystemRun = null;
+  }
+
+  async approveScheduledReview() {
+    if (this.reviewingScheduledSystemRun) {
+      await this.onApproveSystemRun(this.reviewingScheduledSystemRun);
+      this.closeScheduledReview();
+      return;
+    }
+    if (!this.reviewingScheduledEvent) return;
+
+    const event = this.reviewingScheduledEvent;
+    let approved = false;
+    if (event.eventType === '固定給変更') {
+      approved = await this.employeeEventApprovalService.approveAdminFixedSalaryEvent(event.employeeId, event, this.loginEmployeeId);
+    } else if (event.eventType === '雇用形態変更') {
+      approved = await this.employeeEventApprovalService.approveAdminEmploymentChangeEvent(event.employeeId, event, this.loginEmployeeId);
+    } else if (event.eventType === '勤務状況変更') {
+      approved = await this.employeeEventApprovalService.approveAdminWorkStatusEvent(event.employeeId, event, this.loginEmployeeId);
+    } else if (event.eventType === '扶養情報変更') {
+      approved = await this.employeeEventApprovalService.approveAdminDependentChangeEvent(event.employeeId, event, this.loginEmployeeId);
+    }
+
+    if (approved) {
+      await this.employeeService.getAllEmployees(true);
+      this.showMessage('予定登録イベントを承認しました');
+      this.closeScheduledReview();
+      await this.loadEvents();
+    } else {
+      this.showMessage('承認に失敗しました');
+    }
+  }
+
+  async rejectScheduledReview() {
+    if (this.reviewingScheduledSystemRun) {
+      await this.onRejectSystemRun(this.reviewingScheduledSystemRun);
+      this.closeScheduledReview();
+      return;
+    }
+    if (!this.reviewingScheduledEvent) return;
+    await this.onRejectEvent(this.reviewingScheduledEvent);
+    this.closeScheduledReview();
+  }
+
+  openQualificationReview(run: SystemCalculationRunItem) {
+    void this.openQualificationReviewAsync(run);
+  }
+
+  private async openQualificationReviewAsync(run: SystemCalculationRunItem) {
+    this.approvingSystemRun = run;
+    this.insuranceDraft = await this.employeeEventApprovalService.buildInsuranceChangeApprovalDraft(run);
+    this.approvalModalType = 'insurance';
+    this.insuranceApprovalChangeDate = this.formatDateInput(run.detectedDate?.toDate()) || this.formatDateInput(new Date());
+    this.insuranceApprovalValidationError = '';
+    this.approvalModalOpen = true;
+  }
+
+  closeQualificationReview() {
+    this.cancelApprovalModal();
+  }
+
+  async approveQualificationReview() {
+    await this.confirmApprovalModal();
+  }
+
+  async rejectQualificationReview() {
+    await this.rejectApprovalModal();
+  }
+
+  getApproverName(employeeId: string): string {
+    return this.commonService.getEmployeeName(employeeId) ?? employeeId;
+  }
+
+  async bulkApplyFixedSalary() {
+    this.openAdHocApplyModal();
   }
 
   getSystemRunKey(run: SystemCalculationRunItem): string {
@@ -193,15 +383,8 @@ export class SystemApplicationList {
     }
   }
 
-  async searchReachAge() {
-    const count = await this.reachAgeService.createEvent();
-    await this.employeeService.getAllEmployees(true);
-    await this.loadEvents();
-    this.reachAgeMessageTimer = this.commonService.showTimedMessage(
-      `${count}件検出しました`,
-      value => this.reachAgeMessage = value,
-      this.reachAgeMessageTimer,
-    );
+  getInsuranceChangeLabel(run: SystemCalculationRunItem): string {
+    return this.employeeEventApprovalService.getInsuranceChangeLabel(run);
   }
 
   getEventKey(event: EmployeeEventItem): string {
@@ -414,19 +597,18 @@ export class SystemApplicationList {
   async approveEmployeeApplication() {
     if (!this.reviewingEmployeeEvent) return;
 
-    const approved = await this.employeeEventApprovalService.approveEmployeeApplicationEvent(
+    const approved = await this.employeeEventApprovalService.approveEmployeeApplicationOnly(
       this.reviewingEmployeeEvent.employeeId,
       this.reviewingEmployeeEvent,
       this.loginEmployeeId,
     );
 
     if (approved) {
-      await this.employeeService.getAllEmployees(true);
-      this.showMessage('申請内容を承認し、反映しました');
+      this.showMessage('申請を承認しました（適用は「承認済みのイベントの適用」から行ってください）');
       this.closeEmployeeReview();
       await this.loadEvents();
     } else {
-      this.showMessage('承認・反映に失敗しました');
+      this.showMessage('承認に失敗しました');
     }
   }
 
@@ -541,7 +723,16 @@ export class SystemApplicationList {
   async rejectApprovalModal() {
     if (!window.confirm('システム計算結果を却下しますか？')) return;
     if (this.approvingSystemRun) {
-      const rejected = await this.employeeEventApprovalService.rejectSystemRun(this.approvingSystemRun.runId, this.loginEmployeeId);
+      let rejected = false;
+      if (this.approvalModalType === 'fixedSalary' && this.fixedSalaryDraft) {
+        rejected = await this.employeeEventApprovalService.rejectFixedSalaryRun(
+          this.approvingSystemRun.runId,
+          this.fixedSalaryDraft,
+          this.loginEmployeeId,
+        );
+      } else {
+        rejected = await this.employeeEventApprovalService.rejectSystemRun(this.approvingSystemRun.runId, this.loginEmployeeId);
+      }
       if (rejected) {
         this.showMessage('システム計算結果を却下しました');
         await this.loadEvents();
@@ -566,6 +757,7 @@ export class SystemApplicationList {
       ? this.employeeEventApprovalService.buildEventViewFromRun(this.approvingSystemRun)
       : this.approvingEvent!;
     const runId = this.approvingSystemRun?.runId;
+    const isInsuranceChangeRun = this.approvingSystemRun?.payload?.['source'] === '保険情報変更';
 
     if (this.approvalModalType === 'fixedSalary' && this.fixedSalaryDraft) {
       approved = await this.employeeEventApprovalService.approveFixedSalaryEvent(
@@ -578,13 +770,21 @@ export class SystemApplicationList {
         this.showMessage(validationError);
         return;
       }
-      approved = await this.employeeEventApprovalService.approveInsuranceEvent(
-        employeeId, eventView, this.insuranceDraft, this.loginEmployeeId, runId,
-      );
+      if (isInsuranceChangeRun && this.approvingSystemRun) {
+        approved = await this.employeeEventApprovalService.approveInsuranceChangeRun(
+          this.approvingSystemRun,
+          this.insuranceDraft,
+          this.loginEmployeeId,
+        );
+      } else {
+        approved = await this.employeeEventApprovalService.approveInsuranceEvent(
+          employeeId, eventView, this.insuranceDraft, this.loginEmployeeId, runId,
+        );
+      }
     }
 
     if (approved) {
-      if (this.approvalModalType !== 'fixedSalary') {
+      if (this.approvalModalType !== 'fixedSalary' || isInsuranceChangeRun) {
         await this.employeeService.getAllEmployees(true);
       }
     }
@@ -621,10 +821,6 @@ export class SystemApplicationList {
   openReachAgeInfoModal() {
     this.reachAgeInfoModalOpen = true;
   }
-
-
-  private router = inject(Router);
-
 
   /** 給与入力へ遷移 */
   toMonthlySalary() {

@@ -6,6 +6,7 @@ import { Payroll } from '../../../model/payroll';
 import { PayrollService } from '../../../service/Firestore/payroll-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
+import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
 
 type BonusCsvPreviewRow = {
   rowNumber: number;
@@ -34,6 +35,7 @@ export class BonusCsv {
   private payrollService = inject(PayrollService);
   private commonService = inject(CommonService);
   private employeeService = inject(EmployeeService);
+  private correctionLogicService = inject(CorrectionLogicService);
 
   companyId = sessionStorage.getItem('companyId');
   selectedCsvFile: File | null = null;
@@ -248,6 +250,11 @@ export class BonusCsv {
 
       if (employeeId && payroll) {
         try {
+          const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
+          const enrollmentError = await this.correctionLogicService.validatePayrollEnrollment(employee, this.payrollId);
+          if (enrollmentError) {
+            errors.push(`${rowNumber}行目：${enrollmentError}`);
+          }
           const existingPayroll = await this.payrollService.getPayroll(employeeId, payroll);
           if (existingPayroll) errors.push(`${rowNumber}行目：社員ID ${employeeId} の同じ支給月の賞与は既に登録済みです`);
         } catch (error) {

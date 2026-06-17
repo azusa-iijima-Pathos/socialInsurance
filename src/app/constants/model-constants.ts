@@ -48,12 +48,17 @@ export type EmployeeEventType = typeof EMPLOYEE_EVENT_TYPES[number];
 export const LIFE_EVENT_TYPES = ['入社', '退社', '結婚', '離婚', '出産', '育児', 'その他'] as const;
 export type LifeEventType = typeof LIFE_EVENT_TYPES[number];
 
-
 /**
 * 一定年齢到達タイプ
 */
 export const REACH_AGE_TYPES = ['40歳', '65歳', '70歳', '75歳'] as const;
 export type ReachAgeType = typeof REACH_AGE_TYPES[number];
+
+/**
+* 変更タイプ
+*/
+export const CHANGE_TYPES = ['変更','追加','削除','休職開始','休職終了'] as const;
+export type ChangeType = typeof CHANGE_TYPES[number];
 
 /**
 * 申請者区分
@@ -112,7 +117,7 @@ export type StudentType = typeof STUDENT_TYPES[number];
 /**
 * 計算タイプ
 */
-export const CALCULATION_TYPES = ['資格取得', '資格喪失', '算定基礎', '随時改定', 'イベント', '賞与', '差額調整'] as const;
+export const CALCULATION_TYPES = ['資格取得', '資格喪失', '算定基礎', '随時改定', 'イベント', '賞与', '差額調整','その他'] as const;
 export type CalculationType = typeof CALCULATION_TYPES[number];
 
 /**
@@ -146,4 +151,7 @@ export type Approval = {
 
     /** 承認者 */
     approvedBy?: string;
+
+    /** 適用されたタイミングの作業月（YYYYMM形式の数値） */
+    appliedFromMonth?: number;
 };

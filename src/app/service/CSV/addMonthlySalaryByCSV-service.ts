@@ -12,6 +12,7 @@ import { Payroll } from '../../model/payroll';
 import { CompanyService } from '../Firestore/company-service';
 import { EmployeeService } from '../Firestore/employee-service';
 import { PayrollService } from '../Firestore/payroll-service';
+import { CorrectionLogicService } from '../logic/correction-logic.service';
 
 export type CsvMonthlySalaryPreviewRow = {
   rowNumber: number;
@@ -48,6 +49,7 @@ export class AddMonthlySalaryByCSVService {
   private companyService = inject(CompanyService);
   private employeeService = inject(EmployeeService);
   private payrollService = inject(PayrollService);
+  private correctionLogicService = inject(CorrectionLogicService);
 
   private get companyId(): string | null {
     return sessionStorage.getItem('companyId');
@@ -137,8 +139,11 @@ export class AddMonthlySalaryByCSVService {
 
           if (employeeId && isEmployeeIdValid) {
             const employee = this.employeeService.allEmployees().find(item => item.employeeId === employeeId);
-            if (employee && this.employeeService.isRetired(employee)) {
-              rowErrors.push(`${rowNumber}行目：社員ID ${employeeId} は退社済みのため、給与入力の対象外です`);
+            const enrollmentError = employee
+              ? await this.correctionLogicService.validatePayrollEnrollment(employee, payrollId)
+              : null;
+            if (enrollmentError) {
+              rowErrors.push(`${rowNumber}行目：${enrollmentError}`);
             }
           }
 

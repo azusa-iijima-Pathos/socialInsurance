@@ -11,6 +11,9 @@ import { ValidationService } from '../../../service/common/validation-service';
 import { BonusCsv } from '../bonus-csv/bonus-csv';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
+import { EmployeeService } from '../../../service/Firestore/employee-service';
+import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
+import { CompanyService } from '../../../service/Firestore/company-service';
 
 @Component({
   selector: 'app-bonus',
@@ -27,6 +30,9 @@ export class Bonus {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private payrollLockService = inject(PayrollLockService);
+  private employeeService = inject(EmployeeService);
+  private correctionLogicService = inject(CorrectionLogicService);
+  private companyService = inject(CompanyService);
 
   companyId = sessionStorage.getItem('companyId');
   payrollId = '';
@@ -40,6 +46,8 @@ export class Bonus {
   async ngOnInit() {
     this.payrollId = this.route.snapshot.params['payrollId'];
     this.bonusMonth = this.payrollId.replace('_bonus', '');
+    await this.companyService.getCompany();
+    await this.employeeService.getAllEmployees();
     this.isPayrollLocked = await this.payrollLockService.isPayrollLocked(this.payrollId);
     if (this.isPayrollLocked) {
       this.form.disable();
@@ -88,6 +96,13 @@ export class Bonus {
       actualPaymentAmount: this.form.value.actualPaymentAmount!,
     };
     const employeeId = this.form.value.employeeId!;
+    const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
+    const enrollmentError = await this.correctionLogicService.validatePayrollEnrollment(employee, this.payrollId);
+    if (enrollmentError) {
+      this.message = enrollmentError;
+      return;
+    }
+
     const existingPayroll = await this.payrollService.getPayroll(employeeId, bonus);
     if (existingPayroll) {
       this.message = `社員ID ${employeeId} の同じ支給月の賞与は既に登録済みです`;

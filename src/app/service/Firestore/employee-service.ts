@@ -2,6 +2,12 @@ import { inject, Injectable, signal, computed } from '@angular/core';
 import { CrudService } from '../common/crud-service';
 import { Employee, EmployeeInsurance } from '../../model/employee';
 import { deleteField } from '@angular/fire/firestore';
+import { CompanyService } from './company-service';
+import {
+  buildPayrollPeriodBounds,
+  parseMonthlyPayrollId,
+  wasEmployedInPeriod,
+} from '../logic/employee-enrollment.util';
 
 /**
  * 社員情報サービス
@@ -19,6 +25,7 @@ export type UpdateEmployeeInput = Omit<Partial<Employee>, 'resignationDate'> & {
 export class EmployeeService {
 
   private crudService = inject(CrudService);
+  private companyService = inject(CompanyService);
 
   private get path() {
     const companyId = sessionStorage.getItem('companyId');
@@ -62,6 +69,68 @@ export class EmployeeService {
   /** 未退社の全社員 */
   allActiveEmployees = computed(() => this.allEmployees().filter(employee => employee.workStatus !== '退社済み'));
 
+  /** 現在の作業対象期間の境界 */
+  currentWorkPeriodBounds = computed(() => {
+    const company = this.companyService.company();
+    if (!company) return null;
+    const year = Number(sessionStorage.getItem('workingYear'));
+    const month = Number(sessionStorage.getItem('workingMonth'));
+    if (!year || !month) return null;
+    const targetPeriod = company.settings?.targetPeriod ?? [1, 31];
+    return buildPayrollPeriodBounds(year, month, targetPeriod as [number, number]);
+  });
+
+  /** 退社済みかつ現在の作業対象期間に1日でも在籍していた社員 */
+  allRetiredEmployeesInCurrentWorkPeriod = computed(() => {
+    const bounds = this.currentWorkPeriodBounds();
+    if (!bounds) return [];
+    return this.allEmployees().filter(employee =>
+      employee.workStatus === '退社済み'
+      && wasEmployedInPeriod(employee, bounds.periodStart, bounds.periodEnd),
+    );
+  });
+
+  /** 月額給与・保険料算出（当月）の入力・表示対象社員 */
+  employeesEligibleForCurrentWorkPeriod = computed(() => {
+    const bounds = this.currentWorkPeriodBounds();
+    if (!bounds) return this.allActiveEmployees();
+    return this.allEmployees().filter(employee =>
+      wasEmployedInPeriod(employee, bounds.periodStart, bounds.periodEnd),
+    );
+  });
+
+  getCurrentPayrollId(): string {
+    const year = Number(sessionStorage.getItem('workingYear'));
+    const month = Number(sessionStorage.getItem('workingMonth'));
+    return `${year}-${String(month).padStart(2, '0')}`;
+  }
+
+  getPayrollPeriodBounds(payrollId: string): { periodStart: Date; periodEnd: Date } | null {
+    const parsed = parseMonthlyPayrollId(payrollId);
+    const company = this.companyService.company();
+    if (!parsed || !company) return null;
+    const targetPeriod = company.settings?.targetPeriod ?? [1, 31];
+    return buildPayrollPeriodBounds(parsed.year, parsed.month, targetPeriod as [number, number]);
+  }
+
+  employeesEligibleForPayrollPeriod(payrollId: string): Employee[] {
+    const bounds = this.getPayrollPeriodBounds(payrollId);
+    if (!bounds) return this.allActiveEmployees();
+    return this.allEmployees().filter(employee =>
+      wasEmployedInPeriod(employee, bounds.periodStart, bounds.periodEnd),
+    );
+  }
+
+  getPayrollEligibleEmployeeIdSet(payrollId: string): Set<string> {
+    return new Set(this.employeesEligibleForPayrollPeriod(payrollId).map(employee => employee.employeeId));
+  }
+
+  wasEmployedInPayrollPeriod(employee: Employee, payrollId: string): boolean {
+    const bounds = this.getPayrollPeriodBounds(payrollId);
+    if (!bounds) return employee.workStatus !== '退社済み';
+    return wasEmployedInPeriod(employee, bounds.periodStart, bounds.periodEnd);
+  }
+
   /** 退社済み社員 */
   retiredEmployees = computed(() => this.allEmployees().filter(employee => employee.workStatus === '退社済み'));
 
@@ -69,6 +138,11 @@ export class EmployeeService {
 
   isRetired(employee?: Employee | null): boolean {
     return employee?.workStatus === '退社済み';
+  }
+
+  isPayrollInputEligible(employee: Employee | null | undefined, payrollId: string): boolean {
+    if (!employee) return false;
+    return this.wasEmployedInPayrollPeriod(employee, payrollId);
   }
 
   /** 該当社員情報を社員IDをもとに取得 */
