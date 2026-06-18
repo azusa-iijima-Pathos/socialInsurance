@@ -28,12 +28,15 @@ export class PayrollLockService {
     return lock?.locked === true;
   }
 
-  async getLockedPayrolls(type?: PayrollType): Promise<PayrollLock[]> {
+  async getPayrollLocks(type?: PayrollType): Promise<PayrollLock[]> {
     const locks = await this.crudService.getAll<PayrollLock>(this.path, 'payrollId');
     return locks
-      .filter(lock => lock.locked)
       .filter(lock => !type || lock.type === type)
       .sort((a, b) => b.payrollId.localeCompare(a.payrollId));
+  }
+
+  async getLockedPayrolls(type?: PayrollType): Promise<PayrollLock[]> {
+    return (await this.getPayrollLocks(type)).filter(lock => lock.locked);
   }
 
   async lockPayroll(payrollId: string, type: PayrollType): Promise<boolean> {

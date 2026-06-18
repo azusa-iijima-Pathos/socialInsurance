@@ -540,6 +540,26 @@ export class InsuranceConfirm {
     return 'notJoined';
   }
 
+  private toInsuranceDate(value: InsuranceDetail['lostDate']): Date | null {
+    if (!value) return null;
+    const date = value instanceof Date ? value : value.toDate();
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  }
+
+  /** 喪失日が対象期間より前、または対象期間内か */
+  private isLostDateAtOrBeforeTargetPeriod(
+    lostDate: InsuranceDetail['lostDate'],
+    periodEnd: Date,
+  ): boolean {
+    const lost = this.toInsuranceDate(lostDate);
+    if (!lost) return false;
+    const normalizedPeriodEnd = new Date(periodEnd);
+    normalizedPeriodEnd.setHours(23, 59, 59, 999);
+    return lost.getTime() <= normalizedPeriodEnd.getTime();
+  }
+
   private getGradeDisplayNote(employee: Employee, periodStart: Date, periodEnd: Date): string | undefined {
     if (isMaternityOrChildcareLeaveOverlappingPeriod(employee, periodStart, periodEnd)) {
       if (employee.leaveTypes === '産前産後') return '（産休）';
@@ -557,7 +577,11 @@ export class InsuranceConfirm {
     }
 
     const healthStatus = this.getInsuranceStatus(insurance?.healthInsurance);
-    return healthStatus === 'lost' ? '（喪失）' : '（未加入）';
+    if (healthStatus === 'lost'
+      && this.isLostDateAtOrBeforeTargetPeriod(insurance?.healthInsurance?.lostDate, periodEnd)) {
+      return '（喪失）';
+    }
+    return '（未加入）';
   }
 
   private calculateInsuranceSummary() {

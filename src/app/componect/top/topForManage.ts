@@ -11,12 +11,11 @@ import { PREFECTURE_INSURANCE_RATES_2026, PREFECTURE_INSURANCE_RATES_2025, PREFE
 import { INSURANCE_RATE_PERIOD_2026, INSURANCE_RATE_PERIOD_2025, INSURANCE_RATE_PERIOD_2024, INSURANCE_RATE_PERIOD_2023 } from '../../insuranceData/forEmployee';
 import { Firestore, doc, writeBatch } from '@angular/fire/firestore';
 import { consumeGuardMessage } from '../../service/common/guard-message.util';
-import { SubmissionChecklist } from './submission-checklist/submission-checklist';
 
 
 @Component({
   selector: 'app-topformanage',
-  imports: [RouterLink, CommonModule, FormsModule, SubmissionChecklist],
+  imports: [RouterLink, CommonModule, FormsModule],
   templateUrl: './topForManage.html',
   styleUrl: './topForManage.css',
 })
@@ -41,6 +40,7 @@ export class TopForManage {
   //最新の賞与支給月のペイロールID
   latestLockedBonusPayrollId = '';
   lockedBonusPayrollIds: string[] = [];
+  hasBonusPayrollLock = false;
 
   bonusMonths = computed<number[]>(() => this.companyService.company()?.settings?.bonusMonths ?? []);
 
@@ -57,7 +57,9 @@ export class TopForManage {
       this.workingYear = new Date().getFullYear().toString();
       sessionStorage.setItem('workingYear', this.workingYear);
     }
-    const lockedBonusPayrolls = await this.payrollLockService.getLockedPayrolls('賞与');
+    const bonusPayrollLocks = await this.payrollLockService.getPayrollLocks('賞与');
+    this.hasBonusPayrollLock = bonusPayrollLocks.length > 0;
+    const lockedBonusPayrolls = bonusPayrollLocks.filter(lock => lock.locked);
     this.lockedBonusPayrollIds = lockedBonusPayrolls.map(lock => lock.payrollId);
     this.latestLockedBonusPayrollId = lockedBonusPayrolls[0]?.payrollId ?? '';
 

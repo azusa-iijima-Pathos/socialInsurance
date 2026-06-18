@@ -50,7 +50,7 @@ export class MonthlyEventList {
   otherSystemRuns: SystemCalculationRunItem[] = [];
 
   detailModalOpen = false;
-  detailModalEvent: Event | null = null;
+  detailModalEvent: EmployeeEventItem | null = null;
   insuranceHistoryDetailModalOpen = false;
   reviewingInsuranceHistoryRun: SystemCalculationRunItem | null = null;
   insuranceHistoryDraft: InsuranceApprovalDraft | null = null;
@@ -231,7 +231,7 @@ export class MonthlyEventList {
         };
       }
     }
-    this.detailModalEvent = eventView;
+    this.detailModalEvent = { ...eventView, employeeId: run.employeeId };
     this.detailModalOpen = true;
   }
 
@@ -249,6 +249,19 @@ export class MonthlyEventList {
       return event.lifeEventType ? `${event.changeType}（${event.lifeEventType}）` : event.changeType;
     }
     return event.lifeEventType ?? event.reachAgeType ?? '—';
+  }
+
+  getDependentChangeTypeLabel(event: Event): string {
+    return event.changeType ?? '—';
+  }
+
+  getDependentChangeReasonLabel(event: Event): string {
+    return event.lifeEventType ?? '—';
+  }
+
+  getModalEmployeeSubtitle(employeeId?: string): string {
+    if (!employeeId) return '';
+    return `社員ID：${employeeId}　${this.getEmployeeName(employeeId)}`;
   }
 
   getInsuranceHistoryTypeLabel(run: SystemCalculationRunItem): string {

@@ -29,8 +29,8 @@
                     <a [routerLink]="['/monthly-salary', `${workingYear}`, `${workingMonth}`]">{{ workingMonth }}月の給与入力</a>
                     <a [routerLink]="['/system-application-list']">{{ workingMonth }}月の申請一覧</a>
                     <a [routerLink]="['/insurance-confirm', `${workingYear}`, `${workingMonth}`]">{{ workingMonth }}月保険料算出</a>
+                    <a [routerLink]="['/submission-checklist']">チェックリスト</a>
                 </nav>
-                <app-submission-checklist></app-submission-checklist>
             </section>
 
             <section class="top-page-card">
@@ -52,8 +52,8 @@
                     <a [routerLink]="['/retroactive-correction']">保険情報・固定給・休職の遡及修正</a>
                     <a [routerLink]="['/correction-list']">月給用保険料の差額調整一覧</a>
                     <a [routerLink]="['/salary-correction']">月額給与修正</a>
-                    <a [routerLink]="['/bonus-correction']">賞与確定後修正</a>
-                    <a [routerLink]="['/correction-list']" [queryParams]="{ type: 'bonus' }">賞与用保険料の差額調整一覧</a>
+                    <a *ngIf="hasBonusPayrollLock" [routerLink]="['/bonus-correction']">賞与確定後修正</a>
+                    <a *ngIf="hasBonusPayrollLock" [routerLink]="['/correction-list']" [queryParams]="{ type: 'bonus' }">賞与用保険料の差額調整一覧</a>
                 </nav>
             </section>
         </div>

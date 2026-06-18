@@ -820,6 +820,20 @@ export class CalculationRunService {
       .sort((left, right) => (right.detectedDate?.toMillis() ?? 0) - (left.detectedDate?.toMillis() ?? 0));
   }
 
+  /** 承認済みかつ未適用の随時改定（社員別・改定月昇順） */
+  async getPendingApprovedAdHocRevisionRunsForEmployee(employeeId: string): Promise<SystemCalculationRunItem[]> {
+    const working = getWorkingYearMonth();
+    const runs = await this.getAdHocRevisionRunsForEmployee(employeeId);
+    return runs
+      .filter(run => run.approval?.approvalStatus === '承認済み')
+      .sort((left, right) => {
+        const leftMonth = left.runId ? parseEventYearMonth(left.runId, working.year, working.month) : null;
+        const rightMonth = right.runId ? parseEventYearMonth(right.runId, working.year, working.month) : null;
+        if (!leftMonth || !rightMonth) return 0;
+        return leftMonth.year * 12 + leftMonth.month - (rightMonth.year * 12 + rightMonth.month);
+      });
+  }
+
   /** 社員の申請中システム計算結果（作業月以前） */
   async getPendingSystemRunsForEmployee(employeeId: string): Promise<SystemCalculationRunItem[]> {
     return this.filterEmployeeSystemRuns(employeeId, {
@@ -995,6 +1009,12 @@ export class CalculationRunService {
       if (run.approval?.approvalStatus !== '申請中') return true;
       if (!run.runId) return true;
       return !isEventAtOrBeforeWorkingMonth(run.runId, workingYear, workingMonth);
+    }
+    if ((run.type === '資格取得' || run.type === '資格喪失')
+      && (run.payload?.['source'] === '入社' || run.payload?.['source'] === '退社')) {
+      if (run.approval?.approvalStatus !== '申請中') return true;
+      if (!run.runId) return true;
+      return isEventAtOrBeforeWorkingMonth(run.runId, workingYear, workingMonth);
     }
     if (this.isEmploymentChangeRun(run)) {
       return true;

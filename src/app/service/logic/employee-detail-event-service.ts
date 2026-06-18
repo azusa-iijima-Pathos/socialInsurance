@@ -2,12 +2,14 @@ import { inject, Injectable } from '@angular/core';
 import { Timestamp } from '@angular/fire/firestore';
 import { Employee, EmploymentContract, EmployeeInsurance, InsuranceDetail } from '../../model/employee';
 import { Dependent } from '../../model/dependent';
-import { ChangeType, EmployeeEventType, LeaveType, LifeEventType } from '../../constants/model-constants';
+import { ChangeType, EmployeeEventType, LeaveType, LifeEventType, WorkStatus } from '../../constants/model-constants';
 import { EventService } from '../Firestore/event-service';
 import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { CompanyService } from '../Firestore/company-service';
 import { DependentService } from '../Firestore/dependent-service';
 import { EmployeeService } from '../Firestore/employee-service';
+import { AnnouncementLogicService } from './announcement-logic.service';
+import { Event } from '../../model/event';
 import {
   addMonths,
   buildCurrentWorkMonthEventId,
@@ -28,7 +30,6 @@ import {
 } from './event-id-service';
 import type { InsuranceChangeKey } from './event-id-service';
 import { DependentChangeEventService } from './dependent-change-event.service';
-import { Event } from '../../model/event';
 import { EmployeeLogicService } from './employee-logic-service';
 
 export type ContractChangeEventsResult = {
@@ -108,6 +109,7 @@ export class EmployeeDetailEventService {
   private employeeService = inject(EmployeeService);
   private dependentChangeEventService = inject(DependentChangeEventService);
   private employeeLogicService = inject(EmployeeLogicService);
+  private announcementLogicService = inject(AnnouncementLogicService);
 
   async createEventsFromWorkStatusChange(
     employeeId: string,
@@ -380,12 +382,15 @@ export class EmployeeDetailEventService {
     return true;
   }
 
-  getScheduledLeaveInfo(events: Event[]): ScheduledLeaveInfo | null {
-    const pendingStart = events.find(event =>
-      event.eventType === '勤務状況変更'
-      && event.changeType === '休職開始'
-      && (event.approval?.approvalStatus === '申請中' || event.approval?.approvalStatus === '承認済み'),
-    );
+  getScheduledLeaveInfo(events: Event[], workStatus?: WorkStatus): ScheduledLeaveInfo | null {
+    if (workStatus === '休職中') {
+      return this.getScheduledLeaveInfoForActiveLeave(events);
+    }
+    return this.getScheduledLeaveInfoForPendingLeave(events);
+  }
+
+  private getScheduledLeaveInfoForPendingLeave(events: Event[]): ScheduledLeaveInfo | null {
+    const pendingStart = events.find(event => this.isPendingLeaveEvent(event) && event.changeType === '休職開始');
     if (!pendingStart) return null;
 
     const after = pendingStart.payload?.['after'] as Record<string, unknown> | undefined;
@@ -395,6 +400,87 @@ export class EmployeeDetailEventService {
     if (!leaveTypes || !leaveStartDate) return null;
 
     return { leaveTypes, leaveStartDate, leaveEndDate };
+  }
+
+  private getScheduledLeaveInfoForActiveLeave(events: Event[]): ScheduledLeaveInfo | null {
+    const leaveStartEvent = this.findAppliedOpenLeaveStartEvent(events);
+    if (!leaveStartEvent) return null;
+
+    const after = leaveStartEvent.payload?.['after'] as Record<string, unknown> | undefined;
+    const leaveTypes = after?.['leaveTypes'] as LeaveType | undefined;
+    const leaveStartDate = (after?.['leaveStartDate'] as Timestamp | undefined) ?? leaveStartEvent.occurredDate;
+    if (!leaveTypes || !leaveStartDate) return null;
+
+    const leaveEndDate = this.resolveScheduledLeaveEndDate(
+      events,
+      leaveStartDate,
+      after?.['leaveEndDate'] as Timestamp | undefined,
+    );
+
+    return { leaveTypes, leaveStartDate, leaveEndDate };
+  }
+
+  private findAppliedOpenLeaveStartEvent(events: Event[]): Event | null {
+    const leaveStarts = events
+      .filter(event =>
+        event.eventType === '勤務状況変更'
+        && event.changeType === '休職開始'
+        && this.isAppliedLeaveEvent(event),
+      )
+      .sort((left, right) => this.getLeaveStartMillis(right) - this.getLeaveStartMillis(left));
+
+    for (const start of leaveStarts) {
+      const startMillis = this.getLeaveStartMillis(start);
+      const hasAppliedEndAfter = events.some(event =>
+        event.eventType === '勤務状況変更'
+        && event.changeType === '休職終了'
+        && event.approval?.approvalStatus === '適用済み'
+        && (event.occurredDate?.toMillis() ?? 0) >= startMillis,
+      );
+      if (!hasAppliedEndAfter) return start;
+    }
+
+    return null;
+  }
+
+  private getLeaveStartMillis(event: Event): number {
+    const after = event.payload?.['after'] as Record<string, unknown> | undefined;
+    const leaveStartDate = (after?.['leaveStartDate'] as Timestamp | undefined) ?? event.occurredDate;
+    return leaveStartDate?.toMillis() ?? 0;
+  }
+
+  private isAppliedLeaveEvent(event: Event): boolean {
+    const status = event.approval?.approvalStatus;
+    return status === '適用済み' || status === '承認済み';
+  }
+
+  private isPendingLeaveEvent(event: Event): boolean {
+    return event.eventType === '勤務状況変更'
+      && (event.approval?.approvalStatus === '申請中' || event.approval?.approvalStatus === '承認済み');
+  }
+
+  private resolveScheduledLeaveEndDate(
+    events: Event[],
+    leaveStartDate: Timestamp,
+    startEventEndDate?: Timestamp,
+  ): Timestamp | undefined {
+    const startMillis = leaveStartDate.toMillis();
+    const pendingLeaveEvent = events
+      .filter(event =>
+        event.eventType === '勤務状況変更'
+        && event.approval?.approvalStatus === '申請中'
+        && event.changeType === '休職終了'
+        && (event.occurredDate?.toMillis() ?? 0) >= startMillis,
+      )
+      .sort((left, right) => (left.occurredDate?.toMillis() ?? 0) - (right.occurredDate?.toMillis() ?? 0))[0];
+
+    if (pendingLeaveEvent) {
+      const after = pendingLeaveEvent.payload?.['after'] as Record<string, unknown> | undefined;
+      const pendingEndDate = (after?.['leaveEndDate'] as Timestamp | undefined) ?? pendingLeaveEvent.occurredDate;
+      if (pendingEndDate) return pendingEndDate;
+    }
+
+    return startEventEndDate;
   }
 
   getScheduledEmploymentContractInfo(events: Event[]): ScheduledEmploymentContractInfo | null {
@@ -989,22 +1075,45 @@ export class EmployeeDetailEventService {
   ): Promise<string | null> {
     const isFuture = isWorkMonthAfterCurrent(occurredDate.toDate(), targetPeriodStart);
     const baseId = buildWorkMonthEventId('勤務状況変更', occurredDate.toDate(), targetPeriodStart);
-    return this.eventService.createEventWithBaseId(employeeId, baseId, {
+    const approval = isFuture
+      ? { approvalStatus: '申請中' as const }
+      : {
+        approvalStatus: '適用済み' as const,
+        approvedDate: Timestamp.now(),
+        approvedBy: loginEmployeeId,
+        appliedFromMonth: getCurrentAppliedFromMonth(),
+      };
+    const eventId = await this.eventService.createEventWithBaseId(employeeId, baseId, {
       occurredDate,
       eventType: '勤務状況変更',
       changeType,
       appliedDate: Timestamp.now(),
       applicantType: '管理者',
-      approval: isFuture
-        ? { approvalStatus: '申請中' }
-        : {
-          approvalStatus: '適用済み',
-          approvedDate: Timestamp.now(),
-          approvedBy: loginEmployeeId,
-          appliedFromMonth: getCurrentAppliedFromMonth(),
-        },
+      approval,
       payload,
     });
+    if (eventId && !isFuture) {
+      await this.createLeaveAnnouncementIfNeeded(employeeId, {
+        eventId,
+        eventType: '勤務状況変更',
+        changeType,
+        occurredDate,
+        payload,
+      });
+    }
+    return eventId;
+  }
+
+  private async createLeaveAnnouncementIfNeeded(
+    employeeId: string,
+    event: Pick<Event, 'eventId' | 'eventType' | 'changeType' | 'occurredDate' | 'payload'>,
+  ): Promise<void> {
+    if (!this.announcementLogicService.isMaternityOrParentalLeaveEvent(event)) return;
+    try {
+      await this.announcementLogicService.createFromLeaveEvent(event, employeeId);
+    } catch (error) {
+      console.error('届け出チェックリストの作成に失敗しました', error);
+    }
   }
 
   private async createContractEvent(

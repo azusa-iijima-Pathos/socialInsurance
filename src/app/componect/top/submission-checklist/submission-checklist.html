@@ -1,13 +1,25 @@
-<div class="submission-checklist">
-  <h4 class="submission-checklist__title">届け出チェックリスト</h4>
-  <p *ngIf="loading" class="employee-detail-empty">読み込み中...</p>
+<div class="im-page-shell">
+  <h1 class="page-title">チェックリスト</h1>
+
+  <div class="information-area">
+    <p>保険情報の確定のため、行政への書類の提出が必要になります。</p>
+    <p>行政への届け出の提出後に、チェックしてください。</p>
+    <p>CSV出力は、月別イベント一覧より可能です。</p>
+    <p>また、保険情報が確定したら現在の保険情報と相違がないか確認してください。</p>
+  </div>
+
+  <div style="display: flex; gap: 10px; margin-bottom: 10px; justify-content: flex-end;">
+    <button type="button" class="im-btn-primary" (click)="toMonthlyEventList()">月別イベント一覧へ▶</button>
+  </div>
+
+  <p *ngIf="loading" class="employee-detail-empty">読み込み中..</p>
 
   <ng-container *ngIf="!loading">
-    <section class="submission-checklist__section">
-      <h5 class="submission-checklist__section-title">未チェック</h5>
+    <section class="employee-detail-section employee-detail-events submission-checklist__section">
+      <h2 class="section-title">届け出未提出</h2>
       <p *ngIf="uncheckedItems.length === 0" class="employee-detail-empty">未チェックの届け出はありません</p>
       <div class="employee-detail-events-table-wrap" *ngIf="uncheckedItems.length > 0">
-        <table class="employee-detail-events-table submission-checklist__table">
+        <table class="employee-detail-events-table">
           <thead>
             <tr>
               <th></th>
@@ -22,7 +34,7 @@
           <tbody>
             <tr *ngFor="let item of uncheckedItems">
               <td class="employee-detail-events-table__actions">
-                <button type="button" class="im-btn-soft" (click)="markChecked(item)">チェック</button>
+                <button type="button" class="im-btn-soft" (click)="markChecked(item)">□</button>
               </td>
               <td>{{ item.type }}</td>
               <td>{{ item.subType }}</td>
@@ -41,11 +53,13 @@
       </div>
     </section>
 
-    <section class="submission-checklist__section">
-      <h5 class="submission-checklist__section-title">チェック済み</h5>
+    <app-insurance-number-unconfirmed-list></app-insurance-number-unconfirmed-list>
+
+    <section class="employee-detail-section employee-detail-events submission-checklist__section">
+      <h2 class="section-title">届け出提出済み</h2>
       <p *ngIf="checkedItems.length === 0" class="employee-detail-empty">チェック済みの届け出はありません</p>
       <div class="employee-detail-events-table-wrap" *ngIf="checkedItems.length > 0">
-        <table class="employee-detail-events-table submission-checklist__table">
+        <table class="employee-detail-events-table">
           <thead>
             <tr>
               <th>タイプ</th>

@@ -21,6 +21,8 @@ import { DependentService } from '../../../service/Firestore/dependent-service';
 import { Dependent } from '../../../model/dependent';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { EmployeeDetailEventService } from '../../../service/logic/employee-detail-event-service';
+import { AnnouncementLogicService } from '../../../service/logic/announcement-logic.service';
+import { Event } from '../../../model/event';
 import { wasEmployedOnDate } from '../../../service/logic/employee-enrollment.util';
 
 type RetroactiveTab = 'insurance' | 'fixedSalary' | 'leave';
@@ -50,6 +52,7 @@ export class RetroactiveCorrection {
   private router = inject(Router);
   private companyService = inject(CompanyService);
   private employeeDetailEventService = inject(EmployeeDetailEventService);
+  private announcementLogicService = inject(AnnouncementLogicService);
 
   eligibleEmployeesForApplyDate: Employee[] = [];
 
@@ -536,13 +539,7 @@ export class RetroactiveCorrection {
       this.showMessage('随時改定の作成に失敗しました');
       return;
     }
-
-    const applied = await this.calculationRunService.markRunApplied(runId, loginEmployeeId);
-    if (!applied) {
-      this.showMessage('随時改定の適用に失敗しました');
-      return;
-    }
-    this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定を作成しました。`);
+    this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定は${revisionMonth.year}年${revisionMonth.month}月以降に確認してください。`);
 
     await this.employeeService.getAllEmployees(true);
     await this.refreshSelectedEmployee();
@@ -814,7 +811,7 @@ export class RetroactiveCorrection {
         leaveTypes: afterEmployee.leaveTypes,
       };
       const occurredDate = timestampFromDateInput(leaveStartDate);
-      const created = await this.eventService.createEventWithBaseId(
+      const eventId = await this.eventService.createEventWithBaseId(
         employeeId,
         buildWorkMonthEventId('勤務状況変更', occurredDate.toDate(), targetPeriodStart),
         {
@@ -832,7 +829,14 @@ export class RetroactiveCorrection {
           payload: { before, after },
         },
       );
-      if (!created) return false;
+      if (!eventId) return false;
+      await this.createLeaveAnnouncementIfNeeded(employeeId, {
+        eventId,
+        eventType: '勤務状況変更',
+        changeType: '休職開始',
+        occurredDate,
+        payload: { before, after },
+      });
     }
 
     if (leaveEndDate && leaveEndDate !== previousEnd) {
@@ -847,7 +851,7 @@ export class RetroactiveCorrection {
         leaveTypes: null,
       };
       const occurredDate = timestampFromDateInput(leaveEndDate);
-      const created = await this.eventService.createEventWithBaseId(
+      const eventId = await this.eventService.createEventWithBaseId(
         employeeId,
         buildWorkMonthEventId('勤務状況変更', occurredDate.toDate(), targetPeriodStart),
         {
@@ -865,10 +869,29 @@ export class RetroactiveCorrection {
           payload: { before, after },
         },
       );
-      if (!created) return false;
+      if (!eventId) return false;
+      await this.createLeaveAnnouncementIfNeeded(employeeId, {
+        eventId,
+        eventType: '勤務状況変更',
+        changeType: '休職終了',
+        occurredDate,
+        payload: { before, after },
+      });
     }
 
     return true;
+  }
+
+  private async createLeaveAnnouncementIfNeeded(
+    employeeId: string,
+    event: Pick<Event, 'eventId' | 'eventType' | 'changeType' | 'occurredDate' | 'payload'>,
+  ): Promise<void> {
+    if (!this.announcementLogicService.isMaternityOrParentalLeaveEvent(event)) return;
+    try {
+      await this.announcementLogicService.createFromLeaveEvent(event, employeeId);
+    } catch (error) {
+      console.error('届け出チェックリストの作成に失敗しました', error);
+    }
   }
 
   private createInsuranceDetailFromForm(insuranceName: InsuranceName): InsuranceDetail {

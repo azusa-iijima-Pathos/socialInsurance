@@ -94,10 +94,29 @@ export class SalaryList implements OnChanges {
       }));
   });
 
+  registrationEmployeeRows = computed((): CorrectionEmployeeRow[] => {
+    if (this.correctionMode || this.isBonus || !this.showAllEnrolledEmployees) return [];
+
+    const payrollId = this.payrollIdState();
+    if (!payrollId) return [];
+
+    const payrollMap = new Map(
+      this.allPayrollListForMonth().map(payroll => [payroll.employeeId ?? '', payroll]),
+    );
+
+    return this.employeeService.employeesEligibleForPayrollPeriod(payrollId)
+      .sort((left, right) => left.employeeId.localeCompare(right.employeeId))
+      .map(employee => ({
+        employeeId: employee.employeeId,
+        payroll: payrollMap.get(employee.employeeId) ?? null,
+      }));
+  });
+
   @Input() payrollId: string = '';
   @Input() isBonus: boolean = false;
   @Input() disabled: boolean = false;
   @Input() correctionMode = false;
+  @Input() showAllEnrolledEmployees = false;
   @Input() deferSave = false;
   @Output() payrollChange = new EventEmitter<{ original: Payroll; updated: Partial<Payroll> }>();
 
@@ -300,6 +319,11 @@ export class SalaryList implements OnChanges {
   getEditButtonLabel(): string {
     if (!this.correctionMode) return '編集';
     return this.isBonus ? '保険料確認' : '修正';
+  }
+
+  getRowActionLabel(payroll: Payroll | null): string {
+    if (!payroll) return '登録';
+    return this.getEditButtonLabel();
   }
 
   getModalTitle(): string {

@@ -55,9 +55,9 @@
         </tbody>
       </table>
     </div>
-    <div class="monthly-event-list-export" *ngIf="hireEvents.length > 0">
+ <!--  <div class="monthly-event-list-export" *ngIf="hireEvents.length > 0">
       <button type="button" class="im-btn-soft" (click)="exportHireCsv()">CSV出力</button>
-    </div>
+    </div> -->
   </section>
 
   <!-- 退社 -->
@@ -110,9 +110,9 @@
         </tbody>
       </table>
     </div>
-    <div class="monthly-event-list-export" *ngIf="retireEvents.length > 0 || retireRuns.length > 0">
+    <!-- <div class="monthly-event-list-export" *ngIf="retireEvents.length > 0 || retireRuns.length > 0">
       <button type="button" class="im-btn-soft" (click)="exportRetireCsv()">CSV出力（承認済み）</button>
-    </div>
+    </div> -->
   </section>
   <section class="employee-detail-section employee-detail-events">
     <h2 class="section-title">随時改定</h2>
@@ -167,8 +167,9 @@
             <th></th>
             <th>社員ID</th>
             <th>氏名</th>
+            <th>変更</th>
             <th>理由</th>
-            <th>事象発生日</th>
+            <th>事象発生</th>
             <th>申請日</th>
             <th>承認状況</th>
             <th>承認者</th>
@@ -187,7 +188,8 @@
                 {{ getEmployeeName(event.employeeId) }}
               </a>
             </td>
-            <td>{{ getReasonLabel(event) }}</td>
+            <td>{{ getDependentChangeTypeLabel(event) }}</td>
+            <td>{{ getDependentChangeReasonLabel(event) }}</td>
             <td>{{ commonService.formatDate(event.occurredDate) }}</td>
             <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
             <td>{{ getApprovalStatus(event) }}</td>
@@ -405,7 +407,10 @@
 <div class="employee-edit-modal" *ngIf="insuranceHistoryDetailModalOpen && reviewingInsuranceHistoryRun">
   <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
     <div class="employee-edit-modal__header">
-      <h2>保険情報変更の詳細</h2>
+      <h2>
+        保険情報変更の詳細
+        <span class="employee-edit-modal__employee-id">{{ getModalEmployeeSubtitle(reviewingInsuranceHistoryRun.employeeId) }}</span>
+      </h2>
     </div>
     <div class="employee-approval-modal__body" *ngIf="reviewingInsuranceHistoryRun.type === '算定基礎'">
       <dl class="employee-detail-info-grid">
@@ -471,7 +476,10 @@
 <div class="employee-edit-modal" *ngIf="detailModalOpen && detailModalEvent">
   <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
     <div class="employee-edit-modal__header">
-      <h2>イベント詳細</h2>
+      <h2>
+        イベント詳細
+        <span class="employee-edit-modal__employee-id">{{ getModalEmployeeSubtitle(detailModalEvent.employeeId) }}</span>
+      </h2>
     </div>
     <div class="employee-approval-modal__body">
       <p>{{ detailModalEvent.eventType }} {{ detailModalEvent.lifeEventType ? '(' + detailModalEvent.lifeEventType + ')' : '' }}</p>

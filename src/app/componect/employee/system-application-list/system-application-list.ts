@@ -395,6 +395,11 @@ export class SystemApplicationList {
     return this.commonService.getEmployeeName(employeeId) ?? employeeId;
   }
 
+  getModalEmployeeSubtitle(employeeId?: string): string {
+    if (!employeeId) return '';
+    return `社員ID：${employeeId}　${this.getEmployeeName(employeeId)}`;
+  }
+
   toggleReachAge(event: EmployeeEventItem, checked: boolean) {
     const key = this.getEventKey(event);
     if (checked) this.selectedReachAge.add(key);

@@ -83,7 +83,7 @@ export class AnnouncementLogicService {
     });
   }
 
-  async createFromLeaveEvent(event: Event, employeeId: string): Promise<void> {
+  async createFromLeaveEvent(event: Pick<Event, 'eventId' | 'eventType' | 'payload' | 'occurredDate' | 'lifeEventType'>, employeeId: string): Promise<void> {
     if (!this.isMaternityOrParentalLeaveEvent(event)) return;
     const reason = this.mapLeaveReason(event);
     await this.createAnnouncement({
@@ -167,7 +167,7 @@ export class AnnouncementLogicService {
     return Timestamp.fromDate(revision);
   }
 
-  private resolveLeaveOccurredDate(event: Event): Timestamp {
+  private resolveLeaveOccurredDate(event: Pick<Event, 'payload' | 'occurredDate'>): Timestamp {
     const after = event.payload?.['after'] as Employee | Record<string, unknown> | undefined;
     const leaveStart = after?.['leaveStartDate'] as Timestamp | undefined;
     return leaveStart ?? event.occurredDate ?? Timestamp.now();
@@ -198,7 +198,7 @@ export class AnnouncementLogicService {
     return this.mapLifeEventReason(event.lifeEventType);
   }
 
-  private mapLeaveReason(event: Event): AnnouncementReason | undefined {
+  private mapLeaveReason(event: Pick<Event, 'payload' | 'lifeEventType'>): AnnouncementReason | undefined {
     const after = event.payload?.['after'] as Employee | undefined;
     if (after?.leaveTypes === '産前産後') return '出産';
     if (after?.leaveTypes === '育児') return '育児';
@@ -215,10 +215,14 @@ export class AnnouncementLogicService {
     }
   }
 
-  isMaternityOrParentalLeaveEvent(event: Event): boolean {
+  isMaternityOrParentalLeaveEvent(event: Pick<Event, 'eventType' | 'payload'>): boolean {
     if (event.eventType !== '勤務状況変更') return false;
     const after = event.payload?.['after'] as Employee | Record<string, unknown> | undefined;
-    const leaveTypes = after?.['leaveTypes'] ?? (after as Employee | undefined)?.leaveTypes;
+    const before = event.payload?.['before'] as Employee | Record<string, unknown> | undefined;
+    const leaveTypes = after?.['leaveTypes']
+      ?? (after as Employee | undefined)?.leaveTypes
+      ?? before?.['leaveTypes']
+      ?? (before as Employee | undefined)?.leaveTypes;
     return leaveTypes === '産前産後' || leaveTypes === '育児';
   }
 

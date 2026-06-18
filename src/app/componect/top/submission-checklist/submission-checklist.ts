@@ -1,20 +1,22 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Announcement } from '../../../model/announcement';
 import { AnnouncementService } from '../../../service/Firestore/announcement-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { CommonService } from '../../../service/common/common-service';
+import { InsuranceNumberUnconfirmedList } from '../../employee/insurance-number-unconfirmed-list/insurance-number-unconfirmed-list';
 
 @Component({
   selector: 'app-submission-checklist',
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, InsuranceNumberUnconfirmedList],
   templateUrl: './submission-checklist.html',
-  styleUrl: './submission-checklist.css',
+  styleUrls: ['./submission-checklist.css', '../../employee/employee-detail/employee-detail.css'],
 })
 export class SubmissionChecklist implements OnInit {
   private announcementService = inject(AnnouncementService);
   private employeeService = inject(EmployeeService);
+  private router = inject(Router);
   commonService = inject(CommonService);
 
   uncheckedItems: Announcement[] = [];
@@ -67,4 +69,9 @@ export class SubmissionChecklist implements OnInit {
   getReasonLabel(item: Announcement): string {
     return item.reason ?? '—';
   }
+
+  toMonthlyEventList() {
+    this.router.navigate(['/monthly-event-list']);
+  }
+
 }

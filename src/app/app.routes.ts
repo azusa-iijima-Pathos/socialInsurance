@@ -34,6 +34,7 @@ import { BonusCorrection } from './componect/correction/bonus-correction/bonus-c
 import { CorrectionList } from './componect/correction/correction-list/correction-list';
 import { authGuard, companyGuard, initialSettingGuard } from './service/common/guard/auth-guard';
 import { AddDependents } from './componect/employee/add-dependents/add-dependents';
+import { SubmissionChecklist } from './componect/top/submission-checklist/submission-checklist';
 
 export const routes: Routes = [
     { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -124,6 +125,9 @@ export const routes: Routes = [
         canActivate: [authGuard, companyGuard], data: { permission: '承認' }
     },
     { path: 'system-application-list', component: SystemApplicationList, title: '今月の申請一覧（システム） ｜ 社会保険管理システム' ,
+        canActivate: [authGuard, companyGuard], data: { permission: '承認' }
+    },
+    { path: 'submission-checklist', component: SubmissionChecklist, title: '届け出チェックリスト ｜ 社会保険管理システム' ,
         canActivate: [authGuard, companyGuard], data: { permission: '承認' }
     },
     { path: 'monthly-event-list', component: MonthlyEventList, title: '月別イベント一覧 ｜ 社会保険管理システム' ,

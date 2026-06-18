@@ -56,7 +56,6 @@ import {
   STUDENT_TYPES,
 } from '../../../constants/model-constants';
 import { DependentDisabilityStudentFields } from '../../common/dependent-disability-student-fields/dependent-disability-student-fields';
-import { InsuranceNumberUnconfirmedList } from '../insurance-number-unconfirmed-list/insurance-number-unconfirmed-list';
 import {
   formatDisabilityForDisplay,
   formatStudentForDisplay,
@@ -123,7 +122,7 @@ const SCHEDULED_EVENT_TYPES = ['勤務状況変更', '固定給変更', '雇用�
 
 @Component({
   selector: 'app-employee-detail',
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, DependentDisabilityStudentFields, InsuranceNumberUnconfirmedList],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, DependentDisabilityStudentFields],
   templateUrl: './employee-detail.html',
   styleUrl: './employee-detail.css',
 })
@@ -233,6 +232,7 @@ export class EmployeeDetail {
   scheduledLeaveInfo: ScheduledLeaveInfo | null = null;
   scheduledEmploymentContractInfo: ScheduledEmploymentContractInfo | null = null;
   gradeApplicationLabel: string | null = null;
+  pendingAdHocRevisionLabel: string | null = null;
   pendingInsuranceSchedules: Partial<Record<InsuranceName, PendingInsuranceSchedule>> = {};
 
   workStatusForm = this.fb.nonNullable.group({
@@ -364,6 +364,7 @@ export class EmployeeDetail {
       this.scheduledLeaveInfo = null;
       this.scheduledEmploymentContractInfo = null;
       this.gradeApplicationLabel = null;
+      this.pendingAdHocRevisionLabel = null;
       this.pendingInsuranceSchedules = {};
       // this.showEventNotice = false;
       this.resetAutoCalculationResult();
@@ -1034,6 +1035,7 @@ export class EmployeeDetail {
         qualificationRuns,
         scheduledRuns,
         insuranceHistory,
+        pendingAdHocRevisionRuns,
       ] = await Promise.all([
         this.calculationRunService.getFuturePendingSystemRunsForEmployee(this.selectedEmployeeId),
         this.calculationRunService.getPendingHireQualificationRunsForEmployee(this.selectedEmployeeId),
@@ -1041,6 +1043,8 @@ export class EmployeeDetail {
         this.calculationRunService.getPendingInsuranceChangeRunsForEmployeeUpToWorkingMonth(this.selectedEmployeeId),
         this.calculationRunService.getPendingScheduledSystemRunsForEmployee(this.selectedEmployeeId),
         this.calculationRunService.getInsuranceChangeHistoryForEmployee(this.selectedEmployeeId),
+        this.calculationRunService.getPendingSystemRunsForEmployee(this.selectedEmployeeId)
+          .then(runs => runs.filter(run => run.type === '随時改定')),
       ]);
 
       this.scheduledSystemRunNotices = futureRuns.map(run => this.buildScheduledSystemRunNotice(run));
@@ -1049,10 +1053,9 @@ export class EmployeeDetail {
         scheduledRuns,
         hireRuns,
         retireRuns,
+        pendingAdHocRevisionRuns,
       );
       this.employeeSystemRuns = [
-        ...hireRuns,
-        ...retireRuns,
         ...qualificationRuns.filter(run => !this.isEmploymentChangeRun(run)),
         ...scheduledRuns,
       ];
@@ -1075,9 +1078,13 @@ export class EmployeeDetail {
       }));
 
       this.eventListItems = this.buildEventListItems();
-      this.scheduledLeaveInfo = this.employeeDetailEventService.getScheduledLeaveInfo(this.employeeEvents);
+      this.scheduledLeaveInfo = this.employeeDetailEventService.getScheduledLeaveInfo(
+        this.employeeEvents,
+        this.selectedEmployee?.workStatus,
+      );
       this.scheduledEmploymentContractInfo = this.employeeDetailEventService.getScheduledEmploymentContractInfo(this.employeeEvents);
       this.gradeApplicationLabel = await this.calculationRunService.getLatestGradeApplicationDisplayForEmployee(this.selectedEmployeeId);
+      this.pendingAdHocRevisionLabel = await this.employeeEventApprovalService.getPendingAdHocRevisionDisplayLabel(this.selectedEmployeeId);
       this.pendingInsuranceSchedules = await this.employeeDetailEventService.getPendingInsuranceSchedules(this.selectedEmployeeId);
     } catch (error) {
       console.error(error);
@@ -1090,6 +1097,7 @@ export class EmployeeDetail {
       this.scheduledLeaveInfo = null;
       this.scheduledEmploymentContractInfo = null;
       this.gradeApplicationLabel = null;
+      this.pendingAdHocRevisionLabel = null;
       this.pendingInsuranceSchedules = {};
       this.showMessage('イベント一覧の取得に失敗しました');
     }
@@ -1100,8 +1108,9 @@ export class EmployeeDetail {
     scheduledRuns: SystemCalculationRunItem[],
     hireRuns: SystemCalculationRunItem[],
     retireRuns: SystemCalculationRunItem[],
+    adHocRevisionRuns: SystemCalculationRunItem[] = [],
   ): PendingSystemCalculationItem[] {
-    const runs = [...hireRuns, ...retireRuns, ...qualificationRuns, ...scheduledRuns];
+    const runs = [...hireRuns, ...retireRuns, ...qualificationRuns, ...scheduledRuns, ...adHocRevisionRuns];
     return runs.map(run => ({
       label: this.getPendingSystemCalculationLabel(run),
       run,
@@ -2341,6 +2350,31 @@ export class EmployeeDetail {
     this.reviewingScheduledSystemRun = null;
   }
 
+  canApproveScheduledReview(): boolean {
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return true;
+
+    if (this.reviewingScheduledSystemRun) {
+      const run = this.reviewingScheduledSystemRun;
+      if (!run.runId) {
+        return isEventAtOrBeforeWorkingMonth('', year, month, run.detectedDate);
+      }
+      return isEventAtOrBeforeWorkingMonth(run.runId, year, month, run.detectedDate);
+    }
+
+    if (this.reviewingScheduledEvent) {
+      const event = this.reviewingScheduledEvent;
+      return isEventAtOrBeforeWorkingMonth(
+        event.eventId ?? '',
+        year,
+        month,
+        event.occurredDate ?? event.appliedDate,
+      );
+    }
+
+    return false;
+  }
+
   async approveScheduledReview() {
     if (this.reviewingScheduledSystemRun) {
       await this.onApproveSystemRun(this.reviewingScheduledSystemRun);
@@ -2391,6 +2425,15 @@ export class EmployeeDetail {
   }
 
   async openInsuranceHistoryDetail(run: SystemCalculationRunItem) {
+    if (run.approval?.approvalStatus === '申請中' && this.isRetireQualificationRun(run)) {
+      await this.openRetireDetail(run);
+      return;
+    }
+    if (run.approval?.approvalStatus === '申請中' && this.isHireQualificationRun(run)) {
+      await this.openHireDetail(run);
+      return;
+    }
+
     if (run.type === '随時改定') {
       let eventView = this.calculationRunService.toEventView(run);
       if (!run.payload?.['revisionSummary']) {
@@ -2519,9 +2562,23 @@ export class EmployeeDetail {
   }
 
   formatScheduledLeave(info: ScheduledLeaveInfo): string {
+    const start = this.formatScheduledLeaveMonthDay(info.leaveStartDate);
+    if (info.leaveEndDate) {
+      const end = this.formatScheduledLeaveMonthDay(info.leaveEndDate);
+      return `${start}～${end}まで予定`;
+    }
+    return `${start}～予定`;
+  }
+
+  formatScheduledLeavePeriod(info: ScheduledLeaveInfo): string {
     const start = this.commonService.formatDate(info.leaveStartDate);
     const end = info.leaveEndDate ? this.commonService.formatDate(info.leaveEndDate) : '';
     return end ? `${start}～${end}` : `${start}～`;
+  }
+
+  private formatScheduledLeaveMonthDay(date: Timestamp): string {
+    const value = date.toDate();
+    return `${value.getMonth() + 1}月${value.getDate()}日`;
   }
 
   formatScheduledEmploymentContract(info: ScheduledEmploymentContractInfo): string {

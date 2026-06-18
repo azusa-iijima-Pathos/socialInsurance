@@ -393,7 +393,10 @@
 <div class="employee-edit-modal" *ngIf="retireDetailModalOpen && reviewingRetireRun && retireInsuranceDetail">
     <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
         <div class="employee-edit-modal__header">
-            <h2>退社処理の確認</h2>
+            <h2>
+                退社処理の確認
+                <span class="employee-edit-modal__employee-id">{{ getModalEmployeeSubtitle(reviewingRetireRun.employeeId) }}</span>
+            </h2>
         </div>
         <div class="employee-approval-modal__body">
             <p>{{ getEmployeeName(reviewingRetireRun.employeeId) }}（退職日：{{
@@ -458,7 +461,10 @@
 <div class="employee-edit-modal" *ngIf="hireDetailModalOpen && reviewingHireRun && hireApprovalDraft">
     <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--hire">
         <div class="employee-edit-modal__header">
-            <h2>入社処理の確認</h2>
+            <h2>
+                入社処理の確認
+                <span class="employee-edit-modal__employee-id">{{ getModalEmployeeSubtitle(reviewingHireRun.employeeId) }}</span>
+            </h2>
         </div>
         <div class="employee-approval-modal__body hire-approval-modal__body">
             <p class="hire-approval-modal__summary">
@@ -668,7 +674,10 @@
 <div class="employee-edit-modal" *ngIf="employeeReviewModalOpen && reviewingEmployeeEvent">
     <div class="employee-edit-modal__panel employee-approval-modal">
         <div class="employee-edit-modal__header">
-            <h2>従業員申請の確認</h2>
+            <h2>
+                従業員申請の確認
+                <span class="employee-edit-modal__employee-id">{{ getModalEmployeeSubtitle(reviewingEmployeeEvent.employeeId) }}</span>
+            </h2>
         </div>
         <div class="employee-approval-modal__body">
             <p>{{ getEmployeeName(reviewingEmployeeEvent.employeeId) }}（{{ reviewingEmployeeEvent.eventType }}）</p>
@@ -688,7 +697,10 @@
 <div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'fixedSalary' && fixedSalaryDraft">
     <div class="employee-edit-modal__panel employee-approval-modal">
         <div class="employee-edit-modal__header">
-            <h2>随時改定</h2>
+            <h2>
+                随時改定
+                <span class="employee-edit-modal__employee-id">{{ getModalEmployeeSubtitle(approvingSystemRun?.employeeId) }}</span>
+            </h2>
         </div>
         <div class="employee-approval-modal__body">
             <dl class="employee-detail-info-grid">
@@ -742,7 +754,10 @@
 <div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'insurance' && insuranceDraft">
     <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
         <div class="employee-edit-modal__header">
-            <h2>{{ isApprovingEmploymentChangeRun() ? '雇用形態変更' : '保険情報変更' }}の承認（保険）</h2>
+            <h2>
+                {{ isApprovingEmploymentChangeRun() ? '雇用形態変更' : '保険情報変更' }}の承認（保険）
+                <span class="employee-edit-modal__employee-id">{{ getModalEmployeeSubtitle(approvingSystemRun?.employeeId) }}</span>
+            </h2>
         </div>
         <div class="employee-approval-modal__body">
             <dl class="employee-detail-info-grid">
@@ -1037,7 +1052,10 @@
 <div class="employee-edit-modal" *ngIf="scheduledReviewModalOpen">
     <div class="employee-edit-modal__panel employee-approval-modal">
         <div class="employee-edit-modal__header">
-            <h2>予定登録イベントの確認</h2>
+            <h2>
+                予定登録イベントの確認
+                <span class="employee-edit-modal__employee-id">{{ getModalEmployeeSubtitle(reviewingScheduledEvent?.employeeId ?? reviewingScheduledSystemRun?.employeeId) }}</span>
+            </h2>
         </div>
         <div class="employee-approval-modal__body" *ngIf="reviewingScheduledEvent">
             <p>{{ getEmployeeName(reviewingScheduledEvent.employeeId) }} / {{ reviewingScheduledEvent.eventType }}</p>

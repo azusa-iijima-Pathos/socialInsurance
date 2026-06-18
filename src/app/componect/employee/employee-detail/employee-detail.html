@@ -92,8 +92,13 @@
                         <dt>勤務状況</dt>
                         <dd>
                             {{ selectedEmployee.workStatus! }}
-                            <p class="employee-detail-scheduled-leave" *ngIf="scheduledLeaveInfo">
-                                予定：{{ scheduledLeaveInfo.leaveTypes }}（{{ formatScheduledLeave(scheduledLeaveInfo) }}）
+                            <p class="employee-detail-scheduled-leave"
+                                *ngIf="scheduledLeaveInfo && selectedEmployee.workStatus !== '休職中'">
+                                予定：{{ scheduledLeaveInfo.leaveTypes }}（{{ formatScheduledLeavePeriod(scheduledLeaveInfo) }}）
+                            </p>
+                            <p class="employee-detail-scheduled-leave"
+                                *ngIf="scheduledLeaveInfo && selectedEmployee.workStatus === '休職中'">
+                                {{ formatScheduledLeave(scheduledLeaveInfo) }}
                             </p>
                         </dd>
                     </div>
@@ -115,7 +120,7 @@
                     <div class="employee-detail-section__title-inline">
                         <h2>雇用契約情報</h2>
                         <span class="employee-detail-scheduled-leave employee-detail-scheduled-leave--inline"
-                            *ngIf="scheduledEmploymentContractInfo">
+                            *ngIf="scheduledEmploymentContractInfo" style="font-weight: bold;">
                             {{ formatScheduledEmploymentContract(scheduledEmploymentContractInfo) }}
                         </span>
                     </div>
@@ -163,7 +168,13 @@
                 </div>
 
                 <div class="employee-detail-subsection">
-                    <h3>標準報酬等級</h3>
+                    <div class="employee-detail-section__title-inline">
+                        <h3>標準報酬等級</h3>
+                        <span class="employee-detail-scheduled-leave employee-detail-scheduled-leave--inline"
+                            *ngIf="pendingAdHocRevisionLabel" style="font-weight: bold;">
+                            {{ pendingAdHocRevisionLabel }}
+                        </span>
+                    </div>
                     <dl class="employee-detail-info-grid employee-detail-info-grid--compact">
                         <div class="employee-detail-info-grid__item">
                             <dt>登録値</dt>
@@ -1522,9 +1533,9 @@
         </div>
         <div class="employee-edit-actions">
             <button type="button" class="im-btn-primary" (click)="approveRetireFromDetail()"
-                *ngIf="reviewingRetireRun.approval?.approvalStatus === '申請中' && !isRetiredEmployee()">承認して反映</button>
+                *ngIf="reviewingRetireRun.approval?.approvalStatus === '申請中'">承認して反映</button>
             <button type="button" class="im-btn-soft" (click)="rejectRetireFromDetail()"
-                *ngIf="reviewingRetireRun.approval?.approvalStatus === '申請中' && !isRetiredEmployee()">却下</button>
+                *ngIf="reviewingRetireRun.approval?.approvalStatus === '申請中'">却下</button>
             <button type="button" class="im-btn-soft" (click)="closeRetireDetail()">閉じる</button>
         </div>
     </div>
@@ -1645,7 +1656,8 @@
         <div class="employee-edit-actions">
             <button type="button" class="im-btn-soft" (click)="closeScheduledReview()">キャンセル</button>
             <button type="button" class="im-btn-soft" (click)="rejectScheduledReview()">却下</button>
-            <button type="button" class="im-btn-primary" (click)="approveScheduledReview()">承認</button>
+            <button type="button" class="im-btn-primary" *ngIf="canApproveScheduledReview()"
+                (click)="approveScheduledReview()">承認</button>
         </div>
     </div>
 </div>
@@ -1739,5 +1751,4 @@
 <div *ngIf="!selectedEmployee" class="employee-detail-no-selection">
     <p>社員が選択されていません</p>
     <p>上のプルダウンから社員を選択してください</p>
-    <app-insurance-number-unconfirmed-list></app-insurance-number-unconfirmed-list>
 </div>
