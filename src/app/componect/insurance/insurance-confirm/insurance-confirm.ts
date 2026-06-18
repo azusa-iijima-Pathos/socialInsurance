@@ -19,6 +19,11 @@ import { InsuranceDraft } from '../../../model/insurance-draft';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { CalculationRun } from '../../../model/calculation-run';
 import { InsuranceDisplayService, InsuranceNoticeSummary, OfficeInsuranceSummary } from '../../../service/logic/insurance-display.service';
+import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
+import {
+  isMaternityOrChildcareLeaveOverlappingPeriod,
+  resolvePayrollTargetPeriodBounds,
+} from '../../../service/logic/leave-insurance.util';
 import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
 import { ReachAgeService } from '../../../service/logic/reach-age';
 
@@ -90,6 +95,7 @@ export class InsuranceConfirm {
   private insuranceRates = inject(InsuranceRates);
   private calculationRunService = inject(CalculationRunService);
   private insuranceDisplayService = inject(InsuranceDisplayService);
+  private correctionLogicService = inject(CorrectionLogicService);
   private payrollLockService = inject(PayrollLockService);
   private reachAgeService = inject(ReachAgeService);
 
@@ -183,6 +189,7 @@ export class InsuranceConfirm {
     await this.officeService.getAllOffice();
     this.confirmedOutputRows = [];
     this.adjustedOutputRows = [];
+    const defaultPeriodBounds = await this.correctionLogicService.getPayrollPeriodBounds(this.payrollId);
 
     for (const employee of this.employeeData) {
       const payroll = this.payrollData.find(item => item.employeeId === employee.employeeId);
@@ -204,8 +211,8 @@ export class InsuranceConfirm {
         this.payrollId,
       );
 
-      this.confirmedOutputRows.push(this.buildOutputRow(employee, payroll, snapshot, confirmedBreakdown));
-      this.adjustedOutputRows.push(this.buildOutputRow(employee, payroll, snapshot, adjustedBreakdown, adjustedGrade));
+      this.confirmedOutputRows.push(this.buildOutputRow(employee, payroll, snapshot, confirmedBreakdown, undefined, defaultPeriodBounds));
+      this.adjustedOutputRows.push(this.buildOutputRow(employee, payroll, snapshot, adjustedBreakdown, adjustedGrade, defaultPeriodBounds));
     }
 
     this.setOutputViewMode(this.outputViewMode);
@@ -217,8 +224,12 @@ export class InsuranceConfirm {
     snapshot: InsuranceSnapshot | null,
     breakdown: ReturnType<InsuranceDisplayService['getSnapshotBreakdown']>,
     gradeOverride?: number,
+    defaultPeriodBounds?: { periodStart: Date; periodEnd: Date },
   ): EmployeeInsurance {
     const hasPayrollData = Boolean(payroll);
+    const { periodStart, periodEnd } = defaultPeriodBounds
+      ? resolvePayrollTargetPeriodBounds(payroll, defaultPeriodBounds)
+      : { periodStart: new Date(), periodEnd: new Date() };
     const calculatedValues = {
       healthInsurance: breakdown.healthInsurance,
       nursingCareInsurance: breakdown.nursingCareInsurance,
@@ -240,7 +251,7 @@ export class InsuranceConfirm {
       fixedSalary: payroll?.fixedSalary ?? 0,
       actualPaymentAmount: payroll?.actualPaymentAmount ?? 0,
       grade: gradeOverride ?? Number(snapshot?.grade ?? employee.insurance?.currentGrade ?? 0),
-      gradeNote: this.getGradeDisplayNote(employee),
+      gradeNote: this.getGradeDisplayNote(employee, periodStart, periodEnd),
       ...breakdown,
       calculatedValues,
     };
@@ -352,9 +363,13 @@ export class InsuranceConfirm {
 
 
   private async getEmployeeInsurance(employees: Employee[]) {
+    const defaultPeriodBounds = await this.correctionLogicService.getPayrollPeriodBounds(this.payrollId);
+
     for (const employee of employees) {
       const payroll = this.payrollData.find(item => item.employeeId === employee.employeeId);
       const hasPayrollData = Boolean(payroll);
+      const { periodStart, periodEnd } = resolvePayrollTargetPeriodBounds(payroll, defaultPeriodBounds);
+      const zeroPremiumForLeave = isMaternityOrChildcareLeaveOverlappingPeriod(employee, periodStart, periodEnd);
       const prefecture = await this.officeService.getOfficeLocation(employee.employmentContract?.officeId ?? '');
       const grade = employee.insurance?.currentGrade;
       const hasHealthInsurance = Boolean(employee.insurance?.healthInsurance?.joined);
@@ -387,7 +402,7 @@ export class InsuranceConfirm {
         fixedSalary: payroll?.fixedSalary ?? 0,
         actualPaymentAmount: payroll?.actualPaymentAmount ?? 0,
         grade: grade ?? 0,
-        gradeNote: this.getGradeDisplayNote(employee),
+        gradeNote: this.getGradeDisplayNote(employee, periodStart, periodEnd),
 
         healthInsurance,
         nursingCareInsurance,
@@ -425,7 +440,7 @@ export class InsuranceConfirm {
         employeeInsurance.pensionInsurance = 0;
         employeeInsurance.pensionInsuranceForEmployee = 0;
       }
-      if (this.isMaternityOrChildcareLeave(employee)) {
+      if (zeroPremiumForLeave) {
         employeeInsurance.healthInsurance = 0;
         employeeInsurance.nursingCareInsurance = 0;
         employeeInsurance.pensionInsurance = 0;
@@ -514,11 +529,6 @@ export class InsuranceConfirm {
     return fraction <= 0.5 ? yen : yen + 1;
   }
 
-  private isMaternityOrChildcareLeave(employee: Employee): boolean {
-    return employee.workStatus === '休職中'
-      && (employee.leaveTypes === '産前産後' || employee.leaveTypes === '育児');
-  }
-
   private getInsuranceStatus(detail?: InsuranceDetail): 'joined' | 'notJoined' | 'lost' {
     if (!detail) return 'notJoined';
     if (detail.joined) return 'joined';
@@ -526,12 +536,10 @@ export class InsuranceConfirm {
     return 'notJoined';
   }
 
-  private getGradeDisplayNote(employee: Employee): string | undefined {
-    if (employee.workStatus === '休職中' && employee.leaveTypes === '産前産後') {
-      return '（産休）';
-    }
-    if (employee.workStatus === '休職中' && employee.leaveTypes === '育児') {
-      return '（育休）';
+  private getGradeDisplayNote(employee: Employee, periodStart: Date, periodEnd: Date): string | undefined {
+    if (isMaternityOrChildcareLeaveOverlappingPeriod(employee, periodStart, periodEnd)) {
+      if (employee.leaveTypes === '産前産後') return '（産休）';
+      if (employee.leaveTypes === '育児') return '（育休）';
     }
 
     const insurance = employee.insurance;

@@ -12,7 +12,12 @@ import { CompanyService } from '../Firestore/company-service';
 import { InsuranceRates } from '../Firestore/insurance-rates';
 import { PayrollService } from '../Firestore/payroll-service';
 import { InsuranceDisplayService } from './insurance-display.service';
+import {
+  isMaternityOrChildcareLeaveOverlappingPeriod,
+  resolvePayrollTargetPeriodBounds,
+} from './leave-insurance.util';
 import { CalculationRun } from '../../model/calculation-run';
+import { Payroll } from '../../model/payroll';
 import { parseDateInputValue } from '../common/date-input.util';
 import { buildPayrollPeriodBounds, parseMonthlyPayrollId, wasEmployedInPeriod } from './employee-enrollment.util';
 
@@ -482,13 +487,17 @@ export class CorrectionLogicService {
     insurance: EmployeeInsurance,
     prefecture: string | undefined,
     payrollId: string,
+    payroll?: Payroll,
   ) {
-    const grade = insurance.currentGrade ?? 0;
+    const defaultPeriodBounds = await this.getPayrollPeriodBounds(payrollId);
+    const { periodStart, periodEnd } = resolvePayrollTargetPeriodBounds(payroll, defaultPeriodBounds);
     const merged: Employee = { ...employee, insurance };
 
-    if (this.isMaternityOrChildcareLeave(merged)) {
+    if (isMaternityOrChildcareLeaveOverlappingPeriod(merged, periodStart, periodEnd)) {
       return { health: 0, nursing: 0, pension: 0 };
     }
+
+    const grade = insurance.currentGrade ?? 0;
 
     if (!prefecture || !grade || !insurance.healthInsurance?.joined || insurance.healthInsurance?.lostDate) {
       return { health: 0, nursing: 0, pension: 0 };
@@ -511,11 +520,6 @@ export class CorrectionLogicService {
       nursing,
       pension,
     };
-  }
-
-  private isMaternityOrChildcareLeave(employee: Employee): boolean {
-    return employee.workStatus === '休職中'
-      && (employee.leaveTypes === '産前産後' || employee.leaveTypes === '育児');
   }
 
   /** 差額調整runは都度最新を取得（同一画面内で複数回修正するためキャッシュしない） */

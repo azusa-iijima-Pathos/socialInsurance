@@ -19,6 +19,11 @@ import { SocialInsuranceFormCsvService } from '../../../service/CSV/social-insur
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { CalculationRun } from '../../../model/calculation-run';
 import { InsuranceDisplayService, InsuranceNoticeSummary, OfficeInsuranceSummary } from '../../../service/logic/insurance-display.service';
+import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
+import {
+  isMaternityOrChildcareLeaveOverlappingPeriod,
+  resolvePayrollTargetPeriodBounds,
+} from '../../../service/logic/leave-insurance.util';
 import { CompanyService } from '../../../service/Firestore/company-service';
 
 type BonusInsurance = {
@@ -86,6 +91,7 @@ export class InsuranceForBonus {
   private formCsvService = inject(SocialInsuranceFormCsvService);
   private calculationRunService = inject(CalculationRunService);
   private insuranceDisplayService = inject(InsuranceDisplayService);
+  private correctionLogicService = inject(CorrectionLogicService);
   private companyService = inject(CompanyService);
 
   payrollId = '';
@@ -327,9 +333,13 @@ export class InsuranceForBonus {
       return;
     }
 
+    const defaultPeriodBounds = await this.correctionLogicService.getPayrollPeriodBounds(this.targetYearMonth);
+
     for (const employee of employees) {
       const bonus = this.bonusData.find(item => item.employeeId === employee.employeeId);
       const hasBonusData = Boolean(bonus);
+      const { periodStart, periodEnd } = resolvePayrollTargetPeriodBounds(bonus, defaultPeriodBounds);
+      const zeroPremiumForLeave = isMaternityOrChildcareLeaveOverlappingPeriod(employee, periodStart, periodEnd);
       const hasInsuranceGrade = Boolean(employee.insurance?.currentGrade);
       const actualPaymentAmount = bonus?.actualPaymentAmount ?? 0;
       const standardBonusAmount = this.toStandardBonusAmount(actualPaymentAmount);
@@ -367,7 +377,7 @@ export class InsuranceForBonus {
         pensionInsurance = 0;
         pensionInsuranceForEmployee = 0;
       }
-      if (this.isMaternityOrChildcareLeave(employee) || !hasBonusData || !hasInsuranceGrade) {
+      if (zeroPremiumForLeave || !hasBonusData || !hasInsuranceGrade) {
         healthInsurance = 0;
         nursingCareInsurance = 0;
         pensionInsurance = 0;
@@ -501,11 +511,6 @@ export class InsuranceForBonus {
 
     const lostYearMonth = `${lostDate.getFullYear()}-${String(lostDate.getMonth() + 1).padStart(2, '0')}`;
     return lostYearMonth === this.targetYearMonth;
-  }
-
-  private isMaternityOrChildcareLeave(employee: Employee): boolean {
-    return employee.workStatus === '休職中'
-      && (employee.leaveTypes === '産前産後' || employee.leaveTypes === '育児');
   }
 
   private applyDraft(employeeInsurance: BonusInsurance) {

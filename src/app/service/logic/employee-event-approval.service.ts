@@ -183,6 +183,16 @@ export class EmployeeEventApprovalService {
   }
 
   getInsuranceChangeLabel(run: SystemCalculationRunItem): string {
+    if (run.type === '随時改定' || run.type === '算定基礎') return '等級';
+    if (run.type === 'イベント') {
+      const key = String(run.payload?.['insuranceKey'] ?? '');
+      switch (key) {
+        case 'healthInsurance': return '健康保険';
+        case 'nursingCareInsurance': return '介護保険';
+        case 'employeePensionInsurance': return '厚生年金';
+        default: return String(run.payload?.['qualificationType'] ?? run.eventType ?? '—');
+      }
+    }
     const key = String(run.payload?.['insuranceKey'] ?? '');
     switch (key) {
       case 'healthInsurance': return '健康保険';
@@ -512,8 +522,8 @@ export class EmployeeEventApprovalService {
     }
 
     return runId
-      ? this.calculationRunService.markRunApproved(runId, loginEmployeeId)
-      : this.markEventApproved(employeeId, event, loginEmployeeId);
+      ? this.calculationRunService.markRunApplied(runId, loginEmployeeId)
+      : this.markEventApplied(employeeId, event, loginEmployeeId);
   }
 
   async buildHireInsuranceApprovalDraft(run: SystemCalculationRunItem): Promise<HireInsuranceApprovalDraft | null> {
@@ -921,71 +931,72 @@ export class EmployeeEventApprovalService {
     const occurredDate = event.occurredDate?.toDate() ?? new Date();
     const birthdayThisYear = new Date(occurredDate.getFullYear(), birthDate.getMonth(), birthDate.getDate(), 0, 0, 0);
     const changeDate = Timestamp.fromDate(birthdayThisYear);
+    const beforeInsurance = employee.insurance;
 
-    let updateEmployee: Partial<Employee> = {};
+    let afterInsurance: EmployeeInsurance;
     let shouldClearDependents = false;
     switch (event.reachAgeType) {
       case '40歳': {
         const healthNumber = employee.insurance?.healthInsurance?.number;
-        updateEmployee = {
-          employeeId,
-          insurance: {
-            ...employee.insurance,
-            nursingCareInsurance: {
-              joined: true,
-              acquiredDate: changeDate,
-              ...(healthNumber ? { number: healthNumber } : {}),
-              companyBurdenRate: employee.insurance?.nursingCareInsurance?.companyBurdenRate
-                ?? employee.insurance?.healthInsurance?.companyBurdenRate
-                ?? 50,
-            },
+        afterInsurance = {
+          ...employee.insurance,
+          currentGrade: employee.insurance?.currentGrade ?? 0,
+          nursingCareInsurance: {
+            joined: true,
+            acquiredDate: changeDate,
+            ...(healthNumber ? { number: healthNumber } : {}),
+            companyBurdenRate: employee.insurance?.nursingCareInsurance?.companyBurdenRate
+              ?? employee.insurance?.healthInsurance?.companyBurdenRate
+              ?? 50,
           },
         };
         break;
       }
       case '65歳':
-        updateEmployee = {
-          employeeId,
-          insurance: {
-            ...employee.insurance,
-            nursingCareInsurance: {
-              ...employee.insurance?.nursingCareInsurance,
-              joined: false,
-              lostDate: changeDate,
-            },
+        afterInsurance = {
+          ...employee.insurance,
+          currentGrade: employee.insurance?.currentGrade ?? 0,
+          nursingCareInsurance: {
+            ...employee.insurance?.nursingCareInsurance,
+            joined: false,
+            lostDate: changeDate,
           },
         };
         break;
       case '70歳':
-        updateEmployee = {
-          employeeId,
-          insurance: {
-            ...employee.insurance,
-            employeePensionInsurance: {
-              ...employee.insurance?.employeePensionInsurance,
-              joined: false,
-              lostDate: changeDate,
-            },
+        afterInsurance = {
+          ...employee.insurance,
+          currentGrade: employee.insurance?.currentGrade ?? 0,
+          employeePensionInsurance: {
+            ...employee.insurance?.employeePensionInsurance,
+            joined: false,
+            lostDate: changeDate,
           },
         };
         break;
       case '75歳':
         shouldClearDependents = true;
-        updateEmployee = {
-          employeeId,
-          insurance: {
-            currentGrade: employee.insurance?.currentGrade ?? 0,
-            healthInsurance: this.buildLostInsuranceDetail(employee.insurance?.healthInsurance, changeDate),
-            nursingCareInsurance: this.buildLostInsuranceDetail(employee.insurance?.nursingCareInsurance, changeDate),
-            employeePensionInsurance: this.buildLostInsuranceDetail(employee.insurance?.employeePensionInsurance, changeDate),
-          },
+        afterInsurance = {
+          currentGrade: employee.insurance?.currentGrade ?? 0,
+          healthInsurance: this.buildLostInsuranceDetail(employee.insurance?.healthInsurance, changeDate),
+          nursingCareInsurance: this.buildLostInsuranceDetail(employee.insurance?.nursingCareInsurance, changeDate),
+          employeePensionInsurance: this.buildLostInsuranceDetail(employee.insurance?.employeePensionInsurance, changeDate),
         };
         break;
       default:
         return false;
     }
 
-    const employeeUpdated = await this.employeeService.updateEmployee(updateEmployee);
+    const runResult = await this.employeeDetailEventService.createReachAgeInsuranceChangeRuns(
+      employeeId,
+      beforeInsurance,
+      afterInsurance,
+      loginEmployeeId,
+      event.eventId,
+    );
+    if (!runResult.success) return false;
+
+    const employeeUpdated = await this.employeeService.updateEmployee({ employeeId, insurance: afterInsurance });
     if (!employeeUpdated) return false;
 
     if (shouldClearDependents) {
@@ -1026,7 +1037,7 @@ export class EmployeeEventApprovalService {
       if (!saved) return false;
     }
 
-    return this.markEventApproved(employeeId, event, loginEmployeeId);
+    return this.markEventApplied(employeeId, event, loginEmployeeId);
   }
 
   async approveAdminFixedSalaryEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
@@ -1063,7 +1074,7 @@ export class EmployeeEventApprovalService {
       loginEmployeeId,
     );
 
-    return this.markEventApproved(employeeId, event, loginEmployeeId);
+    return this.markEventApplied(employeeId, event, loginEmployeeId);
   }
 
   async approveAdminEmploymentChangeEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
@@ -1098,7 +1109,7 @@ export class EmployeeEventApprovalService {
       );
     }
 
-    return this.markEventApproved(employeeId, event, loginEmployeeId);
+    return this.markEventApplied(employeeId, event, loginEmployeeId);
   }
 
   async approveAdminWorkStatusEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
@@ -1123,7 +1134,7 @@ export class EmployeeEventApprovalService {
 
     const updated = await this.employeeService.updateEmployee(update);
     if (!updated) return false;
-    return this.markEventApproved(employeeId, event, loginEmployeeId);
+    return this.markEventApplied(employeeId, event, loginEmployeeId);
   }
 
   /** 従業員ライフイベント申請の承認（マスター未反映） */
@@ -1302,7 +1313,7 @@ export class EmployeeEventApprovalService {
       : await this.dependentService.registerDependents(employeeId, [dependent]);
 
     if (!saved) return false;
-    return this.markEventApproved(employeeId, event, loginEmployeeId);
+    return this.markEventApplied(employeeId, event, loginEmployeeId);
   }
 
   async rejectEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {

@@ -35,13 +35,10 @@
     <p *ngIf="message" class="im-action-message employee-detail-search-card__message">{{ message }}</p>
 
     <div class="employee-detail-content" *ngIf="selectedEmployee">
-        <div *ngIf="hasPendingSystemRuns()" class="employee-detail-system-run-notice">
-            <p><strong>! システム計算結果が出ています。適用しますか？</strong></p>
+        <div *ngIf="hasScheduledSystemRunNotices()" class="employee-detail-system-run-notice">
+            <p><strong>システム計算予定</strong></p>
             <ul>
-                <li *ngFor="let run of pendingSystemRuns">
-                    {{ run.eventType }}
-                    <button type="button" class="im-btn-primary im-btn-sm" (click)="onApproveSystemRun(run)">確認</button>
-                </li>
+                <li *ngFor="let notice of scheduledSystemRunNotices">{{ notice }}</li>
             </ul>
         </div>
         <h2>従業員情報</h2>
@@ -396,14 +393,9 @@
             <p class="employee-detail-empty" *ngIf="insuranceHistoryRows.length === 0">確定済み保険料はありません</p>
         </section>
 
-        <div style="display: flex; align-items: center; margin-bottom: 12px;">
-            <h2 style="margin: 0;">イベント一覧</h2>
-            <button type="button" class="im-btn-primary" (click)="applyApprovedFixedSalary()"
-                [disabled]="!canApplyApprovedFixedSalary"
-                style="margin-left: auto;">承認済みの随時改定を適用</button>
-        </div>
-        <section class="employee-detail-section employee-detail-events" *ngIf="eventListItems.length > 0">
-            <div class="employee-detail-events-table-wrap">
+        <h2 style="margin: 0 0 12px;">イベント一覧</h2>
+        <section class="employee-detail-section employee-detail-events">
+            <div class="employee-detail-events-table-wrap employee-detail-events-table-wrap--scroll" *ngIf="eventListItems.length > 0">
                 <table class="employee-detail-events-table">
                     <thead>
                         <tr>
@@ -419,12 +411,14 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr *ngFor="let item of eventListItems">
+                        <tr *ngFor="let item of eventListItems"
+                            [class.employee-detail-events-table__row--rejected]="isRejectedListItem(item)">
                             <td class="employee-detail-events-table__actions">
-                                <ng-container *ngIf="isPendingListItem(item) && !isRetiredEmployee()">
+                                <ng-container *ngIf="canShowApproveReject(item)">
                                     <button type="button" class="im-btn-primary im-btn-sm"
                                         (click)="onApproveListItem(item)">確認</button>
                                     <button type="button" class="im-btn-soft im-btn-sm"
+                                        *ngIf="canShowReject(item)"
                                         (click)="onRejectListItem(item)">却下</button>
                                 </ng-container>
                                 <ng-container *ngIf="canShowEventDetail(item)">
@@ -444,9 +438,43 @@
                     </tbody>
                 </table>
             </div>
+            <p class="employee-detail-empty" *ngIf="eventListItems.length === 0">イベントはありません</p>
         </section>
-        <section class="employee-detail-section employee-detail-events" *ngIf="eventListItems.length === 0">
-            <p class="employee-detail-empty">イベントはありません</p>
+
+        <div style="display: flex; align-items: center; margin: 24px 0 12px;">
+            <h2 style="margin: 0;">保険情報変更履歴</h2>
+        </div>
+        <section class="employee-detail-section employee-detail-events">
+            <div class="employee-detail-events-table-wrap employee-detail-events-table-wrap--scroll"
+                *ngIf="insuranceChangeHistoryRows.length > 0">
+                <table class="employee-detail-events-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>種別</th>
+                            <th>保険</th>
+                            <th>適用月</th>
+                            <th>検出日</th>
+                            <th>承認状況</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let row of insuranceChangeHistoryRows"
+                            [class.employee-detail-events-table__row--rejected]="isRejectedHistoryRow(row)">
+                            <td class="employee-detail-events-table__actions">
+                                <button type="button" class="im-btn-muted"
+                                    (click)="openInsuranceHistoryDetail(row.run)">詳細</button>
+                            </td>
+                            <td>{{ row.typeLabel }}</td>
+                            <td>{{ row.insuranceLabel }}</td>
+                            <td>{{ row.appliedMonth }}</td>
+                            <td>{{ row.detectedDate }}</td>
+                            <td>{{ row.approvalStatus }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="employee-detail-empty" *ngIf="insuranceChangeHistoryRows.length === 0">保険情報変更履歴はありません</p>
         </section>
         </div>
         </div>
@@ -466,7 +494,7 @@
             </ul>
         </div>
         <div class="employee-edit-actions">
-            <button type="button" class="im-btn-primary" (click)="approveEmployeeApplication()">承認して反映</button>
+            <button type="button" class="im-btn-primary" (click)="approveEmployeeApplication()">承認</button>
             <button type="button" class="im-btn-soft" (click)="rejectEmployeeApplication()">却下</button>
             <button type="button" class="im-btn-soft" (click)="closeEmployeeReview()">閉じる</button>
         </div>
@@ -1398,6 +1426,251 @@
             <button type="button" class="im-btn-primary" (click)="confirmApprovalModal()">承認</button>
             <button type="button" class="im-btn-soft" (click)="rejectApprovalModal()">却下</button>
             <button type="button" class="im-btn-soft" (click)="cancelApprovalModal()">キャンセル</button>
+        </div>
+    </div>
+</div>
+
+<!-- 退社処理 詳細モーダル -->
+<div class="employee-edit-modal" *ngIf="retireDetailModalOpen && reviewingRetireRun && retireInsuranceDetail">
+    <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
+        <div class="employee-edit-modal__header">
+            <h2>退社処理の確認</h2>
+        </div>
+        <div class="employee-approval-modal__body">
+            <p>{{ selectedEmployee?.firstName }} {{ selectedEmployee?.lastName }}（退職日：{{ commonService.formatDate(retireInsuranceDetail.resignationDate) }}）</p>
+            <p>承認すると、以下の保険は喪失（喪失日＝退職日の翌日）となり、扶養対象は扶養対象外に変更されます。</p>
+            <dl class="employee-detail-info-grid">
+                <div class="employee-detail-info-grid__item">
+                    <dt>等級</dt>
+                    <dd>{{ retireInsuranceDetail.currentGrade }}</dd>
+                </div>
+            </dl>
+            <div class="employee-approval-insurance-block">
+                <h3>健康保険</h3>
+                <p>{{ getInsuranceJoinedLabel(retireInsuranceDetail.healthInsurance) }}
+                    <span *ngIf="retireInsuranceDetail.healthInsurance.joined"> → 喪失（喪失日：{{ commonService.formatDate(retireInsuranceDetail.qualificationLossDate) }}）</span>
+                </p>
+            </div>
+            <div class="employee-approval-insurance-block">
+                <h3>介護保険</h3>
+                <p>{{ getInsuranceJoinedLabel(retireInsuranceDetail.nursingCareInsurance) }}
+                    <span *ngIf="retireInsuranceDetail.nursingCareInsurance.joined"> → 喪失（喪失日：{{ commonService.formatDate(retireInsuranceDetail.qualificationLossDate) }}）</span>
+                </p>
+            </div>
+            <div class="employee-approval-insurance-block">
+                <h3>厚生年金</h3>
+                <p>{{ getInsuranceJoinedLabel(retireInsuranceDetail.employeePensionInsurance) }}
+                    <span *ngIf="retireInsuranceDetail.employeePensionInsurance.joined"> → 喪失（喪失日：{{ commonService.formatDate(retireInsuranceDetail.qualificationLossDate) }}）</span>
+                </p>
+            </div>
+            <div *ngIf="retireInsuranceDetail.dependents.length > 0">
+                <h3>扶養情報（扶養対象外への変更）</h3>
+                <table class="employee-detail-events-table">
+                    <thead>
+                        <tr>
+                            <th>名前</th>
+                            <th>続柄</th>
+                            <th>扶養終了日</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let dependent of retireInsuranceDetail.dependents">
+                            <td>{{ dependent.name }}</td>
+                            <td>{{ dependent.relationship }}</td>
+                            <td>{{ commonService.formatDate(dependent.dependentEndDate) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-primary" (click)="approveRetireFromDetail()"
+                *ngIf="reviewingRetireRun.approval?.approvalStatus === '申請中' && !isRetiredEmployee()">承認して反映</button>
+            <button type="button" class="im-btn-soft" (click)="rejectRetireFromDetail()"
+                *ngIf="reviewingRetireRun.approval?.approvalStatus === '申請中' && !isRetiredEmployee()">却下</button>
+            <button type="button" class="im-btn-soft" (click)="closeRetireDetail()">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<!-- 入社処理 確認モーダル -->
+<div class="employee-edit-modal" *ngIf="hireDetailModalOpen && reviewingHireRun && hireApprovalDraft">
+    <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--hire">
+        <div class="employee-edit-modal__header">
+            <h2>入社処理の確認</h2>
+        </div>
+        <div class="employee-approval-modal__body hire-approval-modal__body">
+            <p class="hire-approval-modal__summary">
+                {{ selectedEmployee?.firstName }} {{ selectedEmployee?.lastName }}（入社日：{{ commonService.formatDate(reviewingHireRun.payload?.['occurredDate']) }}）
+            </p>
+            <div class="hire-approval-modal__grade-row">
+                <div class="im-field-block im-field-row hire-approval-compact-field">
+                    <div class="im-field-row__label"><label for="hireApprovalGrade">等級</label></div>
+                    <div class="im-field-row__control">
+                        <input id="hireApprovalGrade" type="number" min="0" max="50"
+                            [(ngModel)]="hireApprovalDraft.currentGrade">
+                        <p class="hire-entry-auto-judgement">等級自動判定：{{ hireApprovalDraft.autoGrade ?? '判定不能' }}</p>
+                    </div>
+                </div>
+                <div class="im-field-block im-field-row hire-approval-compact-field">
+                    <div class="im-field-row__label"><label for="hireApprovalPensionNumber">基礎年金番号</label></div>
+                    <div class="im-field-row__control">
+                        <input id="hireApprovalPensionNumber" type="text"
+                            [(ngModel)]="hireApprovalDraft.basicPensionNumber">
+                    </div>
+                </div>
+            </div>
+            <div class="hire-approval-modal__insurance-row">
+                <div class="employee-approval-insurance-block">
+                    <h3>健康保険</h3>
+                    <div class="im-field-block im-field-row hire-approval-compact-field">
+                        <div class="im-field-row__label"><span>加入</span></div>
+                        <div class="im-field-row__control">
+                            <select [(ngModel)]="hireApprovalDraft.healthJoined">
+                                <option [ngValue]="true">加入</option>
+                                <option [ngValue]="false">未加入</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="employee-approval-insurance-block">
+                    <h3>介護保険</h3>
+                    <div class="im-field-block im-field-row hire-approval-compact-field">
+                        <div class="im-field-row__label"><span>加入</span></div>
+                        <div class="im-field-row__control">
+                            <select [(ngModel)]="hireApprovalDraft.nursingJoined">
+                                <option [ngValue]="true">加入</option>
+                                <option [ngValue]="false">未加入</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="employee-approval-insurance-block">
+                    <h3>厚生年金</h3>
+                    <div class="im-field-block im-field-row hire-approval-compact-field">
+                        <div class="im-field-row__label"><span>加入</span></div>
+                        <div class="im-field-row__control">
+                            <select [(ngModel)]="hireApprovalDraft.pensionJoined">
+                                <option [ngValue]="true">加入</option>
+                                <option [ngValue]="false">未加入</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="hire-approval-modal__dependents" *ngIf="hireApprovalDraft.dependents.length > 0">
+                <h3>扶養情報</h3>
+                <div class="hire-approval-dependent-card" *ngFor="let dependent of hireApprovalDraft.dependents">
+                    <div class="hire-approval-dependent-grid">
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><label>名前</label></div>
+                            <div class="im-field-row__control"><input type="text" [(ngModel)]="dependent.name"></div>
+                        </div>
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><label>続柄</label></div>
+                            <div class="im-field-row__control"><input type="text" [(ngModel)]="dependent.relationship"></div>
+                        </div>
+                        <div class="im-field-block im-field-row hire-approval-compact-field">
+                            <div class="im-field-row__label"><label>扶養開始日</label></div>
+                            <div class="im-field-row__control"><input type="date" [(ngModel)]="dependent.dependentStartDate"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p *ngIf="hireApprovalValidationError" class="error">{{ hireApprovalValidationError }}</p>
+        </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-primary" (click)="approveHireFromDetail()">承認して反映</button>
+            <button type="button" class="im-btn-soft" (click)="rejectHireFromDetail()">却下</button>
+            <button type="button" class="im-btn-soft" (click)="closeHireDetail()">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<!-- 予定登録イベント 確認モーダル -->
+<div class="employee-edit-modal" *ngIf="scheduledReviewModalOpen">
+    <div class="employee-edit-modal__panel employee-approval-modal">
+        <div class="employee-edit-modal__header">
+            <h2>予定登録イベントの確認</h2>
+        </div>
+        <div class="employee-approval-modal__body" *ngIf="reviewingScheduledEvent">
+            <p>{{ reviewingScheduledEvent.eventType }}</p>
+            <ul>
+                <li *ngFor="let line of getEmployeeEventChangeLines(reviewingScheduledEvent)">{{ line }}</li>
+            </ul>
+        </div>
+        <div class="employee-approval-modal__body" *ngIf="reviewingScheduledSystemRun">
+            <p>{{ reviewingScheduledSystemRun.eventType }}</p>
+            <p>発生日：{{ commonService.formatDate(reviewingScheduledSystemRun.payload?.['occurredDate']) }}</p>
+        </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-soft" (click)="closeScheduledReview()">キャンセル</button>
+            <button type="button" class="im-btn-soft" (click)="rejectScheduledReview()">却下</button>
+            <button type="button" class="im-btn-primary" (click)="approveScheduledReview()">承認</button>
+        </div>
+    </div>
+</div>
+
+<!-- 保険情報変更履歴 詳細モーダル -->
+<div class="employee-edit-modal" *ngIf="insuranceHistoryDetailModalOpen && reviewingInsuranceHistoryRun">
+    <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
+        <div class="employee-edit-modal__header">
+            <h2>保険情報変更の詳細</h2>
+        </div>
+        <div class="employee-approval-modal__body" *ngIf="reviewingInsuranceHistoryRun.type === '算定基礎'">
+            <dl class="employee-detail-info-grid">
+                <div class="employee-detail-info-grid__item">
+                    <dt>対象年</dt>
+                    <dd>{{ reviewingInsuranceHistoryRun.payload?.['year'] ?? '—' }}</dd>
+                </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>現在等級</dt>
+                    <dd>{{ reviewingInsuranceHistoryRun.payload?.['currentGrade'] ?? '—' }}</dd>
+                </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>算定等級</dt>
+                    <dd>{{ reviewingInsuranceHistoryRun.payload?.['calculatedGrade'] ?? '—' }}</dd>
+                </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>反映等級</dt>
+                    <dd>{{ reviewingInsuranceHistoryRun.payload?.['approvedGrade'] ?? '—' }}</dd>
+                </div>
+            </dl>
+        </div>
+        <div class="employee-approval-modal__body" *ngIf="reviewingInsuranceHistoryRun.runId?.startsWith('等級変更_')">
+            <dl class="employee-detail-info-grid">
+                <div class="employee-detail-info-grid__item">
+                    <dt>変更前等級</dt>
+                    <dd>{{ getInsuranceHistoryGradeChange(reviewingInsuranceHistoryRun).before ?? '—' }}</dd>
+                </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>変更後等級</dt>
+                    <dd>{{ getInsuranceHistoryGradeChange(reviewingInsuranceHistoryRun).after ?? '—' }}</dd>
+                </div>
+            </dl>
+        </div>
+        <div class="employee-approval-modal__body" *ngIf="insuranceHistoryDraft">
+            <dl class="employee-detail-info-grid">
+                <div class="employee-detail-info-grid__item">
+                    <dt>等級</dt>
+                    <dd>{{ insuranceHistoryDraft.currentGrade }} → {{ insuranceHistoryDraft.autoGrade ?? insuranceHistoryDraft.currentGrade }}</dd>
+                </div>
+            </dl>
+            <div class="employee-approval-insurance-block">
+                <h3>健康保険</h3>
+                <p>{{ getInsuranceStatusLabel(insuranceHistoryDraft.currentHealthStatus) }} → {{ getInsuranceStatusLabel(insuranceHistoryDraft.healthStatus) }}</p>
+            </div>
+            <div class="employee-approval-insurance-block">
+                <h3>介護保険</h3>
+                <p>{{ getInsuranceStatusLabel(insuranceHistoryDraft.currentNursingStatus) }} → {{ getInsuranceStatusLabel(insuranceHistoryDraft.nursingStatus) }}</p>
+            </div>
+            <div class="employee-approval-insurance-block">
+                <h3>厚生年金</h3>
+                <p>{{ getInsuranceStatusLabel(insuranceHistoryDraft.currentPensionStatus) }} → {{ getInsuranceStatusLabel(insuranceHistoryDraft.pensionStatus) }}</p>
+            </div>
+        </div>
+        <div class="employee-edit-actions">
+            <button type="button" class="im-btn-soft" (click)="closeInsuranceHistoryDetail()">閉じる</button>
         </div>
     </div>
 </div>

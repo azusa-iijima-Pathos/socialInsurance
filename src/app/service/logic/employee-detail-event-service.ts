@@ -2,7 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { Timestamp } from '@angular/fire/firestore';
 import { Employee, EmploymentContract, EmployeeInsurance, InsuranceDetail } from '../../model/employee';
 import { Dependent } from '../../model/dependent';
-import { ChangeType, EmployeeEventType, LeaveType } from '../../constants/model-constants';
+import { ChangeType, EmployeeEventType, LeaveType, LifeEventType } from '../../constants/model-constants';
 import { EventService } from '../Firestore/event-service';
 import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { CompanyService } from '../Firestore/company-service';
@@ -23,6 +23,7 @@ import {
   isDateInWorkPeriod,
   isEventAtOrBeforeWorkingMonth,
   isWorkMonthAfterCurrent,
+  getCurrentAppliedFromMonth,
 } from './event-id-service';
 import type { InsuranceChangeKey } from './event-id-service';
 import { DependentChangeEventService } from './dependent-change-event.service';
@@ -304,6 +305,47 @@ export class EmployeeDetailEventService {
     return { createdIds, needsRetroactiveNotice: false };
   }
 
+  /** 社員ライフイベントからの休職開始申請（申請中・申請者=社員） */
+  async createEmployeeLeaveStartApplicationEvent(
+    employeeId: string,
+    before: Employee,
+    params: {
+      leaveTypes: LeaveType;
+      leaveStartDate: Timestamp;
+      leaveEndDate?: Timestamp;
+      lifeEventType: LifeEventType;
+      extraPayload?: Record<string, unknown>;
+    },
+  ): Promise<string | null> {
+    const targetPeriodStart = await this.getTargetPeriodStart();
+    const occurredDate = params.leaveStartDate;
+    const payload = {
+      before: {
+        workStatus: before.workStatus ?? '通常勤務',
+        leaveTypes: before.leaveTypes,
+        leaveStartDate: before.leaveStartDate,
+      },
+      after: {
+        workStatus: '休職中' as const,
+        leaveTypes: params.leaveTypes,
+        leaveStartDate: params.leaveStartDate,
+        ...(params.leaveEndDate ? { leaveEndDate: params.leaveEndDate } : {}),
+      },
+      ...params.extraPayload,
+    };
+    const baseId = buildWorkMonthEventId('勤務状況変更', occurredDate.toDate(), targetPeriodStart);
+    return this.eventService.createEventWithBaseId(employeeId, baseId, {
+      occurredDate,
+      eventType: '勤務状況変更',
+      changeType: '休職開始',
+      lifeEventType: params.lifeEventType,
+      appliedDate: Timestamp.now(),
+      applicantType: '社員',
+      approval: { approvalStatus: '申請中' },
+      payload,
+    });
+  }
+
   async getPendingWorkStatusLeaveEvents(employeeId: string): Promise<Event[]> {
     const events = await this.eventService.getPendingEmployeeEvents(employeeId);
     return events.filter(event =>
@@ -536,6 +578,60 @@ export class EmployeeDetailEventService {
     return { success: true, runIds };
   }
 
+  async createReachAgeInsuranceChangeRuns(
+    employeeId: string,
+    beforeInsurance: EmployeeInsurance | undefined,
+    afterInsurance: EmployeeInsurance,
+    loginEmployeeId: string,
+    reachAgeEventId?: string,
+  ): Promise<{ success: boolean; runIds: string[] }> {
+    const before = beforeInsurance ?? {};
+    const targetPeriodStart = await this.getTargetPeriodStart();
+    const runIds: string[] = [];
+
+    for (const key of INSURANCE_PRIORITY) {
+      if (isInsuranceAcquisition(before[key], afterInsurance[key])) {
+        const detectedDate = afterInsurance[key]?.acquiredDate;
+        if (!detectedDate) return { success: false, runIds };
+
+        const runId = buildInsuranceChangeRunId('資格取得', detectedDate.toDate(), targetPeriodStart, key);
+        const createdRunId = await this.calculationRunService.createAppliedEventQualificationRun(
+          employeeId,
+          runId,
+          '資格取得',
+          key,
+          { before, after: afterInsurance, reachAgeEventId },
+          detectedDate,
+          loginEmployeeId,
+          '一定年齢到達',
+        );
+        if (!createdRunId) return { success: false, runIds };
+        runIds.push(createdRunId);
+      }
+
+      if (isInsuranceLoss(before[key], afterInsurance[key])) {
+        const detectedDate = afterInsurance[key]?.lostDate;
+        if (!detectedDate) return { success: false, runIds };
+
+        const runId = buildInsuranceChangeRunId('資格喪失', detectedDate.toDate(), targetPeriodStart, key);
+        const createdRunId = await this.calculationRunService.createAppliedEventQualificationRun(
+          employeeId,
+          runId,
+          '資格喪失',
+          key,
+          { before, after: afterInsurance, reachAgeEventId },
+          detectedDate,
+          loginEmployeeId,
+          '一定年齢到達',
+        );
+        if (!createdRunId) return { success: false, runIds };
+        runIds.push(createdRunId);
+      }
+    }
+
+    return { success: true, runIds };
+  }
+
   private isSameInsuranceDetail(before?: InsuranceDetail, after?: InsuranceDetail): boolean {
     return JSON.stringify(before ?? null) === JSON.stringify(after ?? null);
   }
@@ -744,9 +840,10 @@ export class EmployeeDetailEventService {
       approval: isFuture
         ? { approvalStatus: '申請中' }
         : {
-          approvalStatus: '承認済み',
+          approvalStatus: '適用済み',
           approvedDate: Timestamp.now(),
           approvedBy: loginEmployeeId,
+          appliedFromMonth: getCurrentAppliedFromMonth(),
         },
       payload,
     });

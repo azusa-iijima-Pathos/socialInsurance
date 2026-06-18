@@ -263,6 +263,13 @@
                         </div>
                     </div>
                 </div>
+                <div class="im-field-block im-field-row employee-edit-field" *ngIf="birthForm.get('leaveTypes')?.value !== 'なし'">
+                    <div class="im-field-row__label"><label for="leaveEndDate">終了予定日</label></div>
+                    <div class="im-field-row__control">
+                        <input id="leaveEndDate" type="date" formControlName="leaveEndDate">
+                        <p class="employee-detail-field-note">任意入力</p>
+                    </div>
+                </div>
             </div>
 
             <ng-container *ngIf="birthForm.get('type')?.value === '育児'">

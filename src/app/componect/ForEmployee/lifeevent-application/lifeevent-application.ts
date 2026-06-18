@@ -20,18 +20,19 @@ import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { Employee } from '../../../model/employee';
 import { DependentService } from '../../../service/Firestore/dependent-service';
 import { EventService } from '../../../service/Firestore/event-service';
-import { parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
+import { parseDateInputValue, timestampFromDateInput, optionalTimestampFromDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
 import { Event } from '../../../model/event';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { CREATE_MESSAGES } from '../../../constants/constants';
 import { ValidationService } from '../../../service/common/validation-service';
 import { CompanyService } from '../../../service/Firestore/company-service';
-import { buildEventId, getWorkMonthForDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { getWorkMonthForDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import {
   DependentChangeEventService,
   getDependentChangeEffectiveDateInput,
 } from '../../../service/logic/dependent-change-event.service';
+import { EmployeeDetailEventService } from '../../../service/logic/employee-detail-event-service';
 import { Router } from '@angular/router';
 
 type LifeEventTab = 'marriage' | 'birth' | 'name' | 'dependent';
@@ -75,6 +76,7 @@ export class LifeeventApplication {
   private validationService = inject(ValidationService);
   private companyService = inject(CompanyService);
   private dependentChangeEventService = inject(DependentChangeEventService);
+  private employeeDetailEventService = inject(EmployeeDetailEventService);
 
   RELATIONSHIPS = RELATIONSHIPS;
   COHABITATION_TYPES = COHABITATION_TYPES;
@@ -101,6 +103,7 @@ export class LifeeventApplication {
     leaveTypes: ['産前産後' as '産前産後' | '育児' | 'なし', [Validators.required]],
     isMultipleBirth: [false],
     resignationDate: [''],
+    leaveEndDate: [''],
     childBirthDate: ['', [Validators.required]],
     dependents: this.fb.array<FormGroup>([]),
   },
@@ -268,6 +271,7 @@ export class LifeeventApplication {
     const lifeEventType = this.birthForm.get('type')!.value as LifeEventType;
     const leaveTypes = this.mapLeaveTypes(this.birthForm.get('leaveTypes')!.value);
     const leaveStart = this.birthForm.get('resignationDate')!.value;
+    const leaveEnd = this.birthForm.get('leaveEndDate')!.value;
     let created = 0;
 
     const afterEmployee: Employee = {
@@ -286,41 +290,59 @@ export class LifeeventApplication {
           this.dateValidMessage = '休職開始日は現在の作業月以降の日付を指定してください';
           return;
         }
-      }
 
-      const expectedBirthDate = parseDateInputValue(this.birthForm.get('childBirthDate')!.value);
-      const leaveEvent: Partial<Event> = {
-        eventType: '勤務状況変更',
-        lifeEventType,
-        appliedDate: Timestamp.now(),
-        applicantType: '社員',
-        approval: { approvalStatus: '申請中' },
-        payload: { before: this.employee, after: afterEmployee, expectedBirthDate: Timestamp.fromDate(expectedBirthDate), isMultipleBirth: this.birthForm.get('isMultipleBirth')!.value ?? false },
-      };
+        const expectedBirthDate = parseDateInputValue(this.birthForm.get('childBirthDate')!.value);
+        const leaveEndDate = optionalTimestampFromDateInput(leaveEnd);
+        const leaveCreated = await this.employeeDetailEventService.createEmployeeLeaveStartApplicationEvent(
+          this.loginEmployeeId,
+          this.employee!,
+          {
+            leaveTypes,
+            leaveStartDate: timestampFromDateInput(leaveStart),
+            ...(leaveEndDate ? { leaveEndDate } : {}),
+            lifeEventType,
+            extraPayload: {
+              expectedBirthDate: Timestamp.fromDate(expectedBirthDate),
+              isMultipleBirth: this.birthForm.get('isMultipleBirth')!.value ?? false,
+            },
+          },
+        );
 
-      let leaveCreated = false;
-      if (leaveTypes && leaveStart) {
-        leaveEvent.occurredDate = timestampFromDateInput(leaveStart);
-        await this.companyService.getCompany();
-        const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
-        const leaveEventBaseId = buildEventId('勤務状況変更', '社員', {
-          occurredDate: parseDateInputValue(leaveStart),
-          targetPeriodStart,
-        });
-        leaveCreated = !!(await this.eventService.createEventWithBaseId(this.loginEmployeeId, leaveEventBaseId, leaveEvent));
+        if (leaveCreated) {
+          created++;
+        } else {
+          this.resetBirthForm();
+          this.resetDependentChangeForm();
+          this.showMessage(`申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
+          return;
+        }
       } else {
+        const leaveEvent: Partial<Event> = {
+          eventType: '勤務状況変更',
+          lifeEventType,
+          appliedDate: Timestamp.now(),
+          applicantType: '社員',
+          approval: { approvalStatus: '申請中' },
+          payload: {
+            before: this.employee,
+            after: afterEmployee,
+            expectedBirthDate: Timestamp.fromDate(parseDateInputValue(this.birthForm.get('childBirthDate')!.value)),
+            isMultipleBirth: this.birthForm.get('isMultipleBirth')!.value ?? false,
+          },
+        };
+
         const occurredDate = leaveStart || this.birthForm.get('childBirthDate')!.value;
         leaveEvent.occurredDate = timestampFromDateInput(occurredDate);
-        leaveCreated = !!(await this.eventService.createEvent(this.loginEmployeeId, leaveEvent));
-      }
+        const leaveCreated = !!(await this.eventService.createEvent(this.loginEmployeeId, leaveEvent));
 
-      if (leaveCreated) {
-        created++;
-      } else {
-        this.resetBirthForm();
-        this.resetDependentChangeForm();
-        this.showMessage(`申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
-        return;
+        if (leaveCreated) {
+          created++;
+        } else {
+          this.resetBirthForm();
+          this.resetDependentChangeForm();
+          this.showMessage(`申請に失敗しました。${CREATE_MESSAGES.FAILED}`);
+          return;
+        }
       }
     }
 
@@ -808,6 +830,7 @@ export class LifeeventApplication {
       leaveTypes: '産前産後',
       isMultipleBirth: false,
       resignationDate: '',
+      leaveEndDate: '',
       childBirthDate: '',
     });
     this.birthForm.get('resignationDate')?.clearValidators();

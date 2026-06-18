@@ -272,6 +272,54 @@
   overflow-x: auto;
 }
 
+.employee-detail-events-table-wrap--scroll {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.employee-approval-modal--hire {
+  max-width: 1080px;
+}
+
+.hire-approval-modal__body {
+  display: grid;
+  gap: var(--im-size-12);
+}
+
+.hire-approval-modal__summary {
+  margin: 0;
+}
+
+.hire-approval-modal__grade-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-12);
+}
+
+.hire-approval-modal__insurance-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--im-size-12);
+}
+
+.hire-approval-compact-field .im-field-row__label {
+  min-width: 4.5rem;
+}
+
+.hire-approval-dependent-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-8);
+}
+
+@media (max-width: 768px) {
+  .hire-approval-modal__grade-row,
+  .hire-approval-modal__insurance-row,
+  .hire-approval-dependent-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .employee-detail-events-table {
   width: 100%;
   border-collapse: collapse;
@@ -288,6 +336,17 @@
 .employee-detail-events-table th {
   background: var(--im-color-gray-50);
   font-weight: 600;
+}
+
+.employee-detail-events-table__row--rejected > td {
+  background: var(--im-color-gray-100);
+  color: var(--im-color-slate-500);
+}
+
+.employee-detail-events-table__row--rejected .im-btn-muted {
+  color: var(--im-color-slate-500);
+  background: var(--im-color-gray-150);
+  border-color: var(--im-color-gray-300);
 }
 
 .employee-detail-events-actions {
