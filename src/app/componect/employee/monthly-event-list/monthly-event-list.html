@@ -1,4 +1,4 @@
-<div class="im-page-shell">
+<div class="im-page-shell monthly-event-list-page">
   <h1 class="page-title">月別イベント一覧</h1>
 
   <div class="information-area">
@@ -197,6 +197,11 @@
         </tbody>
       </table>
     </div>
+    <div class="monthly-event-list-export" *ngIf="dependentChangeEvents.length > 0">
+      <button type="button" class="im-btn-soft" (click)="exportDependentAcquisitionCsv()">CSV（取得）</button>
+      <button type="button" class="im-btn-soft" (click)="exportDependentLossCsv()">CSV（喪失）</button>
+      <button type="button" class="im-btn-soft" (click)="exportDependentChangeCsv()">CSV（変更）</button>
+    </div>
   </section>
 
   <!-- 勤務状況変更 -->
@@ -236,6 +241,99 @@
             <td>{{ getApprovalStatus(event) }}</td>
             <td>{{ getApproverName(event) }}</td>
             <td>{{ getApprovalDate(event) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="monthly-event-list-export" *ngIf="workStatusChangeEvents.length > 0">
+      <button type="button" class="im-btn-soft" (click)="exportMaternityLeaveCsv()">CSV（産休）</button>
+      <button type="button" class="im-btn-soft" (click)="exportParentalLeaveCsv()">CSV（育休）</button>
+    </div>
+  </section>
+
+  <!-- 保険 -->
+  <section class="employee-detail-section employee-detail-events">
+    <h2 class="section-title">保険</h2>
+    <div *ngIf="insuranceRuns.length === 0" class="employee-detail-empty">データがありません</div>
+    <div class="employee-detail-events-table-wrap" *ngIf="insuranceRuns.length > 0">
+      <table class="employee-detail-events-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>社員ID</th>
+            <th>氏名</th>
+            <th>種別</th>
+            <th>理由</th>
+            <th>保険</th>
+            <th>適用月</th>
+            <th>検出日</th>
+            <th>承認状況</th>
+            <th>承認者</th>
+            <th>承認日</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let run of insuranceRuns">
+            <td class="employee-detail-events-table__actions">
+              <button type="button" class="im-btn-muted" (click)="showInsuranceRunDetail(run)">詳細</button>
+            </td>
+            <td>{{ run.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                {{ getEmployeeName(run.employeeId) }}
+              </a>
+            </td>
+            <td>{{ getInsuranceHistoryTypeLabel(run) }}</td>
+            <td>{{ getInsuranceHistoryReasonLabel(run) }}</td>
+            <td>{{ getInsuranceHistoryInsuranceLabel(run) }}</td>
+            <td>{{ getInsuranceHistoryAppliedMonth(run) }}</td>
+            <td>{{ commonService.formatDate(run.detectedDate) }}</td>
+            <td>{{ getApprovalStatus(run) }}</td>
+            <td>{{ commonService.getEmployeeName(run.approval?.approvedBy ?? '') || '—' }}</td>
+            <td>{{ run.approval?.approvedDate ? commonService.formatDateTime(run.approval?.approvedDate) : '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="monthly-event-list-export" *ngIf="insuranceRuns.length > 0">
+      <button type="button" class="im-btn-soft" (click)="exportInsuranceAcquisitionCsv()">CSV（取得）</button>
+      <button type="button" class="im-btn-soft" (click)="exportInsuranceLossCsv()">CSV（喪失）</button>
+    </div>
+  </section>
+
+  <!-- 従業員からの申請 -->
+  <section class="employee-detail-section employee-detail-events">
+    <h2 class="section-title">従業員からの申請</h2>
+    <div *ngIf="employeeApplicationEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
+    <div class="employee-detail-events-table-wrap" *ngIf="employeeApplicationEvents.length > 0">
+      <table class="employee-detail-events-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>社員ID</th>
+            <th>氏名</th>
+            <th>種別</th>
+            <th>理由</th>
+            <th>事象発生日</th>
+            <th>申請日</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let event of employeeApplicationEvents">
+            <td class="employee-detail-events-table__actions">
+              <button type="button" class="im-btn-muted" *ngIf="canShowEventDetail(event)"
+                (click)="showEventDetail(event)">詳細</button>
+            </td>
+            <td>{{ event.employeeId }}</td>
+            <td>
+              <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
+                {{ getEmployeeName(event.employeeId) }}
+              </a>
+            </td>
+            <td>{{ event.eventType }}</td>
+            <td>{{ getReasonLabel(event) }}</td>
+            <td>{{ commonService.formatDate(event.occurredDate) }}</td>
+            <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
           </tr>
         </tbody>
       </table>
@@ -301,6 +399,72 @@
       </table>
     </div>
   </section>
+</div>
+
+<!-- 保険情報変更履歴 詳細モーダル -->
+<div class="employee-edit-modal" *ngIf="insuranceHistoryDetailModalOpen && reviewingInsuranceHistoryRun">
+  <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
+    <div class="employee-edit-modal__header">
+      <h2>保険情報変更の詳細</h2>
+    </div>
+    <div class="employee-approval-modal__body" *ngIf="reviewingInsuranceHistoryRun.type === '算定基礎'">
+      <dl class="employee-detail-info-grid">
+        <div class="employee-detail-info-grid__item">
+          <dt>対象年</dt>
+          <dd>{{ reviewingInsuranceHistoryRun.payload?.['year'] ?? '—' }}</dd>
+        </div>
+        <div class="employee-detail-info-grid__item">
+          <dt>現在等級</dt>
+          <dd>{{ reviewingInsuranceHistoryRun.payload?.['currentGrade'] ?? '—' }}</dd>
+        </div>
+        <div class="employee-detail-info-grid__item">
+          <dt>算定等級</dt>
+          <dd>{{ reviewingInsuranceHistoryRun.payload?.['calculatedGrade'] ?? '—' }}</dd>
+        </div>
+        <div class="employee-detail-info-grid__item">
+          <dt>反映等級</dt>
+          <dd>{{ reviewingInsuranceHistoryRun.payload?.['approvedGrade'] ?? '—' }}</dd>
+        </div>
+      </dl>
+    </div>
+    <div class="employee-approval-modal__body" *ngIf="reviewingInsuranceHistoryRun.runId?.startsWith('等級変更_')">
+      <dl class="employee-detail-info-grid">
+        <div class="employee-detail-info-grid__item">
+          <dt>変更前等級</dt>
+          <dd>{{ getInsuranceHistoryGradeChange(reviewingInsuranceHistoryRun).before ?? '—' }}</dd>
+        </div>
+        <div class="employee-detail-info-grid__item">
+          <dt>変更後等級</dt>
+          <dd>{{ getInsuranceHistoryGradeChange(reviewingInsuranceHistoryRun).after ?? '—' }}</dd>
+        </div>
+      </dl>
+    </div>
+    <div class="employee-approval-modal__body" *ngIf="insuranceHistoryDraft">
+      <dl class="employee-detail-info-grid">
+        <div class="employee-detail-info-grid__item">
+          <dt>発生理由</dt>
+          <dd>{{ getApprovalModalTypeLabel() }}</dd>
+        </div>
+        <div class="employee-detail-info-grid__item">
+          <dt>タイプ</dt>
+          <dd>{{ getInsuranceHistoryTypeLabel(reviewingInsuranceHistoryRun) }}</dd>
+        </div>
+        <div class="employee-detail-info-grid__item">
+          <dt>事象発生日</dt>
+          <dd>{{ getInsuranceChangeDetectedDateLabel(reviewingInsuranceHistoryRun) }}</dd>
+        </div>
+      </dl>
+      <div class="employee-approval-insurance-block"
+        *ngFor="let item of getInsuranceChangeDetailItems(reviewingInsuranceHistoryRun, insuranceHistoryDraft)">
+        <h3>{{ item.insuranceName }}</h3>
+        <p>{{ item.changeTypeLabel }}</p>
+        <p *ngIf="item.dateLabel !== '—'">{{ item.dateLabel }}：{{ item.dateValue }}</p>
+      </div>
+    </div>
+    <div class="employee-edit-actions">
+      <button type="button" class="im-btn-soft" (click)="closeInsuranceHistoryDetail()">閉じる</button>
+    </div>
+  </div>
 </div>
 
 <!-- イベント詳細モーダル -->

@@ -1,5 +1,6 @@
 <span *ngIf="!isOutputMode">
-    <h2>保険料確認　{{ workingYear }}年{{ workingMonth }}月分 </h2>
+    <h1>保険料確認</h1>
+    <h3>対象期間：{{ commonService.targetPeriod() }} </h3>
 </span>
 <span *ngIf="isOutputMode">
     <h2>確定済み保険料確認</h2>
@@ -76,10 +77,9 @@
                 <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()">CSV出力（保険料）</button>
 
                 <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()">CSV出力（給与含む）</button>
-                <button *ngIf="!editMode && !isDone" class="im-btn-primary"
-                    (click)="editInsurance()">保険料修正</button>
-                <button *ngIf="!editMode && !isDone" class="im-btn-primary"
-                    (click)="confirmInsurance()" style="margin-left: auto;">保険料確定</button>
+                <button *ngIf="!editMode && !isDone" class="im-btn-primary" (click)="editInsurance()">保険料修正</button>
+                <button *ngIf="!editMode && !isDone" class="im-btn-primary" (click)="confirmInsurance()"
+                    style="margin-left: auto;">保険料確定</button>
             </div>
         </div>
 
@@ -118,7 +118,8 @@
                         <td>{{ employee.hasPayrollData ? ((employee.fixedSalary |number) + '円') : '未入力' }}</td>
                         <td rowspan="2" class="insurance-confirm-grade-cell">
                             <span>{{ employee.grade ? (employee.grade + '等級') : '未設定' }}</span>
-                            <small *ngIf="employee.gradeNote" class="insurance-confirm-grade-note">{{ employee.gradeNote }}</small>
+                            <small *ngIf="employee.gradeNote" class="insurance-confirm-grade-note">{{ employee.gradeNote
+                                }}</small>
                         </td>
                         <td class="insurance-confirm-merged-top">
                             <input *ngIf="editMode && employee.hasPayrollData" class="insurance-confirm-edit-input"
@@ -245,10 +246,8 @@
             <button *ngIf="editMode" class="im-btn-soft" (click)="cancelEditInsurance()">キャンセル</button>
             <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()">CSV出力（保険料）</button>
             <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()">CSV出力（給与含む）</button>
-            <button *ngIf="!editMode && !isDone" class="im-btn-primary"
-                (click)="editInsurance()">保険料修正</button>
-            <button *ngIf="!editMode && !isDone" class="im-btn-primary"
-                (click)="confirmInsurance()">保険料確定</button>
+            <button *ngIf="!editMode && !isDone" class="im-btn-primary" (click)="editInsurance()">保険料修正</button>
+            <button *ngIf="!editMode && !isDone" class="im-btn-primary" (click)="confirmInsurance()">保険料確定</button>
         </div>
 
         <h3>保険料会社合計</h3>

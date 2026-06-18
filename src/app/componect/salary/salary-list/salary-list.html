@@ -6,8 +6,13 @@
 
     <ng-container *ngIf="correctionMode && !isBonus">
         <div *ngIf="isEmptyCorrectionMonth()" class="salary-correction-empty-state">
-            <p class="salary-correction-empty-message">給与情報は未登録です。追加する場合は下記より追加をお願いします。</p>
-
+            <p class="salary-correction-empty-message">給与情報は未登録です。下記より追加し、確定ボタンを押してください。</p>
+           
+            <div class="salary-correction-confirm-actions">
+                <p *ngIf="confirmLockMessage" class="im-action-message">{{ confirmLockMessage }}</p>
+                <button type="button" class="im-btn-primary" (click)="confirmCorrectionPayrollMonth()">確定</button>
+            </div>
+            
             <div class="monthly-salary-registration-layout salary-correction-registration-layout">
             <section class="monthly-salary-registration-card monthly-salary-registration-card--csv">
                 <app-monthly-salary-csv
@@ -154,10 +159,7 @@
             </section>
             </div>
 
-            <div class="salary-correction-confirm-actions">
-                <p *ngIf="confirmLockMessage" class="im-action-message">{{ confirmLockMessage }}</p>
-                <button type="button" class="im-btn-primary" (click)="confirmCorrectionPayrollMonth()">確定</button>
-            </div>
+
         </div>
 
         <div *ngIf="hasCorrectionPayrollData()" class="monthly-salary-list-container__content">

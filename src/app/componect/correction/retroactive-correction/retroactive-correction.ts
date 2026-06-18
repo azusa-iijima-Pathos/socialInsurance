@@ -11,7 +11,7 @@ import { CalculationRunService } from '../../../service/Firestore/calculation-ru
 import { EventService } from '../../../service/Firestore/event-service';
 import { Employee, EmployeeInsurance, InsuranceDetail } from '../../../model/employee';
 import { LeaveType, WorkStatus } from '../../../constants/model-constants';
-import { addMonths, buildCurrentWorkMonthEventId, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { addMonths, buildWorkMonthEventId, getCurrentAppliedFromMonth, getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { InsuranceFormService, InsuranceName, InsuranceStatus } from '../../../service/logic/insurance-form.service';
 import { parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
@@ -20,6 +20,8 @@ import { CompanyService } from '../../../service/Firestore/company-service';
 import { DependentService } from '../../../service/Firestore/dependent-service';
 import { Dependent } from '../../../model/dependent';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
+import { EmployeeDetailEventService } from '../../../service/logic/employee-detail-event-service';
+import { wasEmployedOnDate } from '../../../service/logic/employee-enrollment.util';
 
 type RetroactiveTab = 'insurance' | 'fixedSalary' | 'leave';
 
@@ -47,6 +49,7 @@ export class RetroactiveCorrection {
   commonService = inject(CommonService);
   private router = inject(Router);
   private companyService = inject(CompanyService);
+  private employeeDetailEventService = inject(EmployeeDetailEventService);
 
   eligibleEmployeesForApplyDate: Employee[] = [];
 
@@ -118,12 +121,9 @@ export class RetroactiveCorrection {
       this.eligibleEmployeesForApplyDate = [];
       return;
     }
-    await this.companyService.getCompany();
-    const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(parseDateInputValue(applyDate));
-    const payrollId = this.correctionLogicService.getPayrollId(applyMonth.year, applyMonth.month);
-    const bounds = await this.correctionLogicService.getPayrollPeriodBounds(payrollId);
+    const date = parseDateInputValue(applyDate);
     this.eligibleEmployeesForApplyDate = this.employeeService.allEmployees().filter(employee =>
-      this.correctionLogicService.wasEmployedInPayrollPeriod(employee, bounds.periodStart, bounds.periodEnd),
+      wasEmployedOnDate(employee, date),
     );
   }
 
@@ -228,6 +228,7 @@ export class RetroactiveCorrection {
     }
 
     this.refreshInsuranceValidatorsForApplyDate();
+    this.applyCurrentGradeRule();
   }
 
   getLeaveEndDisplay(): string {
@@ -259,23 +260,30 @@ export class RetroactiveCorrection {
       return false;
     }
 
-    const requireConfirmed = this.activeTab !== 'fixedSalary';
-    const error = await this.correctionLogicService.validateRetroactiveApplyDate(
-      this.selectedEmployee.employeeId,
-      parseDateInputValue(applyDateValue),
-      requireConfirmed,
-    );
+    const applyDate = parseDateInputValue(applyDateValue);
 
-    if (error) {
-      this.form.controls.applyDate.setErrors({ retroactiveApplyDate: true });
-      this.form.controls.applyDate.markAsTouched();
-      this.showMessage(error);
-      return false;
+    if (this.activeTab === 'fixedSalary') {
+      const error = await this.correctionLogicService.validateRetroactiveApplyDate(
+        this.selectedEmployee.employeeId,
+        applyDate,
+        false,
+      );
+      if (error) {
+        this.form.controls.applyDate.setErrors({ retroactiveApplyDate: true });
+        this.form.controls.applyDate.markAsTouched();
+        return false;
+      }
+    } else if (this.activeTab === 'insurance') {
+      if (!wasEmployedOnDate(this.selectedEmployee, applyDate)) {
+        this.form.controls.applyDate.setErrors({ notEmployedOnDate: true });
+        this.form.controls.applyDate.markAsTouched();
+        return false;
+      }
     }
 
     const existingErrors = this.form.controls.applyDate.errors;
-    if (existingErrors?.['retroactiveApplyDate']) {
-      const { retroactiveApplyDate: _, ...rest } = existingErrors;
+    if (existingErrors?.['retroactiveApplyDate'] || existingErrors?.['notEmployedOnDate']) {
+      const { retroactiveApplyDate: _, notEmployedOnDate: __, ...rest } = existingErrors;
       this.form.controls.applyDate.setErrors(Object.keys(rest).length ? rest : null);
     }
 
@@ -307,6 +315,7 @@ export class RetroactiveCorrection {
       }
       if (this.form.hasError('healthInsuranceDependency')) return false;
       if (!this.validateInsuranceDateMatchesApplyDate()) return false;
+      if (!this.validateInsuranceDatesEnrolled()) return false;
     }
 
     if (this.activeTab === 'fixedSalary') {
@@ -331,6 +340,7 @@ export class RetroactiveCorrection {
         this.form.controls.leaveEndDate.markAsTouched();
         return false;
       }
+      if (!this.validateLeaveDatesEnrolled()) return false;
     }
 
     return !!this.selectedEmployee;
@@ -385,6 +395,52 @@ export class RetroactiveCorrection {
     return isValid;
   }
 
+  private validateInsuranceDatesEnrolled(): boolean {
+    const employee = this.selectedEmployee;
+    if (!employee) return false;
+
+    for (const name of ['healthInsurance', 'nursingCareInsurance', 'employeePensionInsurance'] as const) {
+      const group = this.form.controls[name];
+      const currentDetail = employee.insurance?.[name];
+      const currentAcquiredDate = this.formatDateInput(currentDetail?.acquiredDate?.toDate());
+      const currentLostDate = this.formatDateInput(currentDetail?.lostDate?.toDate());
+
+      if (group.controls.acquiredDate.value && group.controls.acquiredDate.value !== currentAcquiredDate) {
+        if (!wasEmployedOnDate(employee, parseDateInputValue(group.controls.acquiredDate.value))) {
+          this.showMessage('この期間に在籍していません');
+          return false;
+        }
+      }
+
+      if (group.controls.lostDate.value && group.controls.lostDate.value !== currentLostDate) {
+        if (!wasEmployedOnDate(employee, parseDateInputValue(group.controls.lostDate.value))) {
+          this.showMessage('この期間に在籍していません');
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  private validateLeaveDatesEnrolled(): boolean {
+    const employee = this.selectedEmployee;
+    if (!employee) return false;
+
+    const leaveStartDate = this.form.controls.leaveStartDate.value?.trim();
+    const leaveEndDate = this.form.controls.leaveEndDate.value?.trim();
+    const dates = [leaveStartDate, leaveEndDate].filter((value): value is string => Boolean(value));
+
+    for (const dateValue of dates) {
+      if (!wasEmployedOnDate(employee, parseDateInputValue(dateValue))) {
+        this.showMessage('この期間に在籍していません');
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   private applyDateMatchError(control: { value: string; errors: Record<string, unknown> | null; setErrors: (errors: Record<string, unknown> | null) => void; markAsTouched: () => void }, applyDate: string): boolean {
     if (control.value === applyDate) {
       this.clearControlError(control, 'applyDateMismatch');
@@ -433,6 +489,7 @@ export class RetroactiveCorrection {
     const applyDate = parseDateInputValue(this.form.value.applyDate!);
     const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(applyDate);
     const revisionMonth = addMonths(applyMonth.year, applyMonth.month, 3);
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
     const before = { ...selectedEmployee };
     const after: Employee = {
       ...before,
@@ -443,18 +500,9 @@ export class RetroactiveCorrection {
       },
     };
 
-    const updated = await this.employeeService.updateEmployee({
-      employeeId,
-      employmentContract: after.employmentContract,
-    });
-    if (!updated) {
-      this.showMessage(UPDATE_MESSAGES.FAILED);
-      return;
-    }
-
     await this.eventService.createEventWithBaseId(
       employeeId,
-      buildCurrentWorkMonthEventId('固定給変更', applyMonth),
+      buildWorkMonthEventId('固定給変更', applyDate, targetPeriodStart),
       {
         occurredDate: Timestamp.fromDate(applyDate),
         eventType: '固定給変更',
@@ -469,6 +517,15 @@ export class RetroactiveCorrection {
       },
     );
 
+    const updated = await this.employeeService.updateEmployee({
+      employeeId,
+      employmentContract: after.employmentContract,
+    });
+    if (!updated) {
+      this.showMessage(UPDATE_MESSAGES.FAILED);
+      return;
+    }
+
     const runId = await this.calculationRunService.createAdHocRevisionRun(
       employeeId,
       revisionMonth,
@@ -479,7 +536,13 @@ export class RetroactiveCorrection {
       this.showMessage('随時改定の作成に失敗しました');
       return;
     }
-    this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定を確認してください。`);
+
+    const applied = await this.calculationRunService.markRunApplied(runId, loginEmployeeId);
+    if (!applied) {
+      this.showMessage('随時改定の適用に失敗しました');
+      return;
+    }
+    this.showMessage(`固定給を${UPDATE_MESSAGES.SUCCESS}。随時改定を作成しました。`);
 
     await this.employeeService.getAllEmployees(true);
     await this.refreshSelectedEmployee();
@@ -519,7 +582,36 @@ export class RetroactiveCorrection {
    * 遡及修正を承認する
    */
   async approvePreview() {
-    if (!this.selectedEmployee || this.previewRows.length === 0) return;
+    if (!this.selectedEmployee) return;
+
+    const createDifferenceAdjustment = this.previewRows.length > 0;
+    const applied = await this.applyCorrectionChanges(createDifferenceAdjustment);
+    if (!applied) {
+      return;
+    }
+
+    this.previewModalOpen = false;
+    if (createDifferenceAdjustment) {
+      this.showMessage(`${UPDATE_MESSAGES.SUCCESS}（${this.previewRows.length}件の差額調整を作成しました）`);
+    } else {
+      this.showMessage(UPDATE_MESSAGES.SUCCESS);
+    }
+    await this.employeeService.getAllEmployees(true);
+    await this.refreshSelectedEmployee();
+  }
+
+  getNoDifferenceOnlyChangeLabel(): string {
+    switch (this.activeTab) {
+      case 'leave': return '産休・育休情報のみ変更します。';
+      default: return '保険情報のみ変更します。';
+    }
+  }
+
+  /**
+   * 保険・休職の変更内容を反映する（差額調整は任意）
+   */
+  private async applyCorrectionChanges(createDifferenceAdjustment: boolean): Promise<boolean> {
+    if (!this.selectedEmployee) return false;
 
     const employeeId = this.selectedEmployee.employeeId;
     const beforeEmployee = { ...this.selectedEmployee };
@@ -527,12 +619,74 @@ export class RetroactiveCorrection {
     const working = getWorkingYearMonth();
     const sourceType = this.getSourceTypeLabel();
     const loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? sessionStorage.getItem('employeeId') ?? '';
-    const applyMonth = await this.getCorrectionStartMonth();
+    const beforeInsurance = beforeEmployee.insurance;
+    const afterInsurance = afterEmployee.insurance!;
+    const gradeChanged = (beforeInsurance?.currentGrade ?? 0) !== (afterInsurance.currentGrade ?? 0);
+    const qualChanged = this.employeeDetailEventService.hasInsuranceQualificationChange(beforeInsurance, afterInsurance);
+
+    if (this.activeTab === 'insurance' && (qualChanged || gradeChanged)) {
+      const rejected = await this.employeeDetailEventService.confirmAndRejectPendingInsuranceChanges(
+        employeeId,
+        beforeInsurance,
+        afterInsurance,
+        loginEmployeeId,
+      );
+      if (!rejected) {
+        return false;
+      }
+
+      let gradeChangeRunId: string | null | undefined;
+      if (gradeChanged) {
+        const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+        gradeChangeRunId = await this.employeeDetailEventService.resolveGradeChangeRunId(
+          employeeId,
+          parseDateInputValue(this.form.value.applyDate!),
+          targetPeriodStart,
+        );
+        if (gradeChangeRunId === null) {
+          return false;
+        }
+      }
+
+      const gradeChange = gradeChanged
+        ? {
+          beforeGrade: beforeInsurance?.currentGrade ?? 0,
+          afterGrade: afterInsurance.currentGrade ?? 0,
+          applicationDate: timestampFromDateInput(this.form.value.applyDate!),
+        }
+        : null;
+      const runResult = await this.employeeDetailEventService.createInsuranceChangeRuns(
+        employeeId,
+        beforeInsurance,
+        afterInsurance,
+        gradeChange,
+        loginEmployeeId,
+        gradeChangeRunId,
+        null,
+      );
+      if (!runResult.success) {
+        this.showMessage('保険情報のシステム計算作成に失敗しました');
+        return false;
+      }
+    }
+
+    if (this.activeTab === 'leave') {
+      const leaveEventsCreated = await this.createLeaveWorkStatusEvents(
+        employeeId,
+        beforeEmployee,
+        afterEmployee,
+        loginEmployeeId,
+      );
+      if (!leaveEventsCreated) {
+        this.showMessage('勤務状況変更イベントの作成に失敗しました');
+        return false;
+      }
+    }
 
     let updated = false;
     if (this.activeTab === 'insurance') {
       updated = await this.employeeService.updateEmployeeInsurance(employeeId, afterEmployee.insurance!);
-    } else {
+    } else if (this.activeTab === 'leave') {
       updated = await this.employeeService.updateEmployee({
         employeeId,
         workStatus: afterEmployee.workStatus,
@@ -542,44 +696,29 @@ export class RetroactiveCorrection {
 
     if (!updated) {
       this.showMessage(UPDATE_MESSAGES.FAILED);
-      return;
-    }
-
-    if (this.activeTab === 'leave') {
-      const leaveEventsCreated = await this.createLeaveWorkStatusEvents(
-        employeeId,
-        beforeEmployee,
-        afterEmployee,
-        applyMonth,
-        loginEmployeeId,
-      );
-      if (!leaveEventsCreated) {
-        this.showMessage('勤務状況変更イベントの作成に失敗しました');
-        return;
-      }
+      return false;
     }
 
     if (this.activeTab === 'insurance' && !afterEmployee.insurance?.healthInsurance?.joined) {
       const dependentsUpdated = await this.updateDependentsToNotDependent(employeeId);
       if (!dependentsUpdated) {
         this.showMessage('扶養情報の更新に失敗しました');
-        return;
+        return false;
       }
     }
 
-    await this.calculationRunService.createMonthlyDifferenceAdjustmentRuns(
-      employeeId,
-      sourceType,
-      this.previewRemark,
-      working,
-      this.previewRows,
-      { before: beforeEmployee, after: afterEmployee },
-    );
+    if (createDifferenceAdjustment && this.previewRows.length > 0) {
+      await this.calculationRunService.createMonthlyDifferenceAdjustmentRuns(
+        employeeId,
+        sourceType,
+        this.previewRemark,
+        working,
+        this.previewRows,
+        { before: beforeEmployee, after: afterEmployee },
+      );
+    }
 
-    this.previewModalOpen = false;
-    this.showMessage(`${UPDATE_MESSAGES.SUCCESS}（${this.previewRows.length}件の差額調整を作成しました）`);
-    await this.employeeService.getAllEmployees(true);
-    await this.refreshSelectedEmployee();
+    return true;
   }
 
   /**
@@ -656,13 +795,13 @@ export class RetroactiveCorrection {
     employeeId: string,
     beforeEmployee: Employee,
     afterEmployee: Employee,
-    applyMonth: { year: number; month: number },
     loginEmployeeId: string,
   ): Promise<boolean> {
     const leaveStartDate = this.form.controls.leaveStartDate.value?.trim();
     const leaveEndDate = this.form.controls.leaveEndDate.value?.trim();
     const previousStart = this.leaveStartFromEvent ? this.formatDateInput(this.leaveStartFromEvent) : '';
     const previousEnd = this.leaveEndFromEvent ? this.formatDateInput(this.leaveEndFromEvent) : '';
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
 
     if (leaveStartDate && leaveStartDate !== previousStart) {
       const before: Employee = {
@@ -674,18 +813,21 @@ export class RetroactiveCorrection {
         workStatus: '休職中',
         leaveTypes: afterEmployee.leaveTypes,
       };
+      const occurredDate = timestampFromDateInput(leaveStartDate);
       const created = await this.eventService.createEventWithBaseId(
         employeeId,
-        buildCurrentWorkMonthEventId('勤務状況変更', applyMonth),
+        buildWorkMonthEventId('勤務状況変更', occurredDate.toDate(), targetPeriodStart),
         {
-          occurredDate: timestampFromDateInput(leaveStartDate),
+          occurredDate,
           eventType: '勤務状況変更',
+          changeType: '休職開始',
           appliedDate: Timestamp.now(),
           applicantType: '管理者',
           approval: {
-            approvalStatus: '承認済み',
+            approvalStatus: '適用済み',
             approvedDate: Timestamp.now(),
             approvedBy: loginEmployeeId,
+            appliedFromMonth: getCurrentAppliedFromMonth(),
           },
           payload: { before, after },
         },
@@ -704,18 +846,21 @@ export class RetroactiveCorrection {
         workStatus: '通常勤務',
         leaveTypes: null,
       };
+      const occurredDate = timestampFromDateInput(leaveEndDate);
       const created = await this.eventService.createEventWithBaseId(
         employeeId,
-        buildCurrentWorkMonthEventId('勤務状況変更', applyMonth),
+        buildWorkMonthEventId('勤務状況変更', occurredDate.toDate(), targetPeriodStart),
         {
-          occurredDate: timestampFromDateInput(leaveEndDate),
+          occurredDate,
           eventType: '勤務状況変更',
+          changeType: '休職終了',
           appliedDate: Timestamp.now(),
           applicantType: '管理者',
           approval: {
-            approvalStatus: '承認済み',
+            approvalStatus: '適用済み',
             approvedDate: Timestamp.now(),
             approvedBy: loginEmployeeId,
+            appliedFromMonth: getCurrentAppliedFromMonth(),
           },
           payload: { before, after },
         },
@@ -757,6 +902,11 @@ export class RetroactiveCorrection {
   }
 
   private applyCurrentGradeRule() {
+    const healthStatus = this.form.controls.healthInsurance.controls.joined.value;
+    this.insuranceFormService.updateCurrentGradeValidators(
+      this.form.controls.currentGrade,
+      healthStatus,
+    );
     if (this.areAllInsuranceStatusesNotJoined()) {
       this.form.controls.currentGrade.setValue(0, { emitEvent: false });
     }

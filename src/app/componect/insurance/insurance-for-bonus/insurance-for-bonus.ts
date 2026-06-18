@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { Payroll } from '../../../model/payroll';
 import { PayrollService } from '../../../service/Firestore/payroll-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
-import { Employee, InsuranceDetail } from '../../../model/employee';
+import { Employee } from '../../../model/employee';
 import { OfficeService } from '../../../service/Firestore/office-service';
 import { CommonService } from '../../../service/common/common-service';
 import { InsuranceRates } from '../../../service/Firestore/insurance-rates';
@@ -20,11 +20,18 @@ import { CalculationRunService } from '../../../service/Firestore/calculation-ru
 import { CalculationRun } from '../../../model/calculation-run';
 import { InsuranceDisplayService, InsuranceNoticeSummary, OfficeInsuranceSummary } from '../../../service/logic/insurance-display.service';
 import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
+import { AnnouncementLogicService } from '../../../service/logic/announcement-logic.service';
 import {
   isMaternityOrChildcareLeaveOverlappingPeriod,
   resolvePayrollTargetPeriodBounds,
 } from '../../../service/logic/leave-insurance.util';
 import { CompanyService } from '../../../service/Firestore/company-service';
+import {
+  resolveBonusTargetMonthFromPaymentDate,
+  shouldCollectBonusInsurancePremium,
+} from '../../../service/logic/insurance-premium-collection.util';
+import { parseMonthlyPayrollId } from '../../../service/logic/employee-enrollment.util';
+import { InsuranceFormService } from '../../../service/logic/insurance-form.service';
 
 type BonusInsurance = {
   employeeId: string;
@@ -92,7 +99,9 @@ export class InsuranceForBonus {
   private calculationRunService = inject(CalculationRunService);
   private insuranceDisplayService = inject(InsuranceDisplayService);
   private correctionLogicService = inject(CorrectionLogicService);
+  private announcementLogicService = inject(AnnouncementLogicService);
   private companyService = inject(CompanyService);
+  private insuranceFormService = inject(InsuranceFormService);
 
   payrollId = '';
   targetYearMonth = '';
@@ -350,6 +359,28 @@ export class InsuranceForBonus {
       const isHealthBonusLimitExceeded = healthStandardBonusAmount < standardBonusAmount;
       const prefecture = await this.officeService.getOfficeLocation(employee.employmentContract?.officeId ?? '');
       const rate = prefecture ? await this.getInsuranceRate(prefecture) : null;
+      const bonusTargetMonth = this.resolveBonusTargetMonth(bonus);
+      const shouldCollectHealth = bonusTargetMonth
+        ? shouldCollectBonusInsurancePremium(
+          employee.insurance?.healthInsurance,
+          bonusTargetMonth.year,
+          bonusTargetMonth.month,
+        )
+        : false;
+      const shouldCollectNursing = bonusTargetMonth
+        ? shouldCollectBonusInsurancePremium(
+          employee.insurance?.nursingCareInsurance ?? employee.insurance?.healthInsurance,
+          bonusTargetMonth.year,
+          bonusTargetMonth.month,
+        )
+        : false;
+      const shouldCollectPension = bonusTargetMonth
+        ? shouldCollectBonusInsurancePremium(
+          employee.insurance?.employeePensionInsurance,
+          bonusTargetMonth.year,
+          bonusTargetMonth.month,
+        )
+        : false;
 
       const healthInsuranceCompanyRate = employee.insurance?.healthInsurance?.companyBurdenRate ?? 50;
       const nursingCareInsuranceCompanyRate = employee.insurance?.nursingCareInsurance?.companyBurdenRate ?? 50;
@@ -363,17 +394,17 @@ export class InsuranceForBonus {
       let nursingCareInsuranceForEmployee = this.roundEmployeeBurden(nursingCareInsurance * ((100 - nursingCareInsuranceCompanyRate) / 100));
       let pensionInsuranceForEmployee = this.roundEmployeeBurden(pensionInsurance * ((100 - pensionInsuranceCompanyRate) / 100));
 
-      if (!employee.insurance?.healthInsurance?.joined || this.isLostInTargetMonth(employee.insurance?.healthInsurance)) {
+      if (!shouldCollectHealth) {
         healthInsurance = 0;
         nursingCareInsurance = 0;
         healthInsuranceForEmployee = 0;
         nursingCareInsuranceForEmployee = 0;
       }
-      if (!employee.insurance?.nursingCareInsurance?.joined || this.isLostInTargetMonth(employee.insurance?.nursingCareInsurance ?? employee.insurance?.healthInsurance)) {
+      if (!shouldCollectNursing) {
         nursingCareInsurance = 0;
         nursingCareInsuranceForEmployee = 0;
       }
-      if (!employee.insurance?.employeePensionInsurance?.joined || this.isLostInTargetMonth(employee.insurance?.employeePensionInsurance)) {
+      if (!shouldCollectPension) {
         pensionInsurance = 0;
         pensionInsuranceForEmployee = 0;
       }
@@ -446,7 +477,9 @@ export class InsuranceForBonus {
   private async getInsuranceRate(prefecture: string) {
     const targetYear = this.getInsuranceMasterYear();
     await this.insuranceRates.getRateData(targetYear);
-    return this.insuranceRates.getApplicableRateData(targetYear, this.targetYearMonth).find(rate => rate.prefecture === prefecture) ?? null;
+    const masterYear = await this.insuranceRates.resolveRateMasterYearForMonth(this.targetYearMonth);
+    return this.insuranceRates.getRateDataForCalculation(masterYear, this.targetYearMonth)
+      .find(rate => rate.prefecture === prefecture || rate.prefectureJa === prefecture) ?? null;
   }
 
   private getInsuranceMasterYear() {
@@ -497,20 +530,22 @@ export class InsuranceForBonus {
     };
   }
 
+  private resolveBonusTargetMonth(bonus?: Payroll): { year: number; month: number } | null {
+    const paymentDate = bonus?.paymentDate?.toDate();
+    if (paymentDate) {
+      return resolveBonusTargetMonthFromPaymentDate(paymentDate);
+    }
+
+    const parsed = parseMonthlyPayrollId(this.targetYearMonth);
+    return parsed ? { year: parsed.year, month: parsed.month } : null;
+  }
+
   private toStandardBonusAmount(amount: number) {
     return Math.floor((Number(amount) || 0) / 1000) * 1000;
   }
 
   private getPayrollYearMonth(payrollId: string) {
     return payrollId.slice(0, 7);
-  }
-
-  private isLostInTargetMonth(insuranceDetail?: InsuranceDetail) {
-    const lostDate = insuranceDetail?.lostDate?.toDate();
-    if (!lostDate) return false;
-
-    const lostYearMonth = `${lostDate.getFullYear()}-${String(lostDate.getMonth() + 1).padStart(2, '0')}`;
-    return lostYearMonth === this.targetYearMonth;
   }
 
   private applyDraft(employeeInsurance: BonusInsurance) {
@@ -644,16 +679,19 @@ export class InsuranceForBonus {
       console.error('賞与の編集ロックを保存できませんでした');
       return;
     }
+    await this.announcementLogicService.createFromBonusConfirmation(this.payrollId);
     this.editButtonDisabled = true;
   }
 
   private createInsuranceSnapshot(employeeInsurance: BonusInsurance): Partial<InsuranceSnapshot> {
+    const employee = this.employeeData.find(item => item.employeeId === employeeInsurance.employeeId);
     return {
       snapshotId: this.payrollId,
       employeeId: employeeInsurance.employeeId,
       payrollId: this.payrollId,
       type: '賞与',
       grade: employeeInsurance.grade.toString(),
+      insuranceEnrollmentStatuses: this.insuranceFormService.buildEnrollmentStatuses(employee?.insurance),
       insurancePayments: [
         {
           insuranceType: '健康保険',

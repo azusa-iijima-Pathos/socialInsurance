@@ -5,7 +5,7 @@ import { CommonModule } from '@angular/common';
 import { ValidationService } from '../../../service/common/validation-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { EmployeeInsurance } from '../../../model/employee';
+import { Employee, EmployeeInsurance } from '../../../model/employee';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
 import { AddInsuranceCsv } from '../add-insurance-csv/add-insurance-csv';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -14,6 +14,13 @@ import { DependentService } from '../../../service/Firestore/dependent-service';
 import { Dependent } from '../../../model/dependent';
 import { InsuranceFormService, InsuranceName, InsuranceStatus } from '../../../service/logic/insurance-form.service';
 import { ReachAgeService } from '../../../service/logic/reach-age';
+
+export type EmployeeInsuranceOverviewRow = {
+  employeeId: string;
+  employeeName: string;
+  currentGrade: string;
+  insuranceSummary: string;
+};
 
 @Component({
   selector: 'app-add-insurance-info',
@@ -36,8 +43,13 @@ export class AddInsuranceInfo {
   private insuranceFormService = inject(InsuranceFormService);
 
   mode = this.route.snapshot.queryParamMap.get('mode');
+  initialStep = this.route.snapshot.queryParamMap.get('step');
+  isWorkingMonthStep = this.mode === 'initial' && this.initialStep === 'workingMonth';
 
   messageTimer: MessageTimer = null;
+
+  employeeOverviewRows: EmployeeInsuranceOverviewRow[] = [];
+  overviewLoading = false;
 
   workingMonthForm = this.fb.nonNullable.group({
     workingYear: [new Date().getFullYear(), [Validators.required, Validators.min(1900), Validators.max(9999)]],
@@ -75,12 +87,22 @@ export class AddInsuranceInfo {
   message: string = '';
 
   async ngOnInit() { 
+    if (this.isWorkingMonthStep) {
+      await this.prepareWorkingMonthStep();
+      this.workingMonthForm.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.syncWorkingMonthSavedState());
+      return;
+    }
+
     await this.employeeService.getAllEmployees();
+    await this.loadEmployeeInsuranceOverviews();
     this.setupInsuranceDetailControls('healthInsurance');
     this.setupInsuranceDetailControls('nursingCareInsurance');
     this.setupInsuranceDetailControls('employeePensionInsurance');
     this.setupInsuranceDependencyRules();
     this.insuranceFormService.setupSharedInsuranceNumberSync(this.form, this.destroyRef);
+    this.applyCurrentGradeRule();
   }
 
   private setupInsuranceDependencyRules() {
@@ -131,6 +153,10 @@ export class AddInsuranceInfo {
     );
   }
 
+  async onCsvRegistered() {
+    await this.loadEmployeeInsuranceOverviews();
+  }
+
   async onSubmit() {
     this.insuranceFormService.syncSharedInsuranceNumbers(this.form);
     this.form.updateValueAndValidity({ emitEvent: false });
@@ -161,9 +187,15 @@ export class AddInsuranceInfo {
     }
     this.commonService.showTimedMessage(`社員ID：${this.form.value.employeeId}　${this.commonService.getEmployeeName(this.form.value.employeeId!)}さんの保険情報を${UPDATE_MESSAGES.SUCCESS}`, value => this.message = value, this.messageTimer);
     await this.employeeService.getAllEmployees(true);
+    await this.loadEmployeeInsuranceOverviews();
   }
 
   private applyCurrentGradeRule() {
+    const healthStatus = this.form.controls.healthInsurance.controls.joined.value;
+    this.insuranceFormService.updateCurrentGradeValidators(
+      this.form.controls.currentGrade,
+      healthStatus,
+    );
     if (this.areAllInsuranceStatusesNotJoined()) {
       this.form.controls.currentGrade.setValue(0, { emitEvent: false });
     }
@@ -195,13 +227,15 @@ export class AddInsuranceInfo {
     this.router.navigate(['/permission-setting'], { queryParams: { mode: 'initial' } });
   }
 
-  isShowModal: boolean = false;
   isComplete: boolean = false;
+  isWorkingMonthSaved = false;
+  private savedWorkingYear?: number;
+  private savedWorkingMonth?: number;
   companyId = sessionStorage.getItem('companyId')!;
-  // トップ画面へ進む
-  async toStartStart() {
-    this.isShowModal = true;
+
+  async prepareWorkingMonthStep() {
     this.isComplete = false;
+    this.isWorkingMonthSaved = false;
     await this.companyService.getCompany(true);
     const companySettings = this.companyService.company()?.settings;
     if (companySettings) {
@@ -212,18 +246,54 @@ export class AddInsuranceInfo {
       if (companySettings.workingMonth) {
         this.workingMonthForm.patchValue({ workingMonth: companySettings.workingMonth });
       }
+      if (companySettings.workingYear && companySettings.workingMonth) {
+        this.savedWorkingYear = companySettings.workingYear;
+        this.savedWorkingMonth = companySettings.workingMonth;
+        this.syncWorkingMonthSavedState();
+      }
     }
   }
 
-  closeWorkingMonthModal() {
-    this.isShowModal = false;
+  private syncWorkingMonthSavedState() {
+    const { workingYear, workingMonth } = this.workingMonthForm.getRawValue();
+    this.isWorkingMonthSaved =
+      this.savedWorkingYear === workingYear &&
+      this.savedWorkingMonth === workingMonth;
+  }
+
+  async loadEmployeeInsuranceOverviews() {
+    this.overviewLoading = true;
+    try {
+      await this.employeeService.getAllEmployees(true);
+      const employees = this.employeeService.allEmployees();
+      this.employeeOverviewRows = employees.map(employee => ({
+        employeeId: employee.employeeId,
+        employeeName: `${employee.firstName ?? ''} ${employee.lastName ?? ''}`.trim() || '—',
+        currentGrade: employee.insurance?.currentGrade != null ? String(employee.insurance.currentGrade) : '—',
+        insuranceSummary: this.formatInsuranceSummary(employee),
+      }));
+    } finally {
+      this.overviewLoading = false;
+    }
+  }
+
+  formatInsuranceSummary(employee: Employee): string {
+    const insurance = employee.insurance;
+    if (!insurance) return '未登録';
+
+    const parts = [
+      `健康:${this.insuranceFormService.getStatusForDisplay(insurance.healthInsurance)}`,
+      `介護:${this.insuranceFormService.getStatusForDisplay(insurance.nursingCareInsurance)}`,
+      `厚生:${this.insuranceFormService.getStatusForDisplay(insurance.employeePensionInsurance)}`,
+    ];
+    return parts.join('／');
   }
 
   toSetting() {
     this.router.navigate(['/company-setting'], { queryParams: { mode: 'initial' } });
   }
 
-  async setWorkingMonthAndGoTop() {
+  async setWorkingMonth() {
     if (this.workingMonthForm.invalid) {
       this.workingMonthForm.markAllAsTouched();
       return;
@@ -246,11 +316,24 @@ export class AddInsuranceInfo {
     sessionStorage.setItem('workingYear', workingYear.toString());
     sessionStorage.setItem('workingMonth', workingMonth.toString());
     await this.reachAgeService.createEvent();
-    this.router.navigate(['/top-for-manage']);
+    await this.commonService.refreshTargetPeriod();
+    this.savedWorkingYear = workingYear;
+    this.savedWorkingMonth = workingMonth;
+    this.syncWorkingMonthSavedState();
+    this.commonService.showTimedMessage(UPDATE_MESSAGES.SUCCESS, value => this.message = value, this.messageTimer);
+  }
+
+  goToPastSalary() {
+    if (!this.isWorkingMonthSaved) return;
+    this.router.navigate(['/salary-correction'], { queryParams: { mode: 'initial' } });
   }
 
   toAddDependents() {
     this.router.navigate(['/add-dependents'], { queryParams: { mode: 'initial' } });
+  }
+
+  toWorkingMonthSetting() {
+    this.router.navigate(['/employee-addInsurance'], { queryParams: { mode: 'initial', step: 'workingMonth' } });
   }
 
 }

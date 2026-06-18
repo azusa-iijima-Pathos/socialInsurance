@@ -1,6 +1,6 @@
 import { Component, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Company, CompanySettings } from '../../../model/company';
 import { CompanyService } from '../../../service/Firestore/company-service';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
@@ -45,7 +45,7 @@ export class Setting {
     bonusMonth1: [null as number | null, [Validators.min(1), Validators.max(12)]],
     bonusMonth2: [null as number | null, [Validators.min(1), Validators.max(12)]],
     bonusMonth3: [null as number | null, [Validators.min(1), Validators.max(12)]],
-  });
+  }, { validators: [group => this.bonusMonthsGroupValidator(group)] });
 
   ngOnInit() {
     this.companyService.getCompany();
@@ -64,7 +64,29 @@ export class Setting {
     this.updateBonusMonthControls(this.form.value.bonus!);
     this.form.controls.bonus.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(bonus => this.updateBonusMonthControls(bonus));
+      .subscribe(bonus => {
+        this.updateBonusMonthControls(bonus);
+        this.form.updateValueAndValidity();
+      });
+
+    for (const controlName of ['bonusMonth1', 'bonusMonth2', 'bonusMonth3'] as const) {
+      this.form.controls[controlName].valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.form.updateValueAndValidity({ emitEvent: false }));
+    }
+  }
+
+  private bonusMonthsGroupValidator(group: AbstractControl): ValidationErrors | null {
+    if (!group.get('bonus')?.value) return null;
+
+    const raw = group.getRawValue();
+    const hasValidMonth = [raw.bonusMonth1, raw.bonusMonth2, raw.bonusMonth3].some(month => {
+      if (month === null || month === undefined) return false;
+      const numericMonth = Number(month);
+      return Number.isFinite(numericMonth) && numericMonth >= 1 && numericMonth <= 12;
+    });
+
+    return hasValidMonth ? null : { bonusMonthsRequired: true };
   }
 
   private updateBonusMonthControls(bonus: boolean) {
@@ -73,12 +95,6 @@ export class Setting {
       this.form.controls.bonusMonth2,
       this.form.controls.bonusMonth3,
     ];
-
-    this.form.controls.bonusMonth1.setValidators(
-      bonus
-        ? [Validators.required, Validators.min(1), Validators.max(12)]
-        : [Validators.min(1), Validators.max(12)]
-    );
 
     for (const control of bonusMonthControls) {
       if (bonus) {
@@ -100,24 +116,34 @@ export class Setting {
       this.form.markAllAsTouched();
       return;
     }
+
+    const raw = this.form.getRawValue();
+    const bonusMonths = raw.bonus
+      ? [raw.bonusMonth1, raw.bonusMonth2, raw.bonusMonth3]
+        .filter((month): month is number => month !== null && month !== undefined)
+        .map(month => Number(month))
+        .filter(month => month >= 1 && month <= 12)
+      : [];
+
+    if (raw.bonus && bonusMonths.length === 0) {
+      this.form.markAllAsTouched();
+      this.message = 'ボーナスありの場合、ボーナス支払い月を1つ以上入力してください';
+      this.commonService.showTimedMessage(this.message, value => this.message = value, this.messageTimer);
+      return;
+    }
+
     const setting: Partial<CompanySettings> = {
-      salaryInputFormat: this.form.value.salaryInputFormat! as 1 | 2,
-      paymentMonth: this.form.value.paymentMonth! as '当月' | '翌月',
-      paymentDate: this.form.value.paymentDate!,
+      salaryInputFormat: raw.salaryInputFormat as 1 | 2,
+      paymentMonth: raw.paymentMonth as '当月' | '翌月',
+      paymentDate: raw.paymentDate,
       targetPeriod: [
-        this.form.value.targetPeriodStart! ,
-        this.calculateTargetPeriodEnd(this.form.value.targetPeriodStart! ),
+        raw.targetPeriodStart,
+        this.calculateTargetPeriodEnd(raw.targetPeriodStart),
       ],
       // insuranceCloseingMonth: this.form.value.insuranceCloseingMonth! as '当月' | '翌月',
       // insuranceCloseingDate: this.form.value.insuranceCloseingDate!,
-      bonus: this.form.value.bonus!,
-      bonusMonths: this.form.value.bonus
-        ? [
-          this.form.value.bonusMonth1!,
-          this.form.value.bonusMonth2!,
-          this.form.value.bonusMonth3!,
-        ].filter(month => month !== null && month !== undefined)
-        : [],
+      bonus: raw.bonus,
+      bonusMonths,
     };
     const result = await this.companyService.updateCompanySettings(this.companyId!, setting);
     if (!result) {

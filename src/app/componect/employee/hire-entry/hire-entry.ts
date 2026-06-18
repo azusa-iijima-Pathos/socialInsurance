@@ -1071,7 +1071,42 @@ export class HireEntry {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(status => {
         this.insuranceFormService.syncSubInsuranceStatusesWithHealth(insuranceForm, status);
+        this.applyCurrentGradeRule();
       });
+
+    for (const name of ['nursingCareInsurance', 'employeePensionInsurance'] as const) {
+      insuranceForm.controls[name].controls.joined.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.applyCurrentGradeRule());
+    }
+
+    this.applyCurrentGradeRule();
+  }
+
+  private applyCurrentGradeRule() {
+    const insuranceForm = this.form.controls.insurance;
+    const healthStatus = insuranceForm.controls.healthInsurance.controls.joined.value;
+    this.insuranceFormService.updateCurrentGradeValidators(
+      insuranceForm.controls.currentGrade,
+      healthStatus,
+    );
+    if (this.areAllInsuranceStatusesNotJoined()) {
+      insuranceForm.controls.currentGrade.setValue(0, { emitEvent: false });
+    }
+  }
+
+  private areAllInsuranceStatusesNotJoined(): boolean {
+    const insuranceForm = this.form.controls.insurance;
+    return insuranceForm.controls.healthInsurance.controls.joined.value === 'notJoined'
+      && insuranceForm.controls.nursingCareInsurance.controls.joined.value === 'notJoined'
+      && insuranceForm.controls.employeePensionInsurance.controls.joined.value === 'notJoined';
+  }
+
+  getInsuranceGradeError(): string | null {
+    return this.insuranceFormService.getControlErrorMessage(
+      this.form.get('insurance.currentGrade'),
+      '等級',
+    );
   }
 
   isSubInsuranceJoinedDisabled(): boolean {

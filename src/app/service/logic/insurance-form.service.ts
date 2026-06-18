@@ -1,7 +1,8 @@
 import { DestroyRef, Injectable } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { AbstractControl, FormGroup, ValidationErrors, Validators } from '@angular/forms';
+import { AbstractControl, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { EmployeeInsurance, InsuranceDetail } from '../../model/employee';
+import { InsuranceEnrollmentStatuses } from '../../model/insurance-snapshot';
 import { Timestamp } from '@angular/fire/firestore';
 import { timestampFromDateInput, isValidDateInputValue } from '../common/date-input.util';
 
@@ -33,6 +34,23 @@ export class InsuranceFormService {
     if (detail.joined) return 'joined';
     if (detail.lostDate) return 'lost';
     return 'notJoined';
+  }
+
+  /** 確定スナップショット用の各保険加入状態 */
+  buildEnrollmentStatuses(insurance?: EmployeeInsurance): InsuranceEnrollmentStatuses {
+    return {
+      healthInsurance: this.getStatusValue(insurance?.healthInsurance),
+      nursingCareInsurance: this.getStatusValue(insurance?.nursingCareInsurance),
+      employeePensionInsurance: this.getStatusValue(insurance?.employeePensionInsurance),
+    };
+  }
+
+  getEnrollmentStatusLabel(status?: InsuranceStatus): string {
+    switch (status) {
+      case 'joined': return '加入';
+      case 'lost': return '喪失';
+      default: return '未加入';
+    }
   }
 
   toFormValue(detail?: InsuranceDetail): InsuranceFormValue {
@@ -112,6 +130,27 @@ export class InsuranceFormService {
     }
     return null;
   };
+
+  /** 健康保険の加入状態に応じた標準報酬等級のバリデータ */
+  getCurrentGradeValidators(healthStatus: InsuranceStatus): ValidatorFn[] {
+    const minGrade = healthStatus === 'joined' ? 1 : 0;
+    return [Validators.required, Validators.min(minGrade), Validators.max(50)];
+  }
+
+  updateCurrentGradeValidators(currentGradeControl: AbstractControl, healthStatus: InsuranceStatus) {
+    currentGradeControl.setValidators(this.getCurrentGradeValidators(healthStatus));
+    currentGradeControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /** 健康保険加入時に等級が1以上か検証（フォーム外のドラフト・CSV用） */
+  validateGradeForHealthJoined(healthStatus: InsuranceStatus, grade: number | null | undefined): string | null {
+    if (healthStatus !== 'joined') return null;
+    const normalized = Number(grade);
+    if (!Number.isFinite(normalized) || normalized < 1) {
+      return '健康保険が加入の場合、等級は1以上で入力してください';
+    }
+    return null;
+  }
 
   /** 介護保険番号を健康保険番号に合わせ、厚生年金番号を必要に応じて自動入力する */
   syncSharedInsuranceNumbers(form: FormGroup, forcePensionNumber = false) {
@@ -226,15 +265,20 @@ export class InsuranceFormService {
     if (!needsInsuranceDetail) {
       numberControl.setValue('', { emitEvent: false });
       acquiredDateControl.setValue('', { emitEvent: false });
-      if (!needsLostDate) {
-        lostDateControl.setValue('', { emitEvent: false });
-      }
+      lostDateControl.setValue('', { emitEvent: false });
     }
 
-    for (const control of [numberControl, acquiredDateControl, lostDateControl, companyBurdenRateControl]) {
+    for (const control of [numberControl, acquiredDateControl, companyBurdenRateControl]) {
       control.enable({ emitEvent: false });
       control.updateValueAndValidity({ emitEvent: false });
     }
+
+    if (forbidsLostDate || !needsInsuranceDetail) {
+      lostDateControl.disable({ emitEvent: false });
+    } else {
+      lostDateControl.enable({ emitEvent: false });
+    }
+    lostDateControl.updateValueAndValidity({ emitEvent: false });
   }
 
   getControlErrorMessage(control: AbstractControl | null | undefined, label: string): string | null {

@@ -45,7 +45,7 @@ export type EmployeeEventType = typeof EMPLOYEE_EVENT_TYPES[number];
 /**
 * ライフイベントタイプ
 */
-export const LIFE_EVENT_TYPES = ['入社', '退社', '結婚', '離婚', '出産', '育児', 'その他'] as const;
+export const LIFE_EVENT_TYPES = ['入社', '退社', '結婚', '離婚', '出産', '育児', '雇用形態変更','その他'] as const;
 export type LifeEventType = typeof LIFE_EVENT_TYPES[number];
 
 /**
@@ -117,8 +117,20 @@ export type StudentType = typeof STUDENT_TYPES[number];
 /**
 * 計算タイプ
 */
-export const CALCULATION_TYPES = ['資格取得', '資格喪失', '算定基礎', '随時改定', 'イベント', '賞与', '差額調整','その他'] as const;
+export const CALCULATION_TYPES = ['資格取得', '資格喪失', '算定基礎', '随時改定', 'イベント', '賞与', '差額調整', 'その他'] as const;
 export type CalculationType = typeof CALCULATION_TYPES[number];
+
+/**
+ * 届け出チェックリスト
+ */
+export const ANNOUNCEMENT_TYPES = ['保険変更', '産休育休', '扶養変更', '随時改定', '賞与保険', '算定基礎'] as const;
+export type AnnouncementType = typeof ANNOUNCEMENT_TYPES[number];
+
+export const ANNOUNCEMENT_SUB_TYPES = ['取得', '喪失', '変更'] as const;
+export type AnnouncementSubType = typeof ANNOUNCEMENT_SUB_TYPES[number];
+
+export const ANNOUNCEMENT_REASONS = ['入社', '退社', '雇用契約情報変更', '結婚', '離婚', '出産', '育児'] as const;
+export type AnnouncementReason = typeof ANNOUNCEMENT_REASONS[number];
 
 /**
 * 権限（閲覧、申請、承認の権限管理）

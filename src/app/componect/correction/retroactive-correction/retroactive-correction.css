@@ -93,6 +93,12 @@
   overflow-x: auto;
 }
 
+.retroactive-preview-no-diff-message {
+  margin: var(--im-size-16) 0;
+  line-height: 1.6;
+  text-align: center;
+}
+
 .retroactive-preview-table .retroactive-preview-row--values td {
   vertical-align: middle;
 }

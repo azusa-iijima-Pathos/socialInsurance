@@ -16,10 +16,13 @@ import {
   isMaternityOrChildcareLeaveOverlappingPeriod,
   resolvePayrollTargetPeriodBounds,
 } from './leave-insurance.util';
+import {
+  shouldCollectInsurancePremium,
+} from './insurance-premium-collection.util';
 import { CalculationRun } from '../../model/calculation-run';
 import { Payroll } from '../../model/payroll';
 import { parseDateInputValue } from '../common/date-input.util';
-import { buildPayrollPeriodBounds, parseMonthlyPayrollId, wasEmployedInPeriod } from './employee-enrollment.util';
+import { buildPayrollPeriodBounds, parseMonthlyPayrollId, wasEmployedInPeriod, wasEmployedOnDate } from './employee-enrollment.util';
 
 export type MonthlyInsuranceDiff = {
   payrollId: string;
@@ -196,6 +199,26 @@ export class CorrectionLogicService {
     return paymentMonthNumber;
   }
 
+  /** 作業月の直前から過去Nか月のオプション（初期設定の過去給与登録用） */
+  getMonthsBeforeWorkMonth(count = 6): { label: string; year: number; month: number; payrollId: string }[] {
+    const working = getWorkingYearMonth();
+    let year = working.year;
+    let month = working.month;
+    const options: { label: string; year: number; month: number; payrollId: string }[] = [];
+    for (let i = 0; i < count; i++) {
+      const prev = addMonths(year, month, -1);
+      year = prev.year;
+      month = prev.month;
+      options.push({
+        label: `${year}年${month}月`,
+        year,
+        month,
+        payrollId: this.getPayrollId(year, month),
+      });
+    }
+    return options;
+  }
+
   /** 過去Nか月の作業月オプション（先頭=現在作業月） */
   getPastYearMonthOptions(count = 12): { label: string; year: number; month: number; payrollId: string }[] {
     const working = getWorkingYearMonth();
@@ -221,23 +244,13 @@ export class CorrectionLogicService {
     const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
     if (!employee) return '従業員が見つかりません';
 
-    const hire = employee.hireDate?.toDate();
-    if (hire) {
-      const hireDate = new Date(hire);
-      hireDate.setHours(0, 0, 0, 0);
-      const apply = new Date(applyDate);
-      apply.setHours(0, 0, 0, 0);
-      if (apply < hireDate) {
-        return '適用日が入社日より前になります';
-      }
+    const apply = new Date(applyDate);
+    apply.setHours(0, 0, 0, 0);
+    if (!wasEmployedOnDate(employee, apply)) {
+      return 'この期間に在籍していません';
     }
 
     const applyMonth = await this.getWorkMonthForInputDate(applyDate);
-    const payrollId = this.getPayrollId(applyMonth.year, applyMonth.month);
-    const bounds = await this.getPayrollPeriodBounds(payrollId);
-    if (!this.wasEmployedInPayrollPeriod(employee, bounds.periodStart, bounds.periodEnd)) {
-      return '該当社員はこの期間に在籍していません';
-    }
 
     const working = getWorkingYearMonth();
     const applyKey = applyMonth.year * 12 + applyMonth.month;
@@ -498,28 +511,42 @@ export class CorrectionLogicService {
     }
 
     const grade = insurance.currentGrade ?? 0;
-
-    if (!prefecture || !grade || !insurance.healthInsurance?.joined || insurance.healthInsurance?.lostDate) {
+    const parsedPayrollMonth = parseMonthlyPayrollId(payrollId);
+    if (!prefecture || !grade || !parsedPayrollMonth) {
       return { health: 0, nursing: 0, pension: 0 };
     }
 
-    const rates = await this.employeeLogicService.getInsuranceRate(prefecture, grade, payrollId);
-    if (!rates) {
+    const shouldCollectHealth = shouldCollectInsurancePremium(
+      insurance.healthInsurance,
+      parsedPayrollMonth.year,
+      parsedPayrollMonth.month,
+    );
+    const shouldCollectNursing = shouldCollectInsurancePremium(
+      insurance.nursingCareInsurance,
+      parsedPayrollMonth.year,
+      parsedPayrollMonth.month,
+    );
+    const shouldCollectPension = shouldCollectInsurancePremium(
+      insurance.employeePensionInsurance,
+      parsedPayrollMonth.year,
+      parsedPayrollMonth.month,
+    );
+
+    if (!shouldCollectHealth && !shouldCollectNursing && !shouldCollectPension) {
       return { health: 0, nursing: 0, pension: 0 };
     }
 
-    const nursing = insurance.nursingCareInsurance?.joined && !insurance.nursingCareInsurance?.lostDate
-      ? rates.nursingCare
-      : 0;
-    const pension = insurance.employeePensionInsurance?.joined && !insurance.employeePensionInsurance?.lostDate
-      ? rates.pension
-      : 0;
+    try {
+      const rates = await this.employeeLogicService.getInsuranceRate(prefecture, grade, payrollId);
 
-    return {
-      health: rates.healthInsurance,
-      nursing,
-      pension,
-    };
+      return {
+        health: shouldCollectHealth ? rates.healthInsurance : 0,
+        nursing: shouldCollectNursing ? rates.nursingCare : 0,
+        pension: shouldCollectPension ? rates.pension : 0,
+      };
+    } catch {
+      return { health: 0, nursing: 0, pension: 0 };
+    }
   }
 
   /** 差額調整runは都度最新を取得（同一画面内で複数回修正するためキャッシュしない） */

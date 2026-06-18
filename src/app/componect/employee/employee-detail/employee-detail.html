@@ -35,6 +35,16 @@
     <p *ngIf="message" class="im-action-message employee-detail-search-card__message">{{ message }}</p>
 
     <div class="employee-detail-content" *ngIf="selectedEmployee">
+        <div *ngIf="hasPendingSystemCalculationItems()" class="employee-detail-system-run-notice employee-detail-system-run-notice--alert">
+            <p><strong>！システム計算結果が出ています</strong></p>
+            <ul class="employee-detail-system-run-action-list">
+                <li *ngFor="let item of pendingSystemCalculationItems">
+                    <span>・{{ item.label }}</span>
+                    <button type="button" class="im-btn-soft im-btn-sm"
+                        (click)="openPendingSystemCalculationItem(item)">確認</button>
+                </li>
+            </ul>
+        </div>
         <div *ngIf="hasScheduledSystemRunNotices()" class="employee-detail-system-run-notice">
             <p><strong>システム計算予定</strong></p>
             <ul>
@@ -451,11 +461,16 @@
                     <thead>
                         <tr>
                             <th></th>
+                            <th>社員ID</th>
+                            <th>氏名</th>
                             <th>種別</th>
+                            <th>理由</th>
                             <th>保険</th>
                             <th>適用月</th>
                             <th>検出日</th>
                             <th>承認状況</th>
+                            <th>承認者</th>
+                            <th>承認日</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -465,11 +480,16 @@
                                 <button type="button" class="im-btn-muted"
                                     (click)="openInsuranceHistoryDetail(row.run)">詳細</button>
                             </td>
+                            <td>{{ row.employeeId }}</td>
+                            <td>{{ row.employeeName }}</td>
                             <td>{{ row.typeLabel }}</td>
+                            <td>{{ row.reasonLabel }}</td>
                             <td>{{ row.insuranceLabel }}</td>
                             <td>{{ row.appliedMonth }}</td>
                             <td>{{ row.detectedDate }}</td>
                             <td>{{ row.approvalStatus }}</td>
+                            <td>{{ row.approverName }}</td>
+                            <td>{{ row.approvalDate }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -781,15 +801,8 @@
                         <input type="number" id="detailCurrentGrade" formControlName="currentGrade">
                         <p class="employee-detail-field-note">※保険未加入の場合は0で入力してください</p>
                         <div class="error">
-                            <p
-                                *ngIf="insuranceForm.get('currentGrade')?.errors?.['required'] && insuranceForm.get('currentGrade')?.touched">
-                                標準報酬等級は必須です</p>
-                            <p
-                                *ngIf="insuranceForm.get('currentGrade')?.errors?.['min'] && insuranceForm.get('currentGrade')?.touched">
-                                標準報酬等級は0以上です</p>
-                            <p
-                                *ngIf="insuranceForm.get('currentGrade')?.errors?.['max'] && insuranceForm.get('currentGrade')?.touched">
-                                標準報酬等級は50以下です</p>
+                            <p *ngIf="getInsuranceControlError('currentGrade', '標準報酬等級')">
+                                {{ getInsuranceControlError('currentGrade', '標準報酬等級') }}</p>
                         </div>
                     </div>
                 </div>
@@ -1107,6 +1120,20 @@
                     [formGroupName]="i">
                     <div class="employee-dependent-row__fields">
                         <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'detailDependentAppliedDate' + i">適用日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'detailDependentAppliedDate' + i" formControlName="appliedDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('appliedDate')?.errors?.['appliedDateMatch']">
+                                        {{ dependent.get('appliedDate')?.errors?.['appliedDateMatch'] }}
+                                    </p>
+                                    <p *ngIf="dependent.get('appliedDate')?.errors?.['appliedDateInsurancePeriod']">
+                                        {{ dependent.get('appliedDate')?.errors?.['appliedDateInsurancePeriod'] }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
                             <div class="im-field-row__label"><label [for]="'detailDependentName' + i">扶養者名前</label>
                             </div>
                             <div class="im-field-row__control">
@@ -1160,14 +1187,6 @@
                             </div>
                         </div>
                         <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
-                            *ngIf="isExistingDependentRow(i)">
-                            <div class="im-field-row__label"><label [for]="'detailDependentAppliedDate' + i">適用日</label></div>
-                            <div class="im-field-row__control">
-                                <input type="date" [id]="'detailDependentAppliedDate' + i" formControlName="appliedDate">
-                                <p class="employee-detail-field-note">変更がある場合に入力してください</p>
-                            </div>
-                        </div>
-                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
                             *ngIf="isExistingDependentRow(i) && dependent.get('isDependentStatus')?.value === 'notDependent'">
                             <div class="im-field-row__label"><label [for]="'detailDependentEndDate' + i">扶養終了日</label></div>
                             <div class="im-field-row__control">
@@ -1216,7 +1235,8 @@
                                     <label class="im-radio-option" [for]="'detailDependentStatus1_' + i"
                                         [class.im-radio-option--disabled]="!canRegisterDependent()">
                                         <input type="radio" [id]="'detailDependentStatus1_' + i"
-                                            formControlName="isDependentStatus" value="dependent">
+                                            formControlName="isDependentStatus" value="dependent"
+                                            [disabled]="!canRegisterDependent()">
                                         <span>扶養対象</span>
                                     </label>
                                     <label class="im-radio-option" [for]="'detailDependentStatus2_' + i">
@@ -1224,6 +1244,11 @@
                                             formControlName="isDependentStatus" value="notDependent">
                                         <span>扶養対象外</span>
                                     </label>
+                                </div>
+                                <div class="error">
+                                    <p *ngIf="dependent.get('isDependentStatus')?.errors?.['healthInsuranceRequired']">
+                                        健康保険に加入していないため、扶養の登録はできません。
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -1299,9 +1324,19 @@
 <div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'insurance' && insuranceDraft">
     <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
         <div class="employee-edit-modal__header">
-            <h2>雇用形態変更の承認（保険）</h2>
+            <h2>{{ getApprovalModalTypeLabel() }}の承認（保険）</h2>
         </div>
         <div class="employee-approval-modal__body">
+            <dl class="employee-detail-info-grid">
+                <div class="employee-detail-info-grid__item">
+                    <dt>発生理由</dt>
+                    <dd>{{ getApprovalModalTypeLabel() }}</dd>
+                </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>事象発生日</dt>
+                    <dd>{{ getApprovalModalDetectedDate() }}</dd>
+                </div>
+            </dl>
             <dl class="employee-detail-info-grid">
                 <div class="employee-detail-info-grid__item">
                     <dt>現在の等級</dt>
@@ -1319,6 +1354,8 @@
                         [(ngModel)]="insuranceDraft.approvedGrade" [readonly]="!isInsuranceGradeEditable()">
                     <p *ngIf="insuranceDraft.healthStatus === 'notJoined'" class="error">健康保険未加入のため等級は0です</p>
                     <p *ngIf="insuranceDraft.healthStatus === 'lost'" class="error">健康保険喪失のため等級は変更されません</p>
+                    <p *ngIf="insuranceDraft.healthStatus === 'joined' && insuranceDraft.approvedGrade < 1" class="error">
+                        健康保険が加入の場合、等級は1以上で入力してください</p>
                 </div>
             </div>
             <p *ngIf="insuranceApprovalValidationError" class="error">{{ insuranceApprovalValidationError }}</p>
@@ -1510,6 +1547,8 @@
                         <input id="hireApprovalGrade" type="number" min="0" max="50"
                             [(ngModel)]="hireApprovalDraft.currentGrade">
                         <p class="hire-entry-auto-judgement">等級自動判定：{{ hireApprovalDraft.autoGrade ?? '判定不能' }}</p>
+                        <p *ngIf="hireApprovalDraft.healthJoined && hireApprovalDraft.currentGrade < 1" class="error">
+                            健康保険が加入の場合、等級は1以上で入力してください</p>
                     </div>
                 </div>
                 <div class="im-field-block im-field-row hire-approval-compact-field">
@@ -1652,24 +1691,28 @@
         <div class="employee-approval-modal__body" *ngIf="insuranceHistoryDraft">
             <dl class="employee-detail-info-grid">
                 <div class="employee-detail-info-grid__item">
-                    <dt>等級</dt>
-                    <dd>{{ insuranceHistoryDraft.currentGrade }} → {{ insuranceHistoryDraft.autoGrade ?? insuranceHistoryDraft.currentGrade }}</dd>
+                    <dt>発生理由</dt>
+                    <dd>{{ getApprovalModalTypeLabel() }}</dd>
+                </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>タイプ</dt>
+                    <dd>{{ getInsuranceHistoryTypeLabelForRun(reviewingInsuranceHistoryRun) }}</dd>
+                </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>事象発生日</dt>
+                    <dd>{{ getInsuranceChangeDetectedDateLabel(reviewingInsuranceHistoryRun) }}</dd>
                 </div>
             </dl>
-            <div class="employee-approval-insurance-block">
-                <h3>健康保険</h3>
-                <p>{{ getInsuranceStatusLabel(insuranceHistoryDraft.currentHealthStatus) }} → {{ getInsuranceStatusLabel(insuranceHistoryDraft.healthStatus) }}</p>
-            </div>
-            <div class="employee-approval-insurance-block">
-                <h3>介護保険</h3>
-                <p>{{ getInsuranceStatusLabel(insuranceHistoryDraft.currentNursingStatus) }} → {{ getInsuranceStatusLabel(insuranceHistoryDraft.nursingStatus) }}</p>
-            </div>
-            <div class="employee-approval-insurance-block">
-                <h3>厚生年金</h3>
-                <p>{{ getInsuranceStatusLabel(insuranceHistoryDraft.currentPensionStatus) }} → {{ getInsuranceStatusLabel(insuranceHistoryDraft.pensionStatus) }}</p>
+            <div class="employee-approval-insurance-block"
+                *ngFor="let item of getInsuranceChangeDetailItems(reviewingInsuranceHistoryRun, insuranceHistoryDraft)">
+                <h3>{{ item.insuranceName }}</h3>
+                <p>{{ item.changeTypeLabel }}</p>
+                <p *ngIf="item.dateLabel !== '—'">{{ item.dateLabel }}：{{ item.dateValue }}</p>
             </div>
         </div>
         <div class="employee-edit-actions">
+            <button type="button" class="im-btn-soft" *ngIf="isInsuranceHistoryDetailReadOnly() && reviewingInsuranceHistoryRun.approval?.approvalStatus === '申請中'"
+                (click)="rejectInsuranceHistoryDetail()">却下</button>
             <button type="button" class="im-btn-soft" (click)="closeInsuranceHistoryDetail()">閉じる</button>
         </div>
     </div>
@@ -1693,7 +1736,8 @@
     </div>
 </div>
 
-<div *ngIf="!selectedEmployee" style="text-align: center; margin-top: 16px; color: var(--im-color-black);">
+<div *ngIf="!selectedEmployee" class="employee-detail-no-selection">
     <p>社員が選択されていません</p>
     <p>上のプルダウンから社員を選択してください</p>
+    <app-insurance-number-unconfirmed-list></app-insurance-number-unconfirmed-list>
 </div>

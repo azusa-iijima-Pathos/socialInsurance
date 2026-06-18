@@ -3,15 +3,17 @@
     <h1 class="im-title" *ngIf="mode === 'existing'">既存社員の追加登録</h1>
 
     <div class="information-area" *ngIf="!mode">
-        <p>{{ commonService.targetPeriodStartDay() }}以降に入社もしくは入社予定の従業員の情報を登録してください。</p>
+        <p>入社もしくは入社予定の従業員の情報を登録してください。</p>
         <p>扶養情報は従業員が登録することも可能です。（その場合、承認が必要になります。）</p>
+        <p>入社予定で登録の場合、入社予定者一覧より入社の承認が必要です。</p>
         <p>※保険情報は行政の確定前であっても暫定で登録してください。（確定後、保険番号を従業員情報から登録してください。）</p>
-        <p>※{{commonService.targetPeriodStartDay()}}より前に入社している場合は既存社員登録より登録してください。</p>
     </div>
 
     <div class="information-area" *ngIf="mode === 'existing'">
-        <p>既存社員の追加登録をお願いします。</p>
-        <p>{{ commonService.targetPeriodStartDay()}}以降に入社もしくは入社予定の社員については入社処理より登録してください。</p>
+        <p>既存社員の追加登録をお願いします。(保険情報が確定している社員の情報のみ)</p>
+        <p>ここからの追加は、入社や保険取得情報などの管理をおこないません。</p>
+        <p>また、正確な保険料を出すには遡及修正が必要になることがあります。</p>
+        <p>確認の上、必要であれば遡及修正から保険料の遡及修正を行ってください。</p>
     </div>
 
     <p *ngIf="message" class="im-action-message">{{ message }}</p>
@@ -326,15 +328,7 @@
                         <input type="number" id="currentGrade" min="0" max="50" formControlName="currentGrade">
                         <p class="hire-entry-auto-judgement">等級自動判定：{{ autoGradeJudgement ?? '判定不能' }}</p>
                         <div class="error">
-                            <p
-                                *ngIf="form.get('insurance.currentGrade')?.errors?.['required'] && form.get('insurance.currentGrade')?.touched">
-                                現在の等級は必須です</p>
-                            <p
-                                *ngIf="form.get('insurance.currentGrade')?.errors?.['min'] && form.get('insurance.currentGrade')?.touched">
-                                現在の等級は0以上で入力してください</p>
-                            <p
-                                *ngIf="form.get('insurance.currentGrade')?.errors?.['max'] && form.get('insurance.currentGrade')?.touched">
-                                現在の等級は50以下で入力してください</p>
+                            <p *ngIf="getInsuranceGradeError()">{{ getInsuranceGradeError() }}</p>
                         </div>
                     </div>
                 </div>

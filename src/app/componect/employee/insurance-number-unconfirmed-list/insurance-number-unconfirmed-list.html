@@ -1,0 +1,29 @@
+<section class="employee-detail-section employee-detail-events insurance-number-unconfirmed-list">
+  <h2 class="section-title">保険番号未確認者一覧</h2>
+  <p>保険情報が確定し次第、保険情報の再確認と保険番号の入力を行ってください。</p>
+  <div *ngIf="rows.length === 0" class="employee-detail-empty">保険番号未確認の社員はいません</div>
+  <div class="employee-detail-events-table-wrap" *ngIf="rows.length > 0">
+    <table class="employee-detail-events-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>名前</th>
+          <th>資格取得日</th>
+          <th>保険番号未確認の対象保険</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of rows">
+          <td>{{ row.employeeId }}</td>
+          <td>
+            <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: row.employeeId }">
+              {{ row.name }}
+            </a>
+          </td>
+          <td>{{ row.acquiredDates }}</td>
+          <td>{{ row.unconfirmedInsuranceNames }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>

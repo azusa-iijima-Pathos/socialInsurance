@@ -1,0 +1,82 @@
+<div class="submission-checklist">
+  <h4 class="submission-checklist__title">届け出チェックリスト</h4>
+  <p *ngIf="loading" class="employee-detail-empty">読み込み中...</p>
+
+  <ng-container *ngIf="!loading">
+    <section class="submission-checklist__section">
+      <h5 class="submission-checklist__section-title">未チェック</h5>
+      <p *ngIf="uncheckedItems.length === 0" class="employee-detail-empty">未チェックの届け出はありません</p>
+      <div class="employee-detail-events-table-wrap" *ngIf="uncheckedItems.length > 0">
+        <table class="employee-detail-events-table submission-checklist__table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>タイプ</th>
+              <th>サブタイプ</th>
+              <th>理由</th>
+              <th>発生日</th>
+              <th>社員ID</th>
+              <th>氏名</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of uncheckedItems">
+              <td class="employee-detail-events-table__actions">
+                <button type="button" class="im-btn-soft" (click)="markChecked(item)">チェック</button>
+              </td>
+              <td>{{ item.type }}</td>
+              <td>{{ item.subType }}</td>
+              <td>{{ getReasonLabel(item) }}</td>
+              <td>{{ formatOccurredDate(item) }}</td>
+              <td>{{ item.employeeId || '—' }}</td>
+              <td>
+                <a *ngIf="item.employeeId" [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: item.employeeId }">
+                  {{ getEmployeeName(item.employeeId) }}
+                </a>
+                <span *ngIf="!item.employeeId">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="submission-checklist__section">
+      <h5 class="submission-checklist__section-title">チェック済み</h5>
+      <p *ngIf="checkedItems.length === 0" class="employee-detail-empty">チェック済みの届け出はありません</p>
+      <div class="employee-detail-events-table-wrap" *ngIf="checkedItems.length > 0">
+        <table class="employee-detail-events-table submission-checklist__table">
+          <thead>
+            <tr>
+              <th>タイプ</th>
+              <th>サブタイプ</th>
+              <th>理由</th>
+              <th>発生日</th>
+              <th>社員ID</th>
+              <th>氏名</th>
+              <th>チェック者</th>
+              <th>チェック日</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of checkedItems">
+              <td>{{ item.type }}</td>
+              <td>{{ item.subType }}</td>
+              <td>{{ getReasonLabel(item) }}</td>
+              <td>{{ formatOccurredDate(item) }}</td>
+              <td>{{ item.employeeId || '—' }}</td>
+              <td>
+                <a *ngIf="item.employeeId" [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: item.employeeId }">
+                  {{ getEmployeeName(item.employeeId) }}
+                </a>
+                <span *ngIf="!item.employeeId">—</span>
+              </td>
+              <td>{{ getCheckerName(item) }}</td>
+              <td>{{ formatCheckedAt(item) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+</div>

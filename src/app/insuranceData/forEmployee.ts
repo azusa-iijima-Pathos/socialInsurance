@@ -173,6 +173,63 @@ export const PREFECTURE_INSURANCE_RATES_2024 = [
     { id: 'okinawa', year: 2024, prefecture: '沖縄県', healthInsuranceRate: 9.53, nursingCareRate: 1.60, pensionRate: 18.3 },
 ];
 
+
+/**
+ * 協会けんぽ2023（2023-03〜2024-02）
+ */
+export const INSURANCE_RATE_PERIOD_2023 = { effectiveFrom: '2023-03', effectiveTo: '2024-02' };
+export const STANDARD_MONTHLY_REMUNERATION_PERIOD_2023 = { effectiveFrom: '2023-03', effectiveTo: '2024-02' };
+
+export const PREFECTURE_INSURANCE_RATES_2023 = [
+    { id: 'hokkaido', year: 2023, prefecture: '北海道', healthInsuranceRate: 10.29, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'aomori', year: 2023, prefecture: '青森県', healthInsuranceRate: 9.96, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'iwate', year: 2023, prefecture: '岩手県', healthInsuranceRate: 9.63, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'miyagi', year: 2023, prefecture: '宮城県', healthInsuranceRate: 10.11, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'akita', year: 2023, prefecture: '秋田県', healthInsuranceRate: 10.04, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'yamagata', year: 2023, prefecture: '山形県', healthInsuranceRate: 9.71, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'fukushima', year: 2023, prefecture: '福島県', healthInsuranceRate: 9.62, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'ibaraki', year: 2023, prefecture: '茨城県', healthInsuranceRate: 9.72, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'tochigi', year: 2023, prefecture: '栃木県', healthInsuranceRate: 9.88, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'gunma', year: 2023, prefecture: '群馬県', healthInsuranceRate: 9.73, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'saitama', year: 2023, prefecture: '埼玉県', healthInsuranceRate: 9.78, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'chiba', year: 2023, prefecture: '千葉県', healthInsuranceRate: 9.77, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'tokyo', year: 2023, prefecture: '東京都', healthInsuranceRate: 10.00, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'kanagawa', year: 2023, prefecture: '神奈川県', healthInsuranceRate: 10.02, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'niigata', year: 2023, prefecture: '新潟県', healthInsuranceRate: 9.51, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'toyama', year: 2023, prefecture: '富山県', healthInsuranceRate: 9.61, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'ishikawa', year: 2023, prefecture: '石川県', healthInsuranceRate: 9.79, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'fukui', year: 2023, prefecture: '福井県', healthInsuranceRate: 9.87, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'yamanashi', year: 2023, prefecture: '山梨県', healthInsuranceRate: 9.85, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'nagano', year: 2023, prefecture: '長野県', healthInsuranceRate: 9.67, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'gifu', year: 2023, prefecture: '岐阜県', healthInsuranceRate: 9.90, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'shizuoka', year: 2023, prefecture: '静岡県', healthInsuranceRate: 9.75, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'aichi', year: 2023, prefecture: '愛知県', healthInsuranceRate: 10.03, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'mie', year: 2023, prefecture: '三重県', healthInsuranceRate: 9.94, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'shiga', year: 2023, prefecture: '滋賀県', healthInsuranceRate: 9.87, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'kyoto', year: 2023, prefecture: '京都府', healthInsuranceRate: 10.06, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'osaka', year: 2023, prefecture: '大阪府', healthInsuranceRate: 10.29, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'hyogo', year: 2023, prefecture: '兵庫県', healthInsuranceRate: 10.14, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'nara', year: 2023, prefecture: '奈良県', healthInsuranceRate: 10.14, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'wakayama', year: 2023, prefecture: '和歌山県', healthInsuranceRate: 10.19, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'tottori', year: 2023, prefecture: '鳥取県', healthInsuranceRate: 9.94, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'shimane', year: 2023, prefecture: '島根県', healthInsuranceRate: 9.87, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'okayama', year: 2023, prefecture: '岡山県', healthInsuranceRate: 10.18, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'hiroshima', year: 2023, prefecture: '広島県', healthInsuranceRate: 10.03, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'yamaguchi', year: 2023, prefecture: '山口県', healthInsuranceRate: 10.26, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'tokushima', year: 2023, prefecture: '徳島県', healthInsuranceRate: 10.45, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'kagawa', year: 2023, prefecture: '香川県', healthInsuranceRate: 10.16, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'ehime', year: 2023, prefecture: '愛媛県', healthInsuranceRate: 10.08, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'kochi', year: 2023, prefecture: '高知県', healthInsuranceRate: 10.22, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'fukuoka', year: 2023, prefecture: '福岡県', healthInsuranceRate: 10.27, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'saga', year: 2023, prefecture: '佐賀県', healthInsuranceRate: 10.68, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'nagasaki', year: 2023, prefecture: '長崎県', healthInsuranceRate: 10.24, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'kumamoto', year: 2023, prefecture: '熊本県', healthInsuranceRate: 10.13, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'oita', year: 2023, prefecture: '大分県', healthInsuranceRate: 10.14, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'miyazaki', year: 2023, prefecture: '宮崎県', healthInsuranceRate: 9.94, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'kagoshima', year: 2023, prefecture: '鹿児島県', healthInsuranceRate: 10.26, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'okinawa', year: 2023, prefecture: '沖縄県', healthInsuranceRate: 9.51, nursingCareRate: 1.82, pensionRate: 18.3 },
+];
+
   /**
    * 等級マスタ2026
    */
@@ -243,4 +300,12 @@ export const STANDARD_MONTHLY_REMUNERATION_2025 = STANDARD_MONTHLY_REMUNERATION_
 export const STANDARD_MONTHLY_REMUNERATION_2024 = STANDARD_MONTHLY_REMUNERATION_2026.map(item => ({
   ...item,
   year: 2024,
+}));
+
+/**
+ * 等級マスタ2023
+ */
+export const STANDARD_MONTHLY_REMUNERATION_2023 = STANDARD_MONTHLY_REMUNERATION_2026.map(item => ({
+  ...item,
+  year: 2023,
 }));

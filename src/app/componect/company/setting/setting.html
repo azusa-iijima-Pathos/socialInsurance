@@ -6,9 +6,9 @@
         <p>必ず正確に設定を行ってください。</p>
     </div>
 
-<div *ngIf="mode === 'initial'" style="text-align: right;">
+<div *ngIf="mode === 'initial'" style="display: flex; justify-content: flex-end;">
     <button type="button" class="im-btn-primary" (click)="toEmployeePermissionSetting()">
-        従業員権限設定へ▶</button>
+        権限設定へ▶</button>
 </div>
 
     <form class="im-fields-grid im-surface-panel setting-card" [formGroup]="form" (ngSubmit)="register()">
@@ -150,8 +150,8 @@
                     <p><small>※ボーナスがある回数分入力してください</small></p>
                 </div>
                 <div class="error">
-                    <p *ngIf="form.get('bonusMonth1')?.errors?.['required'] && form.get('bonusMonth1')?.touched">
-                        ボーナスありの場合、1回目の支払い月は必須です</p>
+                    <p *ngIf="form.errors?.['bonusMonthsRequired'] && form.touched">
+                        ボーナスありの場合、ボーナス支払い月を1つ以上入力してください</p>
                     <p *ngIf="form.get('bonusMonth1')?.errors?.['min'] && form.get('bonusMonth1')?.touched">ボーナス月は1以上です
                     </p>
                     <p *ngIf="form.get('bonusMonth1')?.errors?.['max'] && form.get('bonusMonth1')?.touched">ボーナス月は12以下です

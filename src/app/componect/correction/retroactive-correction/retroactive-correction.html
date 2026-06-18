@@ -114,8 +114,8 @@
               <input type="date" id="retroApplyDate" formControlName="applyDate">
               <div class="error">
                 <p *ngIf="form.get('applyDate')?.errors?.['required'] && form.get('applyDate')?.touched">適用日は必須です</p>
-                <p *ngIf="form.get('applyDate')?.errors?.['retroactiveApplyDate'] && form.get('applyDate')?.touched">
-                  適用日は現在の作業月より前で、確定済み対象月がある日付を指定してください</p>
+                <p *ngIf="form.get('applyDate')?.errors?.['notEmployedOnDate'] && form.get('applyDate')?.touched">
+                  この期間に在籍していません</p>
               </div>
             </div>
           </div>
@@ -124,12 +124,8 @@
             <div class="im-field-row__control">
               <input type="number" id="retroCurrentGrade" min="0" max="50" formControlName="currentGrade">
               <div class="error">
-                <p *ngIf="form.get('currentGrade')?.errors?.['required'] && form.get('currentGrade')?.touched">
-                  標準報酬等級は必須です</p>
-                <p *ngIf="form.get('currentGrade')?.errors?.['min'] && form.get('currentGrade')?.touched">0以上で入力してください
-                </p>
-                <p *ngIf="form.get('currentGrade')?.errors?.['max'] && form.get('currentGrade')?.touched">50以下で入力してください
-                </p>
+                <p *ngIf="getInsuranceControlError('currentGrade', '標準報酬等級')">
+                  {{ getInsuranceControlError('currentGrade', '標準報酬等級') }}</p>
               </div>
             </div>
           </div>
@@ -344,7 +340,12 @@
     </div>
     <div class="employee-approval-modal__body">
 
-      <div class="retroactive-preview-table-wrap">
+      <p *ngIf="previewRows.length === 0" class="retroactive-preview-no-diff-message">
+        確定済みの保険料はないため差額調整対象外です。<br>
+        {{ getNoDifferenceOnlyChangeLabel() }}
+      </p>
+
+      <div *ngIf="previewRows.length > 0" class="retroactive-preview-table-wrap">
         <table class="insurance-confirm-list-table retroactive-preview-table" style="margin-top: 16px;">
           <thead>
             <tr>

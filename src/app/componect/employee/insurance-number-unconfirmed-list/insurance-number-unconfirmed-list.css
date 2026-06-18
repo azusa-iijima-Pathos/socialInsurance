@@ -1,0 +1,9 @@
+.insurance-number-unconfirmed-list {
+  max-width: 960px;
+  margin: 24px auto 0;
+  text-align: left;
+}
+
+.insurance-number-unconfirmed-list .section-title {
+  margin-bottom: 12px;
+}

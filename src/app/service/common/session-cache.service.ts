@@ -4,6 +4,7 @@ import { CompanyService } from '../Firestore/company-service';
 import { EmployeeService } from '../Firestore/employee-service';
 import { OfficeService } from '../Firestore/office-service';
 import { PayrollService } from '../Firestore/payroll-service';
+import { CommonService } from './common-service';
 
 /**
  * ログインセッションに紐づくインメモリキャッシュを一括リセットする
@@ -18,12 +19,14 @@ export class SessionCacheService {
   private payrollService = inject(PayrollService);
   private companyService = inject(CompanyService);
   private officeService = inject(OfficeService);
+  private commonService = inject(CommonService);
 
   clearAllCaches(): void {
     this.employeeService.resetCache();
     this.payrollService.resetCache();
     this.companyService.resetCache();
     this.officeService.resetCache();
+    this.commonService.resetTargetPeriodCache();
     this.authService.loginUser.set(null);
   }
 

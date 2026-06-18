@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 // CSVの解析や登録を行うバックエンドサービスと、プレビュー行の型定義をインポート
 import { AddInsuranceCsv as AddInsuranceCsvService, CsvInsurancePreviewRow } from '../../../service/CSV/add-insurance-csv';
@@ -12,6 +12,8 @@ import { CommonService, MessageTimer } from '../../../service/common/common-serv
   styleUrl: './add-insurance-csv.css',     // 紐づくCSSファイルのパス
 })
 export class AddInsuranceCsv {
+
+  registered = output<void>();
 
   // 依存するCSVインポート処理用のサービスを注入（インジェクション）
   private addInsuranceCsvService = inject(AddInsuranceCsvService);
@@ -132,6 +134,9 @@ export class AddInsuranceCsv {
       this.csvPreviewModalOpen = false;
       // サービスから返ってきた最終的な登録完了メッセージを画面に表示
       this.setCsvImportStatus(result.message);
+      if (result.success) {
+        this.registered.emit();
+      }
     } catch (error) {
       // 例外が発生した場合はコンソールにエラー詳細を出力
       console.error(error);

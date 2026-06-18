@@ -26,7 +26,7 @@ export class MonthlySalary {
   private fb = inject(FormBuilder);
   private companyService = inject(CompanyService);
   private payrollService = inject(PayrollService);
-  private commonService = inject(CommonService);
+ commonService = inject(CommonService);
   private validationService = inject(ValidationService);
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
@@ -51,6 +51,8 @@ export class MonthlySalary {
     //パラムとセッションの作業年・作業月が一致しているか
     const paramYear = this.route.snapshot.paramMap.get('workingYear');
     const paramMonth = this.route.snapshot.paramMap.get('workingMonth');
+
+    await this.commonService.getCurrentTargetPeriod();
 
     if (Number(paramYear) !== this.workingYear || Number(paramMonth) !== this.workingMonth) {
       this.router.navigate(['/monthly-salary', this.workingYear, this.workingMonth]);

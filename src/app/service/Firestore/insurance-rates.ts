@@ -58,8 +58,9 @@ export class InsuranceRates {
   /** 等級から標準報酬月額を取得（targetYearMonth の適用期間に合うマスタ年を自動選択） */
   async getStandardMonthlyAmount(_year: string, grade: number, targetYearMonth: string): Promise<number | undefined> {
     const masterYear = await this.resolveRemunerationYearForMonth(targetYearMonth);
-    return (this.remunerationData[masterYear] ?? [])
-      .find(item => Number(item.grade) === grade)?.standardMonthlyAmount;
+    const normalizedGrade = Number(grade);
+    return this.getRemunerationDataForCalculation(masterYear, targetYearMonth)
+      .find(item => Number(item.grade) === normalizedGrade)?.standardMonthlyAmount;
   }
 
   /** 対象年月に適用される標準報酬月額マスタの年（例: 2026-01 → 2025） */
@@ -82,6 +83,26 @@ export class InsuranceRates {
     return this.isApplicable(this.ratePeriod[year], targetYearMonth)
       ? (this.rateData[year] ?? [])
       : [];
+  }
+
+  /** 適用期間外でもマスタが存在すれば計算に使う（期間判定で空になった場合のフォールバック） */
+  getRemunerationDataForCalculation(year: string, targetYearMonth: string): StandardMonthlyRemuneration[] {
+    const applicable = this.getApplicableRemunerationData(year, targetYearMonth);
+    return applicable.length > 0 ? applicable : (this.remunerationData[year] ?? []);
+  }
+
+  getRateDataForCalculation(year: string, targetYearMonth: string): InsuranceRate[] {
+    const applicable = this.getApplicableRateData(year, targetYearMonth);
+    return applicable.length > 0 ? applicable : (this.rateData[year] ?? []);
+  }
+
+  resetCache(): void {
+    this.remunerationData = {};
+    this.remunerationPeriod = {};
+    this.isRemunerationDataLoaded = {};
+    this.rateData = {};
+    this.ratePeriod = {};
+    this.isRateDataLoaded = {};
   }
 
   private async resolveRemunerationYearForMonth(targetYearMonth: string): Promise<string> {
@@ -134,21 +155,25 @@ export class InsuranceRates {
   }
 
   private async loadRemunerationData(year: string) {
-    if (this.isRemunerationDataLoaded[year]) return;
+    if (this.isRemunerationDataLoaded[year] && (this.remunerationData[year]?.length ?? 0) > 0) return;
     const period = await this.crudService.getById<Record<string, unknown>>(this.remunerationParentPath(year));
     const remunerationData = await this.crudService.getAll<Record<string, unknown>>(this.remunerationPath(year), 'id');
     this.remunerationPeriod[year] = this.normalizePeriod(period ?? {});
     this.remunerationData[year] = remunerationData.map(item => this.normalizeRemunerationData(item));
-    this.isRemunerationDataLoaded[year] = true;
+    if (this.remunerationData[year].length > 0) {
+      this.isRemunerationDataLoaded[year] = true;
+    }
   }
 
   private async loadRateData(year: string) {
-    if (this.isRateDataLoaded[year]) return;
+    if (this.isRateDataLoaded[year] && (this.rateData[year]?.length ?? 0) > 0) return;
     const period = await this.crudService.getById<Record<string, unknown>>(this.rateParentPath(year));
     const rateData = await this.crudService.getAll<Record<string, unknown>>(this.ratePath(year), 'id');
     this.ratePeriod[year] = this.normalizePeriod(period ?? {});
     this.rateData[year] = rateData.map(item => this.normalizeRateData(item));
-    this.isRateDataLoaded[year] = true;
+    if (this.rateData[year].length > 0) {
+      this.isRateDataLoaded[year] = true;
+    }
   }
 
   private normalizeRemunerationData(item: Record<string, unknown>): StandardMonthlyRemuneration {
@@ -162,10 +187,12 @@ export class InsuranceRates {
   }
 
   private normalizeRateData(item: Record<string, unknown>): InsuranceRate {
+    const prefecture = String(item['prefecture'] ?? item['Prefecture'] ?? '');
+    const prefectureJa = String(item['prefectureJa'] ?? item['PrefectureJa'] ?? prefecture);
     return {
       id: String(item['id'] ?? ''),
-      prefectureJa: String(item['prefectureJa'] ?? item['PrefectureJa'] ?? ''),
-      prefecture: String(item['prefecture'] ?? item['Prefecture'] ?? ''),
+      prefectureJa,
+      prefecture,
       healthInsuranceRate: Number(item['healthInsuranceRate'] ?? item['HealthInsuranceRate']),
       nursingCareRate: Number(item['nursingCareRate'] ?? item['NursingCareRate']),
       pensionRate: Number(item['pensionRate'] ?? item['PensionRate']),
@@ -195,8 +222,24 @@ export class InsuranceRates {
   }
 
   private toYearMonth(value: unknown): string | undefined {
-    const text = String(value ?? '').trim();
-    return text || undefined;
+    if (!value) return undefined;
+    if (value instanceof Date) {
+      return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}`;
+    }
+    if (typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as { toDate: () => Date }).toDate === 'function') {
+      const date = (value as { toDate: () => Date }).toDate();
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    }
+    if (typeof value === 'object' && value !== null && 'seconds' in value) {
+      const seconds = Number((value as { seconds: number }).seconds);
+      if (Number.isFinite(seconds)) {
+        const date = new Date(seconds * 1000);
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      }
+    }
+    const text = String(value).trim();
+    const match = text.match(/^(\d{4}-\d{2})/);
+    return match?.[1] ?? (text || undefined);
   }
 
 }

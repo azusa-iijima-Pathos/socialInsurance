@@ -100,34 +100,83 @@ export class CommonService {
   companyService = inject(CompanyService);
   targetPeriod = signal<string>('');
   targetPeriodStartDay = signal<string>('');
-  isTargetPeriodLoaded = false;
+  private isTargetPeriodLoaded = false;
+  private loadedCompanyId = '';
+  private cachedWorkingYear: number | null = null;
+  private cachedWorkingMonth: number | null = null;
+  private loadTargetPeriodPromise: Promise<void> | null = null;
+
+  resetTargetPeriodCache(): void {
+    this.isTargetPeriodLoaded = false;
+    this.loadedCompanyId = '';
+    this.cachedWorkingYear = null;
+    this.cachedWorkingMonth = null;
+    this.targetPeriod.set('');
+    this.targetPeriodStartDay.set('');
+  }
+
+  async refreshTargetPeriod(): Promise<void> {
+    this.resetTargetPeriodCache();
+    return this.getCurrentTargetPeriod();
+  }
+
   //今の対象期間を取得（〇月〇日～〇月〇日）
-  async getCurrentTargetPeriod() {
-    if (this.isTargetPeriodLoaded) {
+  async getCurrentTargetPeriod(): Promise<void> {
+    const companyId = sessionStorage.getItem('companyId') ?? '';
+    if (!companyId) {
+      this.resetTargetPeriodCache();
       return;
     }
-    //会社情報を取得
+
+    const sessionYear = Number(sessionStorage.getItem('workingYear'));
+    const sessionMonth = Number(sessionStorage.getItem('workingMonth'));
+    const workingPeriodChanged =
+      this.cachedWorkingYear !== sessionYear
+      || this.cachedWorkingMonth !== sessionMonth;
+    if (workingPeriodChanged) {
+      this.isTargetPeriodLoaded = false;
+    }
+
+    if (this.isTargetPeriodLoaded && this.loadedCompanyId === companyId) {
+      return;
+    }
+    if (this.loadTargetPeriodPromise) {
+      return this.loadTargetPeriodPromise;
+    }
+
+    this.loadTargetPeriodPromise = this.loadTargetPeriod(companyId).finally(() => {
+      this.loadTargetPeriodPromise = null;
+    });
+    return this.loadTargetPeriodPromise;
+  }
+
+  private async loadTargetPeriod(companyId: string): Promise<void> {
     await this.companyService.getCompany();
     const company = this.companyService.company();
-    if (!company) {
-      throw new Error('会社情報が取得できません');
+    const settings = company?.settings;
+    const workingYear = settings?.workingYear ?? Number(sessionStorage.getItem('workingYear'));
+    const workingMonth = settings?.workingMonth ?? Number(sessionStorage.getItem('workingMonth'));
+    const targetPeriod = settings?.targetPeriod ?? [1, 31];
+
+    if (!workingYear || !workingMonth) {
+      this.targetPeriod.set('');
+      this.targetPeriodStartDay.set('');
+      return;
     }
-    if (!company.settings) {
-      throw new Error('会社情報が取得できません');
-    }
-    const targetPeriod = company.settings.targetPeriod;
-    const targetPeriodStart = targetPeriod[0];
-    let targetPeriodEnd: number | string = targetPeriod[1];
+
+    const targetPeriodStart = targetPeriod[0] ?? 1;
+    let targetPeriodEnd: number | string = targetPeriod[1] ?? 31;
     if (targetPeriodEnd === 31) {
       targetPeriodEnd = '末日';
-    }else{
+    } else {
       targetPeriodEnd = `${String(targetPeriodEnd).padStart(2, '0')}日`;
     }
-    const workingMonth = company.settings.workingMonth;
-    const workingYear = company.settings.workingYear;
     this.targetPeriod.set(`${workingYear}年${String(workingMonth).padStart(2, '0')}月${String(targetPeriodStart).padStart(2, '0')}日～${targetPeriodEnd}`);
     this.targetPeriodStartDay.set(`${workingYear}年${String(workingMonth).padStart(2, '0')}月${String(targetPeriodStart).padStart(2, '0')}日`);
     this.isTargetPeriodLoaded = true;
+    this.loadedCompanyId = companyId;
+    this.cachedWorkingYear = workingYear;
+    this.cachedWorkingMonth = workingMonth;
   }
 
 }

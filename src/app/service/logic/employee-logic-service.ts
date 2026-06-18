@@ -502,40 +502,50 @@ export class EmployeeLogicService {
 
   /** 等級から保険料の算出 */
   async getInsuranceRate(prefecture: string, grade: number, targetYearMonth: string) {
+    const normalizedGrade = Number(grade);
+    if (!Number.isFinite(normalizedGrade) || normalizedGrade <= 0) {
+      throw new Error('等級が不正です');
+    }
+
     const remunerationMasterYear = await this.insuranceRates.resolveRemunerationMasterYearForMonth(targetYearMonth);
     const rateMasterYear = await this.insuranceRates.resolveRateMasterYearForMonth(targetYearMonth);
 
     /** 等級から標準報酬月額を取得 */
-    const standardMonthlyAmount = await this.insuranceRates.getStandardMonthlyAmount(remunerationMasterYear, grade, targetYearMonth);
+    const standardMonthlyAmount = await this.insuranceRates.getStandardMonthlyAmount(remunerationMasterYear, normalizedGrade, targetYearMonth);
     if (!standardMonthlyAmount) {
       throw new Error('標準報酬月額が見つかりません');
     }
 
     /** 4等級の標準月額報酬 */
-    const applicableRemunerationData = this.insuranceRates.getApplicableRemunerationData(remunerationMasterYear, targetYearMonth);
+    const applicableRemunerationData = this.insuranceRates.getRemunerationDataForCalculation(remunerationMasterYear, targetYearMonth);
     const standardMonthlyAmountForGrade4 = applicableRemunerationData.find(item => Number(item.grade) === 4)?.standardMonthlyAmount;
     /** 35等級の標準月額報酬 */
     const standardMonthlyAmountForGrade36 = applicableRemunerationData.find(item => Number(item.grade) === 35)?.standardMonthlyAmount;
 
-    for (const rate of this.insuranceRates.getApplicableRateData(rateMasterYear, targetYearMonth)) {
-      if (rate.prefecture === prefecture) {
+    const rateList = this.insuranceRates.getRateDataForCalculation(rateMasterYear, targetYearMonth);
+    if (!rateList.length) {
+      throw new Error(`保険料率マスタが取得できません（${rateMasterYear}年度）`);
+    }
+
+    for (const rate of rateList) {
+      if (rate.prefecture === prefecture || rate.prefectureJa === prefecture) {
 
         const healthRate = rate.healthInsuranceRate / 100;
         const nursingCareRate = rate.nursingCareRate / 100;
         const pensionRate = rate.pensionRate / 100;
 
         /** 4等級以下の厚生年金は4等級の標準月額報酬にRateを付ける */
-        const grade4UnderPension = standardMonthlyAmountForGrade4! * pensionRate;
+        const grade4UnderPension = (standardMonthlyAmountForGrade4 ?? 0) * pensionRate;
         /** 35等級以上の厚生年金は35等級の標準月額報酬にRateを付ける */
-        const grade36OverPension = standardMonthlyAmountForGrade36! * pensionRate;
+        const grade36OverPension = (standardMonthlyAmountForGrade36 ?? 0) * pensionRate;
 
-        if (grade < 4) {
+        if (normalizedGrade < 4) {
           return {
             healthInsurance: standardMonthlyAmount * healthRate,
             nursingCare: standardMonthlyAmount * nursingCareRate,
             pension: grade4UnderPension,
           };
-        } else if (4 <= grade && grade <= 35) {
+        } else if (normalizedGrade <= 35) {
           return {
             healthInsurance: standardMonthlyAmount * healthRate,
             nursingCare: standardMonthlyAmount * nursingCareRate,
@@ -550,7 +560,7 @@ export class EmployeeLogicService {
         }
       }
     }
-    return undefined;
+    throw new Error(`保険料率が見つかりません（${prefecture}）`);
   }
 
 }

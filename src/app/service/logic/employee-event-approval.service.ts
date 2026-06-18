@@ -18,7 +18,10 @@ import { CalculationRunService } from '../Firestore/calculation-run-service';
 import { SystemCalculationRunItem } from '../Firestore/calculation-run-service';
 import { UserService } from '../Firestore/user-service';
 import { EmployeeDetailEventService } from './employee-detail-event-service';
-import { getCurrentAppliedFromMonth, getQualificationLossTimestamp, getWorkMonthForDate, getWorkingYearMonth } from './event-id-service';
+import { DependentChangeEventService } from './dependent-change-event.service';
+import { InsuranceFormService } from './insurance-form.service';
+import { AnnouncementLogicService } from './announcement-logic.service';
+import { getCurrentAppliedFromMonth, getQualificationLossTimestamp, getWorkMonthForDate, getWorkingYearMonth, InsuranceChangeKey, isEmploymentChangeSystemRun } from './event-id-service';
 
 type InsuranceStatusKind = 'joined' | 'notJoined' | 'lost';
 
@@ -52,6 +55,13 @@ export type InsuranceApprovalDraft = {
   nursingLostDate: string;
   pensionAcquiredDate: string;
   pensionLostDate: string;
+};
+
+export type InsuranceChangeDetailItem = {
+  insuranceName: string;
+  changeTypeLabel: string;
+  dateLabel: string;
+  dateValue: string;
 };
 
 export type HireInsuranceDetailView = {
@@ -118,6 +128,27 @@ export class EmployeeEventApprovalService {
   private calculationRunService = inject(CalculationRunService);
   private userService = inject(UserService);
   private employeeDetailEventService = inject(EmployeeDetailEventService);
+  private dependentChangeEventService = inject(DependentChangeEventService);
+  private insuranceFormService = inject(InsuranceFormService);
+  private announcementLogicService = inject(AnnouncementLogicService);
+
+  private async enqueueAnnouncement(task: () => Promise<void>): Promise<void> {
+    try {
+      await task();
+    } catch (error) {
+      console.error('届け出チェックリストの作成に失敗しました', error);
+    }
+  }
+
+  private async enqueueAnnouncementAfterEventApplied(employeeId: string, event: Event): Promise<void> {
+    if (event.eventType === '扶養情報変更') {
+      await this.enqueueAnnouncement(() => this.announcementLogicService.createFromDependentEvent(event, employeeId));
+      return;
+    }
+    if (event.eventType === '勤務状況変更' && this.announcementLogicService.isMaternityOrParentalLeaveEvent(event)) {
+      await this.enqueueAnnouncement(() => this.announcementLogicService.createFromLeaveEvent(event, employeeId));
+    }
+  }
 
   async buildFixedSalaryApprovalDraft(event: Event): Promise<FixedSalaryApprovalDraft | null> {
     const after = event.payload?.['after'] as Employee | undefined;
@@ -163,12 +194,24 @@ export class EmployeeEventApprovalService {
   }
 
   async buildInsuranceChangeApprovalDraft(run: SystemCalculationRunItem): Promise<InsuranceApprovalDraft | null> {
-    const beforeInsurance = run.payload?.['before'] as EmployeeInsurance | undefined;
-    const afterInsurance = run.payload?.['after'] as EmployeeInsurance | undefined;
-    if (!afterInsurance) return null;
+    if (isEmploymentChangeSystemRun(run)) {
+      return this.buildEmploymentChangeApprovalDraft(run);
+    }
+
+    const insuranceKey = String(run.payload?.['insuranceKey'] ?? '') as InsuranceChangeKey | '';
+    const beforePartial = this.extractInsurancePayload(run.payload?.['before']);
+    const afterPartial = this.extractInsurancePayload(run.payload?.['after']);
+    if (!afterPartial) return null;
 
     const employee = await this.employeeService.getEmployeeByEmployeeId(run.employeeId);
     if (!employee) return null;
+
+    const beforeInsurance = insuranceKey
+      ? this.mergeInsuranceChangeSnapshot(employee.insurance, beforePartial, insuranceKey)
+      : (beforePartial ?? employee.insurance);
+    const afterInsurance = insuranceKey
+      ? this.mergeInsuranceChangeSnapshot(employee.insurance, afterPartial, insuranceKey)
+      : afterPartial;
 
     const syntheticEvent: Event = {
       eventId: run.runId!,
@@ -182,27 +225,177 @@ export class EmployeeEventApprovalService {
     return this.buildInsuranceApprovalDraft(syntheticEvent);
   }
 
+  async buildEmploymentChangeApprovalDraft(run: SystemCalculationRunItem): Promise<InsuranceApprovalDraft | null> {
+    const beforeInsurance = this.extractInsurancePayload(run.payload?.['before']);
+    const afterInsurance = this.extractInsurancePayload(run.payload?.['after']);
+    if (!afterInsurance) return null;
+
+    const beforeGrade = beforeInsurance?.currentGrade;
+    const afterGrade = afterInsurance.currentGrade;
+    let currentGrade = 0;
+    let autoGrade = 0;
+    if (beforeGrade !== undefined && afterGrade !== undefined) {
+      currentGrade = beforeGrade;
+      autoGrade = afterGrade;
+    } else if (beforeGrade !== undefined) {
+      currentGrade = beforeGrade;
+      autoGrade = beforeGrade;
+    } else if (afterGrade !== undefined) {
+      currentGrade = 0;
+      autoGrade = afterGrade;
+    }
+
+    return {
+      currentGrade,
+      autoGrade,
+      approvedGrade: autoGrade,
+      currentHealthStatus: this.getActualStatus(beforeInsurance?.healthInsurance),
+      currentNursingStatus: this.getActualStatus(beforeInsurance?.nursingCareInsurance),
+      currentPensionStatus: this.getActualStatus(beforeInsurance?.employeePensionInsurance),
+      healthStatus: this.getActualStatus(afterInsurance.healthInsurance),
+      nursingStatus: this.getActualStatus(afterInsurance.nursingCareInsurance),
+      pensionStatus: this.getActualStatus(afterInsurance.employeePensionInsurance),
+      healthAcquiredDate: this.formatDateInput(afterInsurance.healthInsurance?.acquiredDate?.toDate()),
+      healthLostDate: this.formatDateInput(afterInsurance.healthInsurance?.lostDate?.toDate()),
+      nursingAcquiredDate: this.formatDateInput(afterInsurance.nursingCareInsurance?.acquiredDate?.toDate()),
+      nursingLostDate: this.formatDateInput(afterInsurance.nursingCareInsurance?.lostDate?.toDate()),
+      pensionAcquiredDate: this.formatDateInput(afterInsurance.employeePensionInsurance?.acquiredDate?.toDate()),
+      pensionLostDate: this.formatDateInput(afterInsurance.employeePensionInsurance?.lostDate?.toDate()),
+    };
+  }
+
   getInsuranceChangeLabel(run: SystemCalculationRunItem): string {
+    if (isEmploymentChangeSystemRun(run)) {
+      return this.formatInsuranceKeysLabel(String(run.payload?.['insuranceKey'] ?? ''));
+    }
     if (run.type === '随時改定' || run.type === '算定基礎') return '等級';
     if (run.type === 'イベント') {
       const key = String(run.payload?.['insuranceKey'] ?? '');
-      switch (key) {
-        case 'healthInsurance': return '健康保険';
-        case 'nursingCareInsurance': return '介護保険';
-        case 'employeePensionInsurance': return '厚生年金';
-        default: return String(run.payload?.['qualificationType'] ?? run.eventType ?? '—');
-      }
+      const label = this.formatInsuranceKeysLabel(key);
+      if (label) return label;
+      return String(run.payload?.['qualificationType'] ?? run.eventType ?? '—');
     }
     const key = String(run.payload?.['insuranceKey'] ?? '');
-    switch (key) {
-      case 'healthInsurance': return '健康保険';
-      case 'nursingCareInsurance': return '介護保険';
-      case 'employeePensionInsurance': return '厚生年金';
-      default: return run.type === '資格喪失' ? '資格喪失' : '資格取得';
-    }
+    return this.formatInsuranceKeysLabel(key) || (run.type === '資格喪失' ? '資格喪失' : '資格取得');
   }
 
-  async approveInsuranceChangeRun(
+  getInsuranceChangeReasonLabel(run: SystemCalculationRunItem): string {
+    const source = String(run.payload?.['source'] ?? '');
+    if (source === '一定年齢到達') {
+      const reachAgeType = run.payload?.['reachAgeType'];
+      return reachAgeType ? `一定年齢到達（${reachAgeType}）` : '一定年齢到達';
+    }
+    if (source === '雇用形態変更') return '雇用形態変更';
+    if (source === '保険情報変更') return '保険情報変更';
+    if (source === '入社') return '入社';
+    if (source === '退社') return '退社';
+    return source || '—';
+  }
+
+  getInsuranceChangeTypeLabel(run: SystemCalculationRunItem): string {
+    if (run.type === '随時改定') return '随時改定';
+    if (run.type === '算定基礎') return '算定基礎';
+    if (run.type === 'その他' && run.runId?.startsWith('等級変更_')) return '等級変更';
+    if (isEmploymentChangeSystemRun(run)) {
+      if (run.type === '資格喪失') return '資格喪失';
+      if (run.type === '資格取得') return '資格取得';
+      return this.inferEmploymentQualificationType(run);
+    }
+    if (run.type === '資格喪失' || run.payload?.['qualificationType'] === '資格喪失') return '資格喪失';
+    if (run.type === '資格取得' || run.payload?.['qualificationType'] === '資格取得') return '資格取得';
+    return run.type ?? '—';
+  }
+
+  private inferEmploymentQualificationType(run: SystemCalculationRunItem): '資格取得' | '資格喪失' {
+    const before = this.extractInsurancePayload(run.payload?.['before']);
+    const after = this.extractInsurancePayload(run.payload?.['after']);
+    const keys = ['healthInsurance', 'nursingCareInsurance', 'employeePensionInsurance'] as const;
+    const hasLoss = keys.some(key => before?.[key]?.joined === true && after?.[key]?.joined !== true);
+    return hasLoss ? '資格喪失' : '資格取得';
+  }
+
+  getInsuranceChangeDetectedDate(run: SystemCalculationRunItem): Timestamp | null | undefined {
+    if (run.detectedDate) return run.detectedDate as Timestamp;
+
+    const after = this.extractInsurancePayload(run.payload?.['after']);
+    if (!after) return undefined;
+
+    const keys = String(run.payload?.['insuranceKey'] ?? '')
+      .split(',')
+      .map(key => key.trim())
+      .filter(Boolean) as InsuranceChangeKey[];
+
+    const targetKeys: InsuranceChangeKey[] = keys.length > 0
+      ? keys
+      : ['healthInsurance', 'nursingCareInsurance', 'employeePensionInsurance'];
+
+    const isLoss = run.type === '資格喪失' || run.payload?.['qualificationType'] === '資格喪失';
+    for (const key of targetKeys) {
+      const detail = after[key];
+      const date = isLoss ? detail?.lostDate : detail?.acquiredDate;
+      if (date) return date;
+    }
+    return undefined;
+  }
+
+  getInsuranceChangeDetailItems(
+    run: SystemCalculationRunItem,
+    draft: InsuranceApprovalDraft,
+  ): InsuranceChangeDetailItem[] {
+    const insuranceKeyRaw = String(run.payload?.['insuranceKey'] ?? '');
+    const keys = insuranceKeyRaw
+      ? insuranceKeyRaw.split(',').map(key => key.trim()).filter(Boolean)
+      : ['healthInsurance', 'nursingCareInsurance', 'employeePensionInsurance'];
+
+    const config: Record<InsuranceChangeKey, {
+      name: string;
+      status: keyof InsuranceApprovalDraft;
+      acquired: keyof InsuranceApprovalDraft;
+      lost: keyof InsuranceApprovalDraft;
+    }> = {
+      healthInsurance: {
+        name: '健康保険',
+        status: 'healthStatus',
+        acquired: 'healthAcquiredDate',
+        lost: 'healthLostDate',
+      },
+      nursingCareInsurance: {
+        name: '介護保険',
+        status: 'nursingStatus',
+        acquired: 'nursingAcquiredDate',
+        lost: 'nursingLostDate',
+      },
+      employeePensionInsurance: {
+        name: '厚生年金',
+        status: 'pensionStatus',
+        acquired: 'pensionAcquiredDate',
+        lost: 'pensionLostDate',
+      },
+    };
+
+    return keys
+      .map(key => {
+        const entry = config[key as InsuranceChangeKey];
+        if (!entry) return null;
+        const status = draft[entry.status] as InsuranceStatusKind;
+        const changeTypeLabel = status === 'joined' ? '加入' : status === 'lost' ? '喪失' : '未加入';
+        const dateLabel = status === 'joined' ? '加入日' : status === 'lost' ? '喪失日' : '—';
+        const dateValue = status === 'joined'
+          ? String(draft[entry.acquired] || '—')
+          : status === 'lost'
+            ? String(draft[entry.lost] || '—')
+            : '—';
+        return {
+          insuranceName: entry.name,
+          changeTypeLabel,
+          dateLabel,
+          dateValue,
+        };
+      })
+      .filter((item): item is InsuranceChangeDetailItem => item !== null);
+  }
+
+  async approveEmploymentChangeRun(
     run: SystemCalculationRunItem,
     draft: InsuranceApprovalDraft,
     loginEmployeeId: string,
@@ -240,7 +433,100 @@ export class EmployeeEventApprovalService {
     const updated = await this.employeeService.updateEmployeeInsurance(run.employeeId, insurance);
     if (!updated) return false;
 
-    if (!insurance.healthInsurance?.joined) {
+    if (draft.healthStatus === 'lost') {
+      const lossDate = draft.healthLostDate
+        ? timestampFromDateInput(draft.healthLostDate)
+        : (run.detectedDate as Timestamp);
+      const dependentsHandled = await this.createSystemAppliedDependentRemovals(
+        run.employeeId,
+        lossDate,
+        loginEmployeeId,
+      );
+      if (!dependentsHandled) return false;
+    }
+
+    return this.calculationRunService.markRunApplied(run.runId, loginEmployeeId)
+      .then(async applied => {
+        if (applied) {
+          await this.enqueueAnnouncement(() => this.announcementLogicService.createFromEmploymentChangeRun(run));
+        }
+        return applied;
+      });
+  }
+
+  async approveInsuranceChangeRun(
+    run: SystemCalculationRunItem,
+    draft: InsuranceApprovalDraft,
+    loginEmployeeId: string,
+  ): Promise<boolean> {
+    const validationError = this.validateInsuranceApprovalDraft(draft);
+    if (validationError) return false;
+
+    const employee = await this.employeeService.getEmployeeByEmployeeId(run.employeeId);
+    if (!employee) return false;
+
+    const insuranceKey = String(run.payload?.['insuranceKey'] ?? '') as InsuranceChangeKey | '';
+    const insurance: EmployeeInsurance = {
+      currentGrade: employee.insurance?.currentGrade ?? 0,
+      basicPensionNumber: employee.insurance?.basicPensionNumber,
+      healthInsurance: employee.insurance?.healthInsurance ?? { joined: false },
+      nursingCareInsurance: employee.insurance?.nursingCareInsurance ?? { joined: false },
+      employeePensionInsurance: employee.insurance?.employeePensionInsurance ?? { joined: false },
+    };
+
+    if (insuranceKey === 'healthInsurance') {
+      insurance.currentGrade = this.resolveApprovedGrade(draft.healthStatus, draft.currentGrade, draft.autoGrade);
+      insurance.healthInsurance = this.buildInsuranceDetailFromDraft(
+        draft.healthStatus,
+        draft.healthAcquiredDate,
+        draft.healthLostDate,
+        employee.insurance?.healthInsurance,
+      );
+    } else if (insuranceKey === 'nursingCareInsurance') {
+      insurance.nursingCareInsurance = this.buildInsuranceDetailFromDraft(
+        draft.nursingStatus,
+        draft.nursingAcquiredDate,
+        draft.nursingLostDate,
+        employee.insurance?.nursingCareInsurance,
+        employee.insurance?.healthInsurance?.number,
+      );
+    } else if (insuranceKey === 'employeePensionInsurance') {
+      insurance.employeePensionInsurance = this.buildInsuranceDetailFromDraft(
+        draft.pensionStatus,
+        draft.pensionAcquiredDate,
+        draft.pensionLostDate,
+        employee.insurance?.employeePensionInsurance,
+      );
+    } else {
+      insurance.currentGrade = this.resolveApprovedGrade(draft.healthStatus, draft.currentGrade, draft.autoGrade);
+      insurance.healthInsurance = this.buildInsuranceDetailFromDraft(
+        draft.healthStatus,
+        draft.healthAcquiredDate,
+        draft.healthLostDate,
+        employee.insurance?.healthInsurance,
+      );
+      insurance.nursingCareInsurance = this.buildInsuranceDetailFromDraft(
+        draft.nursingStatus,
+        draft.nursingAcquiredDate,
+        draft.nursingLostDate,
+        employee.insurance?.nursingCareInsurance,
+        employee.insurance?.healthInsurance?.number,
+      );
+      insurance.employeePensionInsurance = this.buildInsuranceDetailFromDraft(
+        draft.pensionStatus,
+        draft.pensionAcquiredDate,
+        draft.pensionLostDate,
+        employee.insurance?.employeePensionInsurance,
+      );
+    }
+
+    const updated = await this.employeeService.updateEmployeeInsurance(run.employeeId, insurance);
+    if (!updated) return false;
+
+    if (insuranceKey === 'healthInsurance' && !insurance.healthInsurance?.joined) {
+      const dependentsUpdated = await this.setAllDependentsNotDependent(run.employeeId);
+      if (!dependentsUpdated) return false;
+    } else if (!insuranceKey && !insurance.healthInsurance?.joined) {
       const dependentsUpdated = await this.setAllDependentsNotDependent(run.employeeId);
       if (!dependentsUpdated) return false;
     }
@@ -312,6 +598,12 @@ export class EmployeeEventApprovalService {
       return '健康保険が未加入の場合、等級は0にしてください';
     }
 
+    const joinedGradeError = this.insuranceFormService.validateGradeForHealthJoined(
+      draft.healthStatus,
+      draft.approvedGrade,
+    );
+    if (joinedGradeError) return joinedGradeError;
+
     if (draft.approvedGrade < 0 || draft.approvedGrade > 50) {
       return '等級は0〜50の範囲で入力してください';
     }
@@ -368,7 +660,14 @@ export class EmployeeEventApprovalService {
       targetPayrolls: draft.targetPayrolls ?? [],
     };
     if (runId) {
-      return this.calculationRunService.markRunApproved(runId, loginEmployeeId, { revisionSummary });
+      const approved = await this.calculationRunService.markRunApproved(runId, loginEmployeeId, { revisionSummary });
+      if (approved) {
+        const run = await this.calculationRunService.getSystemCalculationRunById(runId);
+        if (run) {
+          await this.enqueueAnnouncement(() => this.announcementLogicService.createFromFixedSalaryRun(run));
+        }
+      }
+      return approved;
     }
     return this.markEventApproved(employeeId, event, loginEmployeeId);
   }
@@ -597,6 +896,9 @@ export class EmployeeEventApprovalService {
     if (!draft.healthJoined && draft.currentGrade !== 0) {
       return '健康保険が未加入の場合、等級は0にしてください';
     }
+    if (draft.healthJoined && draft.currentGrade < 1) {
+      return '健康保険が加入の場合、等級は1以上で入力してください';
+    }
     if (draft.currentGrade < 0 || draft.currentGrade > 50) {
       return '等級は0〜50の範囲で入力してください';
     }
@@ -711,7 +1013,13 @@ export class EmployeeEventApprovalService {
       if (!approved) return false;
     }
 
-    return this.calculationRunService.markRunApproved(run.runId, loginEmployeeId, draft ? { insurance } : undefined);
+    return this.calculationRunService.markRunApproved(run.runId, loginEmployeeId, draft ? { insurance } : undefined)
+      .then(async approved => {
+        if (approved) {
+          await this.enqueueAnnouncement(() => this.announcementLogicService.createFromHireRun(run));
+        }
+        return approved;
+      });
   }
 
   async rejectHireQualificationRun(
@@ -795,7 +1103,13 @@ export class EmployeeEventApprovalService {
       }
     }
 
-    return this.calculationRunService.markRunApproved(run.runId, loginEmployeeId);
+    return this.calculationRunService.markRunApproved(run.runId, loginEmployeeId)
+      .then(async approved => {
+        if (approved) {
+          await this.enqueueAnnouncement(() => this.announcementLogicService.createFromRetireRun(run));
+        }
+        return approved;
+      });
   }
 
   async rejectRetireQualificationRun(
@@ -849,12 +1163,14 @@ export class EmployeeEventApprovalService {
     if (!employeeUpdated) return false;
 
     const dependents = await this.dependentService.getDependents(employeeId);
-    if (dependents.length > 0) {
+    const activeDependents = dependents.filter(dependent => dependent.isDependent !== false);
+    if (activeDependents.length > 0) {
       const dependentUpdated = await this.dependentService.updateDependents(
         employeeId,
-        dependents.map(dependent => ({
+        activeDependents.map(dependent => ({
           dependentId: dependent.dependentId,
           isDependent: false,
+          dependentEndDate: qualificationLossDate,
         })),
       );
       if (!dependentUpdated) return false;
@@ -993,6 +1309,7 @@ export class EmployeeEventApprovalService {
       afterInsurance,
       loginEmployeeId,
       event.eventId,
+      event.reachAgeType,
     );
     if (!runResult.success) return false;
 
@@ -1037,7 +1354,11 @@ export class EmployeeEventApprovalService {
       if (!saved) return false;
     }
 
-    return this.markEventApplied(employeeId, event, loginEmployeeId);
+    const applied = await this.markEventApplied(employeeId, event, loginEmployeeId);
+    if (applied) {
+      await this.enqueueAnnouncementAfterEventApplied(employeeId, event);
+    }
+    return applied;
   }
 
   async approveAdminFixedSalaryEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
@@ -1099,15 +1420,13 @@ export class EmployeeEventApprovalService {
     });
     if (!updated) return false;
 
-    if (this.employeeDetailEventService.shouldCreateEmploymentSystemRun(beforeEmployee, afterEmployee)) {
-      const occurredDate = event.occurredDate ?? Timestamp.now();
-      await this.employeeDetailEventService.createEmploymentSystemRunOnApproval(
-        employeeId,
-        beforeEmployee,
-        afterEmployee,
-        occurredDate,
-      );
-    }
+    const occurredDate = event.occurredDate ?? Timestamp.now();
+    await this.employeeDetailEventService.createEmploymentSystemRunOnApproval(
+      employeeId,
+      beforeEmployee,
+      afterEmployee,
+      occurredDate,
+    );
 
     return this.markEventApplied(employeeId, event, loginEmployeeId);
   }
@@ -1134,7 +1453,11 @@ export class EmployeeEventApprovalService {
 
     const updated = await this.employeeService.updateEmployee(update);
     if (!updated) return false;
-    return this.markEventApplied(employeeId, event, loginEmployeeId);
+    const applied = await this.markEventApplied(employeeId, event, loginEmployeeId);
+    if (applied) {
+      await this.enqueueAnnouncementAfterEventApplied(employeeId, event);
+    }
+    return applied;
   }
 
   /** 従業員ライフイベント申請の承認（マスター未反映） */
@@ -1149,7 +1472,11 @@ export class EmployeeEventApprovalService {
     const applied = await this.applyEmployeeApplicationToMaster(employeeId, event);
     if (!applied) return false;
 
-    return this.markEventApplied(employeeId, event, loginEmployeeId);
+    const result = await this.markEventApplied(employeeId, event, loginEmployeeId);
+    if (result) {
+      await this.enqueueAnnouncementAfterEventApplied(employeeId, event);
+    }
+    return result;
   }
 
   /** @deprecated approveEmployeeApplicationOnly / applyApprovedEmployeeApplicationEvent を使用 */
@@ -1313,7 +1640,11 @@ export class EmployeeEventApprovalService {
       : await this.dependentService.registerDependents(employeeId, [dependent]);
 
     if (!saved) return false;
-    return this.markEventApplied(employeeId, event, loginEmployeeId);
+    const applied = await this.markEventApplied(employeeId, event, loginEmployeeId);
+    if (applied) {
+      await this.enqueueAnnouncementAfterEventApplied(employeeId, event);
+    }
+    return applied;
   }
 
   async rejectEvent(employeeId: string, event: Event, loginEmployeeId: string): Promise<boolean> {
@@ -1390,6 +1721,90 @@ export class EmployeeEventApprovalService {
         isDependent: false,
       })),
     );
+  }
+
+  private async createSystemAppliedDependentRemovals(
+    employeeId: string,
+    lossDate: Timestamp,
+    loginEmployeeId: string,
+  ): Promise<boolean> {
+    const dependents = await this.dependentService.getDependents(employeeId);
+    const activeDependents = dependents.filter(dependent => dependent.isDependent !== false);
+    if (activeDependents.length === 0) return true;
+
+    const changes = activeDependents.map(dependent => ({
+      before: dependent,
+      after: {
+        ...dependent,
+        isDependent: false,
+        dependentEndDate: lossDate,
+      } as Partial<Dependent>,
+    }));
+    const inputs = this.dependentChangeEventService.buildChangeInputs(changes);
+    const createdIds = await this.dependentChangeEventService.createAppliedDependentChangeEvents(
+      employeeId,
+      inputs,
+      loginEmployeeId,
+      { applicantType: 'システム' },
+    );
+    return createdIds.length === inputs.length;
+  }
+
+  private formatInsuranceKeysLabel(insuranceKey: string): string {
+    if (!insuranceKey) return '';
+    return insuranceKey
+      .split(',')
+      .map(key => {
+        switch (key.trim()) {
+          case 'healthInsurance': return '健康保険';
+          case 'nursingCareInsurance': return '介護保険';
+          case 'employeePensionInsurance': return '厚生年金';
+          default: return key.trim();
+        }
+      })
+      .filter(Boolean)
+      .join('、');
+  }
+
+  private extractInsurancePayload(payload: unknown): EmployeeInsurance | undefined {
+    if (!payload || typeof payload !== 'object') return undefined;
+    const data = payload as Record<string, unknown>;
+    if (data['insurance']) {
+      return data['insurance'] as EmployeeInsurance;
+    }
+    if ('healthInsurance' in data || 'nursingCareInsurance' in data || 'employeePensionInsurance' in data || 'currentGrade' in data) {
+      return data as EmployeeInsurance;
+    }
+    return undefined;
+  }
+
+  private mergeInsuranceChangeSnapshot(
+    base: EmployeeInsurance | undefined,
+    partial: EmployeeInsurance | undefined,
+    changedKey: InsuranceChangeKey,
+  ): EmployeeInsurance {
+    const current: EmployeeInsurance = {
+      currentGrade: base?.currentGrade ?? 0,
+      basicPensionNumber: base?.basicPensionNumber,
+      healthInsurance: base?.healthInsurance ?? { joined: false },
+      nursingCareInsurance: base?.nursingCareInsurance ?? { joined: false },
+      employeePensionInsurance: base?.employeePensionInsurance ?? { joined: false },
+    };
+    if (!partial) return current;
+
+    return {
+      ...current,
+      currentGrade: partial.currentGrade ?? current.currentGrade ?? 0,
+      healthInsurance: changedKey === 'healthInsurance'
+        ? (partial.healthInsurance ?? current.healthInsurance ?? { joined: false })
+        : (current.healthInsurance ?? { joined: false }),
+      nursingCareInsurance: changedKey === 'nursingCareInsurance'
+        ? (partial.nursingCareInsurance ?? current.nursingCareInsurance ?? { joined: false })
+        : (current.nursingCareInsurance ?? { joined: false }),
+      employeePensionInsurance: changedKey === 'employeePensionInsurance'
+        ? (partial.employeePensionInsurance ?? current.employeePensionInsurance ?? { joined: false })
+        : (current.employeePensionInsurance ?? { joined: false }),
+    };
   }
 
   private resolveApprovedGrade(

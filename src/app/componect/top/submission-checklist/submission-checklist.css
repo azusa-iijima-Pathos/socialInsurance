@@ -1,0 +1,60 @@
+.submission-checklist {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--im-color-slate-200);
+}
+
+.submission-checklist__title {
+  margin: 0 0 12px;
+  font-size: var(--im-font-16);
+}
+
+.submission-checklist__section + .submission-checklist__section {
+  margin-top: 20px;
+}
+
+.submission-checklist__section-title {
+  margin: 0 0 8px;
+  font-size: var(--im-font-14);
+  color: var(--im-color-slate-700);
+}
+
+.submission-checklist__table {
+  font-size: var(--im-font-13);
+}
+
+.employee-detail-empty {
+  margin: 0;
+  padding: var(--im-size-16);
+  border: 1px dashed var(--im-color-gray-150);
+  color: var(--im-color-slate-500);
+  text-align: center;
+}
+
+.employee-detail-events-table-wrap {
+  overflow-x: auto;
+}
+
+.employee-detail-events-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.employee-detail-events-table th,
+.employee-detail-events-table td {
+  padding: var(--im-size-8);
+  border: 1px solid var(--im-color-gray-150);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.employee-detail-events-table th {
+  background: var(--im-color-gray-50);
+  font-weight: 600;
+}
+
+.employee-detail-events-table__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--im-size-4);
+}

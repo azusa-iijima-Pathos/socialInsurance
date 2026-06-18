@@ -25,19 +25,32 @@ export class CompanyService {
   company = signal<Company | null>(null);
   isCompanyLoaded = false;
   private cachedCompanyId = '';
+  private loadingPromise: Promise<void> | null = null;
 
   resetCache(): void {
     this.company.set(null);
     this.isCompanyLoaded = false;
     this.cachedCompanyId = '';
+    this.loadingPromise = null;
   }
 
-  async getCompany(forceReload: boolean = false) {
+  async getCompany(forceReload: boolean = false): Promise<void> {
     const companyId = this.companyId ?? '';
     if (this.cachedCompanyId !== companyId) {
       forceReload = true;
     }
     if (this.isCompanyLoaded && !forceReload) return;
+    if (this.loadingPromise && !forceReload) {
+      return this.loadingPromise;
+    }
+
+    this.loadingPromise = this.loadCompany(companyId).finally(() => {
+      this.loadingPromise = null;
+    });
+    return this.loadingPromise;
+  }
+
+  private async loadCompany(companyId: string): Promise<void> {
     const company = companyId
       ? await this.crudService.getById<Company>(`companies/${companyId}`, 'companyId')
       : null;

@@ -26,6 +26,11 @@ import {
 } from '../../../service/logic/leave-insurance.util';
 import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
 import { ReachAgeService } from '../../../service/logic/reach-age';
+import {
+  shouldCollectInsurancePremium,
+} from '../../../service/logic/insurance-premium-collection.util';
+import { parseMonthlyPayrollId } from '../../../service/logic/employee-enrollment.util';
+import { InsuranceFormService } from '../../../service/logic/insurance-form.service';
 
 type EmployeeInsurance = {
   employeeId: string;
@@ -98,6 +103,7 @@ export class InsuranceConfirm {
   private correctionLogicService = inject(CorrectionLogicService);
   private payrollLockService = inject(PayrollLockService);
   private reachAgeService = inject(ReachAgeService);
+  private insuranceFormService = inject(InsuranceFormService);
 
   companyId = sessionStorage.getItem('companyId');
 
@@ -131,6 +137,8 @@ export class InsuranceConfirm {
     // //標準月額報酬を取得
     // await this.insuranceRates.getRemunerationData(this.workingYear.toString());
 
+    await this.commonService.getCurrentTargetPeriod();
+
     //作業月が一致しない場合はリダイレクト
     const paramYear = this.route.snapshot.paramMap.get('workingYear');
     const paramMonth = this.route.snapshot.paramMap.get('workingMonth');
@@ -152,6 +160,7 @@ export class InsuranceConfirm {
     this.employeeData = [];
     this.insuranceDraftMap = {};
 
+    this.insuranceRates.resetCache();
     this.payrollId = `${this.workingYear}-${String(this.workingMonth).padStart(2, '0')}`;
     // this.editButtonDisabled = this.isOutputMode || await this.insuranceSnapshotService.hasInsuranceSnapshot(this.payrollId);
     await this.payrollService.getAllPayrollListForMonth(this.payrollId);
@@ -364,18 +373,40 @@ export class InsuranceConfirm {
 
   private async getEmployeeInsurance(employees: Employee[]) {
     const defaultPeriodBounds = await this.correctionLogicService.getPayrollPeriodBounds(this.payrollId);
+    const parsedTargetMonth = parseMonthlyPayrollId(this.payrollId);
+    const targetYear = parsedTargetMonth?.year ?? this.workingYear;
+    const targetMonth = parsedTargetMonth?.month ?? this.workingMonth;
+
+    await this.officeService.getAllOffice();
 
     for (const employee of employees) {
       const payroll = this.payrollData.find(item => item.employeeId === employee.employeeId);
       const hasPayrollData = Boolean(payroll);
       const { periodStart, periodEnd } = resolvePayrollTargetPeriodBounds(payroll, defaultPeriodBounds);
       const zeroPremiumForLeave = isMaternityOrChildcareLeaveOverlappingPeriod(employee, periodStart, periodEnd);
-      const prefecture = await this.officeService.getOfficeLocation(employee.employmentContract?.officeId ?? '');
-      const grade = employee.insurance?.currentGrade;
-      const hasHealthInsurance = Boolean(employee.insurance?.healthInsurance?.joined);
+      let prefecture = await this.officeService.getOfficeLocation(employee.employmentContract?.officeId ?? '');
+      if (!prefecture) {
+        prefecture = this.companyService.company()?.headOfficePrefecture ?? null;
+      }
+      const grade = Number(employee.insurance?.currentGrade ?? 0);
+      const shouldCollectHealth = shouldCollectInsurancePremium(
+        employee.insurance?.healthInsurance,
+        targetYear,
+        targetMonth,
+      );
+      const shouldCollectNursing = shouldCollectInsurancePremium(
+        employee.insurance?.nursingCareInsurance,
+        targetYear,
+        targetMonth,
+      );
+      const shouldCollectPension = shouldCollectInsurancePremium(
+        employee.insurance?.employeePensionInsurance,
+        targetYear,
+        targetMonth,
+      );
 
       let insurance: Awaited<ReturnType<EmployeeLogicService['getInsuranceRate']>> | null = null;
-      if (hasHealthInsurance && prefecture && grade) {
+      if (prefecture && grade > 0 && hasPayrollData) {
         try {
           insurance = await this.employeeLogicService.getInsuranceRate(prefecture, grade, this.payrollId);
         } catch (error) {
@@ -392,6 +423,21 @@ export class InsuranceConfirm {
       const healthInsuranceForEmployee = this.roundEmployeeBurden(healthInsurance * ((100 - healthInsuranceCompanyRate) / 100));
       const nursingCareInsuranceForEmployee = this.roundEmployeeBurden(nursingCareInsurance * ((100 - nursingCareInsuranceCompanyRate) / 100));
       const pensionInsuranceForEmployee = this.roundEmployeeBurden(pensionInsurance * ((100 - pensionInsuranceCompanyRate) / 100));
+      const healthInsuranceForCompany = this.normalizeInsuranceAmount(healthInsurance * (healthInsuranceCompanyRate / 100));
+      const nursingCareInsuranceForCompany = this.normalizeInsuranceAmount(nursingCareInsurance * (nursingCareInsuranceCompanyRate / 100));
+      const pensionInsuranceForCompany = this.normalizeInsuranceAmount(pensionInsurance * (pensionInsuranceCompanyRate / 100));
+
+      const calculatedValues: InsuranceCalculatedValues = {
+        healthInsurance: shouldCollectHealth && !zeroPremiumForLeave && hasPayrollData ? healthInsurance : 0,
+        nursingCareInsurance: shouldCollectNursing && !zeroPremiumForLeave && hasPayrollData ? nursingCareInsurance : 0,
+        pensionInsurance: shouldCollectPension && !zeroPremiumForLeave && hasPayrollData ? pensionInsurance : 0,
+        healthInsuranceForCompany: shouldCollectHealth && !zeroPremiumForLeave && hasPayrollData ? healthInsuranceForCompany : 0,
+        nursingCareInsuranceForCompany: shouldCollectNursing && !zeroPremiumForLeave && hasPayrollData ? nursingCareInsuranceForCompany : 0,
+        pensionInsuranceForCompany: shouldCollectPension && !zeroPremiumForLeave && hasPayrollData ? pensionInsuranceForCompany : 0,
+        healthInsuranceForEmployee: shouldCollectHealth && !zeroPremiumForLeave && hasPayrollData ? healthInsuranceForEmployee : 0,
+        nursingCareInsuranceForEmployee: shouldCollectNursing && !zeroPremiumForLeave && hasPayrollData ? nursingCareInsuranceForEmployee : 0,
+        pensionInsuranceForEmployee: shouldCollectPension && !zeroPremiumForLeave && hasPayrollData ? pensionInsuranceForEmployee : 0,
+      };
 
       let employeeInsurance: EmployeeInsurance = {
         employeeId: employee.employeeId,
@@ -401,75 +447,27 @@ export class InsuranceConfirm {
         actualWorkingHours: payroll?.actualWorkingHours ?? 0,
         fixedSalary: payroll?.fixedSalary ?? 0,
         actualPaymentAmount: payroll?.actualPaymentAmount ?? 0,
-        grade: grade ?? 0,
+        grade: grade,
         gradeNote: this.getGradeDisplayNote(employee, periodStart, periodEnd),
 
-        healthInsurance,
-        nursingCareInsurance,
-        pensionInsurance,
+        healthInsurance: calculatedValues.healthInsurance,
+        nursingCareInsurance: calculatedValues.nursingCareInsurance,
+        pensionInsurance: calculatedValues.pensionInsurance,
 
-        healthInsuranceForCompany: 0,
-        nursingCareInsuranceForCompany: 0,
-        pensionInsuranceForCompany: 0,
+        healthInsuranceForCompany: calculatedValues.healthInsuranceForCompany,
+        nursingCareInsuranceForCompany: calculatedValues.nursingCareInsuranceForCompany,
+        pensionInsuranceForCompany: calculatedValues.pensionInsuranceForCompany,
 
-        healthInsuranceForEmployee,
-        nursingCareInsuranceForEmployee,
-        pensionInsuranceForEmployee,
+        healthInsuranceForEmployee: calculatedValues.healthInsuranceForEmployee,
+        nursingCareInsuranceForEmployee: calculatedValues.nursingCareInsuranceForEmployee,
+        pensionInsuranceForEmployee: calculatedValues.pensionInsuranceForEmployee,
 
-        totalInsurance: healthInsurance + nursingCareInsurance + pensionInsurance,
-        totalInsuranceForCompany: 0,
-        totalInsuranceForEmployee: 0,
-        calculatedValues: {
-          healthInsurance,
-          nursingCareInsurance,
-          pensionInsurance,
-          healthInsuranceForCompany: 0,
-          nursingCareInsuranceForCompany: 0,
-          pensionInsuranceForCompany: 0,
-          healthInsuranceForEmployee,
-          nursingCareInsuranceForEmployee,
-          pensionInsuranceForEmployee,
-        },
+        totalInsurance: calculatedValues.healthInsurance + calculatedValues.nursingCareInsurance + calculatedValues.pensionInsurance,
+        totalInsuranceForCompany: calculatedValues.healthInsuranceForCompany + calculatedValues.nursingCareInsuranceForCompany + calculatedValues.pensionInsuranceForCompany,
+        totalInsuranceForEmployee: calculatedValues.healthInsuranceForEmployee + calculatedValues.nursingCareInsuranceForEmployee + calculatedValues.pensionInsuranceForEmployee,
+        calculatedValues,
       };
 
-      if (!employee.insurance?.nursingCareInsurance?.joined) {
-        employeeInsurance.nursingCareInsurance = 0;
-        employeeInsurance.nursingCareInsuranceForEmployee = 0;
-      }
-      if (!employee.insurance?.employeePensionInsurance?.joined) {
-        employeeInsurance.pensionInsurance = 0;
-        employeeInsurance.pensionInsuranceForEmployee = 0;
-      }
-      if (zeroPremiumForLeave) {
-        employeeInsurance.healthInsurance = 0;
-        employeeInsurance.nursingCareInsurance = 0;
-        employeeInsurance.pensionInsurance = 0;
-        employeeInsurance.healthInsuranceForEmployee = 0;
-        employeeInsurance.nursingCareInsuranceForEmployee = 0;
-        employeeInsurance.pensionInsuranceForEmployee = 0;
-      }
-      if (!hasPayrollData) {
-        employeeInsurance.healthInsurance = 0;
-        employeeInsurance.nursingCareInsurance = 0;
-        employeeInsurance.pensionInsurance = 0;
-        employeeInsurance.healthInsuranceForEmployee = 0;
-        employeeInsurance.nursingCareInsuranceForEmployee = 0;
-        employeeInsurance.pensionInsuranceForEmployee = 0;
-      }
-      employeeInsurance.healthInsuranceForCompany = this.normalizeInsuranceAmount(employeeInsurance.healthInsurance * (healthInsuranceCompanyRate / 100));
-      employeeInsurance.nursingCareInsuranceForCompany = this.normalizeInsuranceAmount(employeeInsurance.nursingCareInsurance * (nursingCareInsuranceCompanyRate / 100));
-      employeeInsurance.pensionInsuranceForCompany = this.normalizeInsuranceAmount(employeeInsurance.pensionInsurance * (pensionInsuranceCompanyRate / 100));
-      employeeInsurance.calculatedValues = {
-        healthInsurance: employeeInsurance.healthInsurance,
-        nursingCareInsurance: employeeInsurance.nursingCareInsurance,
-        pensionInsurance: employeeInsurance.pensionInsurance,
-        healthInsuranceForCompany: employeeInsurance.healthInsuranceForCompany,
-        nursingCareInsuranceForCompany: employeeInsurance.nursingCareInsuranceForCompany,
-        pensionInsuranceForCompany: employeeInsurance.pensionInsuranceForCompany,
-        healthInsuranceForEmployee: employeeInsurance.healthInsuranceForEmployee,
-        nursingCareInsuranceForEmployee: employeeInsurance.nursingCareInsuranceForEmployee,
-        pensionInsuranceForEmployee: employeeInsurance.pensionInsuranceForEmployee,
-      };
       this.applyDraft(employeeInsurance);
       this.updateEmployeeInsuranceTotal(employeeInsurance);
 
@@ -484,6 +482,12 @@ export class InsuranceConfirm {
   private applyDraft(employeeInsurance: EmployeeInsurance) {
     const draft = this.insuranceDraftMap[employeeInsurance.employeeId];
     if (!draft || !employeeInsurance.hasPayrollData) return;
+
+    const draftTotal = (draft.healthInsurance ?? 0) + (draft.nursingCareInsurance ?? 0) + (draft.pensionInsurance ?? 0);
+    const calculatedTotal = employeeInsurance.calculatedValues.healthInsurance
+      + employeeInsurance.calculatedValues.nursingCareInsurance
+      + employeeInsurance.calculatedValues.pensionInsurance;
+    if (draftTotal === 0 && calculatedTotal > 0) return;
 
     employeeInsurance.grade = draft.grade;
     employeeInsurance.healthInsurance = draft.healthInsurance;
@@ -646,9 +650,19 @@ export class InsuranceConfirm {
   //保険料をFirestoreに保存する。作業月を移動・編集ボタンを押せなくする
   async confirmInsurance() {
     // if (this.editButtonDisabled) return;
+    if (this.hasUndeterminedInsuranceEmployees()) {
+      const proceedDespiteUndetermined = window.confirm(
+        '保険料未定の社員がいますが、保険料を確定してもよろしいでしょうか。'
+      );
+      if (!proceedDespiteUndetermined) {
+        return;
+      }
+    }
+
     //Windows標準確認ポップを表示
     const confirmed = window.confirm(
-      '確定すると、現在作業している月の給与・勤務実績、保険料、差額調整の変更ができません。\n' +
+      '確定すると、現在の作業対象期間の作業がすべて確定されます。（給与・勤務実績、保険料、差額調整）\n' +
+      '作業対象期間は次の月に移行し、現在の作業対象期間の保険料修正は差額調整になります。\n' +
       '確定しますか？'
     );
     if (!confirmed) {
@@ -687,9 +701,14 @@ export class InsuranceConfirm {
     sessionStorage.setItem('workingMonth', newWorkingMonth.toString());
     sessionStorage.setItem('workingYear', newWorkingYear.toString());
     await this.reachAgeService.createEvent();
+    await this.commonService.refreshTargetPeriod();
 
     //編集・移動ボタンを押せなくする
     this.isDone = true;
+  }
+
+  private hasUndeterminedInsuranceEmployees(): boolean {
+    return this.dataForShow.some(employee => !employee.hasPayrollData);
   }
 
   private async saveInsuranceSnapshots(): Promise<boolean> {
@@ -704,12 +723,14 @@ export class InsuranceConfirm {
   }
 
   private createInsuranceSnapshot(employeeInsurance: EmployeeInsurance): Partial<InsuranceSnapshot> {
+    const employee = this.employeeData.find(item => item.employeeId === employeeInsurance.employeeId);
     return {
       snapshotId: this.payrollId,
       employeeId: employeeInsurance.employeeId,
       payrollId: this.payrollId,
       type: '毎月',
       grade: employeeInsurance.grade.toString(),
+      insuranceEnrollmentStatuses: this.insuranceFormService.buildEnrollmentStatuses(employee?.insurance),
       insurancePayments: [
         {
           insuranceType: '健康保険',

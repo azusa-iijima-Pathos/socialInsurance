@@ -16,7 +16,7 @@ import {
   RetireInsuranceDetailView,
 } from '../../../service/logic/employee-event-approval.service';
 import { EmployeeEventDisplayService } from '../../../service/logic/employee-event-display.service';
-import { isPriorMonthUnprocessedId } from '../../../service/logic/event-id-service';
+import { isEmploymentChangeSystemRun, isPriorMonthUnprocessedId } from '../../../service/logic/event-id-service';
 import {
   DISABILITY_STATUSES,
   DISABILITY_TYPES,
@@ -758,6 +758,9 @@ export class SystemApplicationList {
       : this.approvingEvent!;
     const runId = this.approvingSystemRun?.runId;
     const isInsuranceChangeRun = this.approvingSystemRun?.payload?.['source'] === '保険情報変更';
+    const isEmploymentChangeRun = this.approvingSystemRun
+      ? isEmploymentChangeSystemRun(this.approvingSystemRun)
+      : false;
 
     if (this.approvalModalType === 'fixedSalary' && this.fixedSalaryDraft) {
       approved = await this.employeeEventApprovalService.approveFixedSalaryEvent(
@@ -770,7 +773,13 @@ export class SystemApplicationList {
         this.showMessage(validationError);
         return;
       }
-      if (isInsuranceChangeRun && this.approvingSystemRun) {
+      if (isEmploymentChangeRun && this.approvingSystemRun) {
+        approved = await this.employeeEventApprovalService.approveEmploymentChangeRun(
+          this.approvingSystemRun,
+          this.insuranceDraft,
+          this.loginEmployeeId,
+        );
+      } else if (isInsuranceChangeRun && this.approvingSystemRun) {
         approved = await this.employeeEventApprovalService.approveInsuranceChangeRun(
           this.approvingSystemRun,
           this.insuranceDraft,
@@ -784,7 +793,7 @@ export class SystemApplicationList {
     }
 
     if (approved) {
-      if (this.approvalModalType !== 'fixedSalary' || isInsuranceChangeRun) {
+      if (this.approvalModalType !== 'fixedSalary' || isInsuranceChangeRun || isEmploymentChangeRun) {
         await this.employeeService.getAllEmployees(true);
       }
     }
@@ -798,6 +807,10 @@ export class SystemApplicationList {
       case 'lost': return '喪失';
       default: return '未加入';
     }
+  }
+
+  isApprovingEmploymentChangeRun(): boolean {
+    return this.approvingSystemRun ? isEmploymentChangeSystemRun(this.approvingSystemRun) : false;
   }
 
   private async afterApproval(approved: boolean) {

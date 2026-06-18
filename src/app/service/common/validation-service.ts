@@ -313,10 +313,68 @@ export class ValidationService {
     return null;
   }
 
+  /** 扶養状況変更時の適用日と開始日・終了日の整合性チェック（OKなら null） */
+  validateDependentAppliedDateMatch(params: {
+    initialStatus: 'dependent' | 'notDependent';
+    currentStatus: 'dependent' | 'notDependent';
+    appliedDate: string;
+    startDate: string;
+    endDate?: string;
+  }): string | null {
+    const { initialStatus, currentStatus, appliedDate, startDate, endDate } = params;
 
+    if (initialStatus === 'dependent' && currentStatus === 'notDependent') {
+      if (!appliedDate) return '適用日を入力してください';
+      if (!endDate) return null;
+      if (appliedDate !== endDate) {
+        return '対象から対象外に変更する場合、適用日と扶養終了日は同じ日付にしてください';
+      }
+      return null;
+    }
 
+    if (initialStatus === 'notDependent' && currentStatus === 'dependent') {
+      if (!appliedDate) return '適用日を入力してください';
+      if (!startDate) return null;
+      if (appliedDate !== startDate) {
+        return '対象外から対象に変更する場合、適用日と扶養開始日は同じ日付にしてください';
+      }
+      return null;
+    }
 
+    return null;
+  }
 
+  /** 扶養対象登録時の適用日が健康保険加入期間内か（OKなら null） */
+  validateDependentAppliedDateInInsurancePeriod(
+    healthInsurance: InsuranceDetail | undefined,
+    appliedDate: string,
+  ): string | null {
+    if (!appliedDate) return null;
+
+    const date = parseDateInputValue(appliedDate);
+    date.setHours(0, 0, 0, 0);
+
+    if (!healthInsurance) {
+      return '健康保険に加入していないため、扶養の登録はできません';
+    }
+
+    const acquired = healthInsurance.acquiredDate?.toDate();
+    if (!acquired) return '健康保険の取得日が未登録です';
+    acquired.setHours(0, 0, 0, 0);
+
+    if (date < acquired) return '適用日は健康保険の加入日以降にしてください';
+
+    if (healthInsurance.joined === true) return null;
+
+    const lost = healthInsurance.lostDate?.toDate();
+    if (!lost) {
+      return '健康保険に加入していないため、扶養の登録はできません';
+    }
+    lost.setHours(0, 0, 0, 0);
+    if (date > lost) return '適用日は健康保険の加入期間内にしてください';
+
+    return null;
+  }
 
 
 

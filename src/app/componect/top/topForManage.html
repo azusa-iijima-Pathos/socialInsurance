@@ -30,6 +30,7 @@
                     <a [routerLink]="['/system-application-list']">{{ workingMonth }}月の申請一覧</a>
                     <a [routerLink]="['/insurance-confirm', `${workingYear}`, `${workingMonth}`]">{{ workingMonth }}月保険料算出</a>
                 </nav>
+                <app-submission-checklist></app-submission-checklist>
             </section>
 
             <section class="top-page-card">
@@ -77,7 +78,7 @@
                     <a [routerLink]="['/employee-detail']">個別従業員情報閲覧・編集</a>
                     <a [routerLink]="['/employee-hire-entry']">入社処理</a>
                     <a [routerLink]="['/employee-retire-entry']">退社処理</a>
-                    <a *ngIf="showExistingEmployeeLink" [routerLink]="['/employee-hire-entry']" [queryParams]="{ mode: 'existing' }">既存社員の追加</a>
+                    <a *ngIf="showExistingEmployeeLink"  [routerLink]="['/employee-hire-entry']" [queryParams]="{ mode: 'existing' }">既存社員の追加</a>
                 </nav>
             </section>
 
@@ -100,5 +101,3 @@
     </div>
 </div>
 
-<button class="im-btn-primary" (click)="seedGrades2024()">等級マスタをFirestoreに保存</button>
-<button class="im-btn-primary" (click)="seedInsuranceRates2024()">保険料率をFirestoreに保存</button>

@@ -25,7 +25,7 @@
         <td>{{ commonService.formatDate(office.createdAt) }}</td>
         <td *ngIf="permission === '管理'" class="office-list-table__actions">
           <button type="button" class="im-btn-primary" (click)="editOffice(office)">編集</button>
-          <button type="button" class="im-btn-soft im-btn-soft--danger" (click)="deleteOffice(office)">削除</button>
+          <button type="button" class="im-btn-soft im-btn-soft--danger" *ngIf="office.officeId !== '1'" (click)="deleteOffice(office)">削除</button>
         </td>
       </tr>
     </tbody>

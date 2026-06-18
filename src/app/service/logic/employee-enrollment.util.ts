@@ -24,6 +24,13 @@ export function wasEmployedInPeriod(
   return true;
 }
 
+/** 指定日に在籍しているか（入社日・退職日を考慮） */
+export function wasEmployedOnDate(employee: Employee, date: Date): boolean {
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  return wasEmployedInPeriod(employee, target, target);
+}
+
 /** 作業月（YYYY-MM または YYYY-MM_bonus）の対象期間 */
 export function buildPayrollPeriodBounds(
   workingYear: number,

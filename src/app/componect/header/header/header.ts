@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, EnvironmentInjector, inject, runInInjectionContext, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Location } from '@angular/common';
 import { AuthService } from '../../../service/Firestore/auth-service';
@@ -6,6 +6,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SessionCacheService } from '../../../service/common/session-cache.service';
+import { CommonService } from '../../../service/common/common-service';
 
 @Component({
   selector: 'app-header',
@@ -19,7 +20,8 @@ export class Header {
   private authService = inject(AuthService);
   private router = inject(Router);
   private sessionCacheService = inject(SessionCacheService);
-
+  private injector = inject(EnvironmentInjector);
+  commonService = inject(CommonService);
   private hasSession = signal(false);
 
   loginEmployeeId = signal<string | null>(null);
@@ -52,6 +54,14 @@ export class Header {
     this.permission.set(sessionStorage.getItem('permission'));
     this.workingYear.set(sessionStorage.getItem('workingYear'));
     this.workingMonth.set(sessionStorage.getItem('workingMonth'));
+    const companyId = sessionStorage.getItem('companyId');
+    if (companyId) {
+      runInInjectionContext(this.injector, () => {
+        void this.commonService.getCurrentTargetPeriod();
+      });
+    } else {
+      this.commonService.resetTargetPeriodCache();
+    }
   }
 
   toTop() {

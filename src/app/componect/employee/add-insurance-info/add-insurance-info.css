@@ -239,3 +239,102 @@ app-add-insurance-csv {
   color: var(--im-color-red-800);
   font-size: var(--im-font-13);
 }
+
+.initial-setup-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--im-size-12);
+  margin-bottom: var(--im-size-16);
+}
+
+.add-insurance-working-month-step {
+  margin-top: var(--im-size-16);
+  padding: var(--im-size-20);
+  border: 1px solid var(--im-color-gray-150);
+  border-radius: var(--im-radius-8);
+  background: var(--im-color-white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 36rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.add-insurance-working-month-step__message {
+  width: 100%;
+  margin: 0 0 var(--im-size-16);
+}
+
+.add-insurance-working-month-form {
+  width: 100%;
+}
+
+.add-insurance-working-month-form__inputs {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--im-size-8);
+}
+
+.add-insurance-working-month-form__inputs input {
+  width: 5rem;
+  box-sizing: border-box;
+  padding: var(--im-size-8) var(--im-size-12);
+  border: 1px solid var(--im-color-gray-300);
+  border-radius: var(--im-radius-12);
+  text-align: center;
+}
+
+.add-insurance-working-month-form__inputs span {
+  font-weight: 600;
+  color: var(--im-color-slate-900);
+}
+
+.add-insurance-working-month-form__errors {
+  text-align: center;
+  margin-top: var(--im-size-8);
+}
+
+.add-insurance-working-month-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--im-size-16);
+}
+
+.employee-overview-section {
+  margin-top: var(--im-size-32);
+}
+
+.employee-overview-section h3 {
+  margin: 0 0 var(--im-size-12);
+}
+
+.employee-overview-table-wrap {
+  overflow-x: auto;
+}
+
+.employee-overview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--im-font-14);
+}
+
+.employee-overview-table th,
+.employee-overview-table td {
+  padding: var(--im-size-10) var(--im-size-12);
+  border: 1px solid var(--im-color-gray-150);
+  text-align: left;
+  vertical-align: top;
+}
+
+.employee-overview-table th {
+  background: var(--im-color-gray-50);
+  white-space: nowrap;
+}
+
+.employee-overview-table td:last-child {
+  min-width: 16rem;
+}

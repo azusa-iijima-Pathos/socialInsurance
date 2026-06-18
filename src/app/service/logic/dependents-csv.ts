@@ -136,7 +136,7 @@ export class DependentsCsvService {
 
     let employeeMap: Record<string, Employee> = {};
     try {
-      await this.employeeService.getAllEmployees();
+      await this.employeeService.getAllEmployees(true);
       employeeMap = Object.fromEntries(
         this.employeeService.allEmployees().map(employee => [employee.employeeId, employee]),
       );
@@ -144,6 +144,31 @@ export class DependentsCsvService {
       console.error(error);
     }
 
+    const uniqueEmployeeIds = new Set<string>();
+    for (const { row } of importRowInfos) {
+      const employeeId = this.getCsvValue(row, 'employeeId');
+      if (employeeId && /^[a-zA-Z0-9]+$/.test(employeeId)) {
+        uniqueEmployeeIds.add(employeeId);
+      }
+    }
+
+    const existingDependentNamesByEmployee = new Map<string, Set<string>>();
+    await Promise.all(
+      [...uniqueEmployeeIds].map(async employeeId => {
+        try {
+          const dependents = await this.dependentService.getDependents(employeeId);
+          existingDependentNamesByEmployee.set(
+            employeeId,
+            new Set(dependents.map(dependent => this.normalizeDependentName(dependent.name)).filter(Boolean)),
+          );
+        } catch (error) {
+          console.error(error);
+          existingDependentNamesByEmployee.set(employeeId, new Set());
+        }
+      }),
+    );
+
+    const csvDependentKeys = new Set<string>();
     const previewRows: CsvDependentPreviewRow[] = [];
 
     for (const { row, rowNumber } of importRowInfos) {
@@ -151,25 +176,20 @@ export class DependentsCsvService {
       let dependentObject: Partial<Dependent> | undefined;
 
       try {
-        const getVal = (key: DependentCsvKey): string => {
-          const found = Object.entries(row).find(([head]) => head.replace(/^\uFEFF/, '').trim() === this.headers[key]);
-          return String(found?.[1] ?? '').trim();
-        };
-
-        const employeeId = getVal('employeeId');
-        const name = getVal('name');
-        const birthDateText = getVal('birthDate');
-        const relationship = getVal('relationship');
-        const cohabitationType = getVal('cohabitationType');
-        const annualIncomeText = getVal('annualIncome');
-        const occupation = getVal('occupation');
-        const hasDisabilityText = getVal('hasDisability');
-        const disabilityType = getVal('disabilityType');
-        const isStudentText = getVal('isStudent');
-        const studentType = getVal('studentType');
-        const isDependentText = getVal('isDependent');
-        const dependentStartDateText = getVal('dependentStartDate');
-        const dependentEndDateText = getVal('dependentEndDate');
+        const employeeId = this.getCsvValue(row, 'employeeId');
+        const name = this.getCsvValue(row, 'name');
+        const birthDateText = this.getCsvValue(row, 'birthDate');
+        const relationship = this.getCsvValue(row, 'relationship');
+        const cohabitationType = this.getCsvValue(row, 'cohabitationType');
+        const annualIncomeText = this.getCsvValue(row, 'annualIncome');
+        const occupation = this.getCsvValue(row, 'occupation');
+        const hasDisabilityText = this.getCsvValue(row, 'hasDisability');
+        const disabilityType = this.getCsvValue(row, 'disabilityType');
+        const isStudentText = this.getCsvValue(row, 'isStudent');
+        const studentType = this.getCsvValue(row, 'studentType');
+        const isDependentText = this.getCsvValue(row, 'isDependent');
+        const dependentStartDateText = this.getCsvValue(row, 'dependentStartDate');
+        const dependentEndDateText = this.getCsvValue(row, 'dependentEndDate');
 
         if (!employeeId) errors.push(`${rowNumber}行目：社員IDが未入力です`);
         if (employeeId && !/^[a-zA-Z0-9]+$/.test(employeeId)) errors.push(`${rowNumber}行目：社員IDは半角英数字で入力してください`);
@@ -177,6 +197,19 @@ export class DependentsCsvService {
         if (employeeId && /^[a-zA-Z0-9]+$/.test(employeeId) && !employee) errors.push(`${rowNumber}行目：社員IDが存在しません`);
 
         if (!name) errors.push(`${rowNumber}行目：扶養者名前が未入力です`);
+        if (employeeId && name) {
+          const normalizedName = this.normalizeDependentName(name);
+          const duplicateKey = `${employeeId}|${normalizedName}`;
+          if (csvDependentKeys.has(duplicateKey)) {
+            errors.push(`${rowNumber}行目：同じ社員ID・扶養者名がCSV内で重複しています`);
+          } else {
+            csvDependentKeys.add(duplicateKey);
+          }
+          const existingNames = existingDependentNamesByEmployee.get(employeeId);
+          if (existingNames?.has(normalizedName)) {
+            errors.push(`${rowNumber}行目：すでに登録済みです`);
+          }
+        }
         if (!relationship) errors.push(`${rowNumber}行目：続柄が未入力です`);
 
         if (!cohabitationType) {
@@ -308,12 +341,35 @@ export class DependentsCsvService {
     if (!validRows.length) return { success: false, message: '登録対象の行を選択してください' };
 
     let successCount = 0;
+    let failureCount = 0;
     const groupedByEmployee: Record<string, Partial<Dependent>[]> = {};
+    const existingDependentNamesByEmployee = new Map<string, Set<string>>();
+
     for (const row of validRows) {
+      if (!existingDependentNamesByEmployee.has(row.employeeId)) {
+        const dependents = await this.dependentService.getDependents(row.employeeId);
+        existingDependentNamesByEmployee.set(
+          row.employeeId,
+          new Set(dependents.map(dependent => this.normalizeDependentName(dependent.name)).filter(Boolean)),
+        );
+      }
+
+      const normalizedName = this.normalizeDependentName(row.name);
+      const existingNames = existingDependentNamesByEmployee.get(row.employeeId)!;
+      if (existingNames.has(normalizedName)) {
+        failureCount++;
+        continue;
+      }
+
+      existingNames.add(normalizedName);
       if (!groupedByEmployee[row.employeeId]) {
         groupedByEmployee[row.employeeId] = [];
       }
       groupedByEmployee[row.employeeId].push(row.dependentData!);
+    }
+
+    if (!Object.keys(groupedByEmployee).length) {
+      return { success: false, message: '登録対象の行を選択してください' };
     }
 
     try {
@@ -331,6 +387,14 @@ export class DependentsCsvService {
 
         const isSuccess = await this.dependentService.registerDependents(employeeId, mergedDependents);
         if (isSuccess) successCount += targetDependents.length;
+        else failureCount += targetDependents.length;
+      }
+
+      if (failureCount > 0) {
+        return {
+          success: successCount > 0,
+          message: `登録完了：${successCount} 件、失敗 ${failureCount} 件`,
+        };
       }
 
       return { success: true, message: `${successCount} 件の扶養情報をシステムに登録しました` };
@@ -338,6 +402,15 @@ export class DependentsCsvService {
       console.error(error);
       return { success: false, message: '一括登録処理中にエラーが発生しました' };
     }
+  }
+
+  private getCsvValue(row: CsvRow, key: DependentCsvKey): string {
+    const found = Object.entries(row).find(([head]) => head.replace(/^\uFEFF/, '').trim() === this.headers[key]);
+    return String(found?.[1] ?? '').trim();
+  }
+
+  private normalizeDependentName(name?: string): string {
+    return (name ?? '').trim();
   }
 
   private parseDateText(value: string): Date | null {

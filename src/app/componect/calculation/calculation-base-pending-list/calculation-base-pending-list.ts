@@ -7,6 +7,7 @@ import { CalculationRunService } from '../../../service/Firestore/calculation-ru
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { SocialInsuranceFormCsvService } from '../../../service/CSV/social-insurance-form-csv.service';
+import { AnnouncementLogicService } from '../../../service/logic/announcement-logic.service';
 
 @Component({
   selector: 'app-calculation-base-pending-list',
@@ -20,6 +21,7 @@ export class CalculationBasePendingList {
   private commonService = inject(CommonService);
   private employeeService = inject(EmployeeService);
   private formCsvService = inject(SocialInsuranceFormCsvService);
+  private announcementLogicService = inject(AnnouncementLogicService);
 
   runs: CalculationRun[] = [];
   approvedGradeMap: Record<string, number> = {};
@@ -199,6 +201,8 @@ export class CalculationBasePendingList {
       this.calculationBaseEditErrors = ['算定基礎結果の社内承認に失敗しました'];
       return;
     }
+
+    await this.announcementLogicService.createFromCalculationBaseApproval(this.displayYear);
 
     this.editMode = false;
     this.showMessage('算定基礎結果を社内承認しました');

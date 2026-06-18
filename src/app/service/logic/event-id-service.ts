@@ -127,15 +127,36 @@ export function buildQualificationLossRunId(lostDate: Date, targetPeriodStart: n
 
 export type InsuranceChangeKey = 'healthInsurance' | 'nursingCareInsurance' | 'employeePensionInsurance';
 
-/** 保険情報変更の資格取得/喪失システム計算ID（保険種別ごと） */
+/** 雇用形態変更に伴う保険システム計算か（旧 type=雇用形態変更 も含む） */
+export function isEmploymentChangeSystemRun(run: {
+  type?: string;
+  payload?: Record<string, unknown>;
+}): boolean {
+  return run.payload?.['source'] === '雇用形態変更' || run.type === '雇用形態変更';
+}
+
+/** 雇用形態変更のシステム計算ID（例: 雇用形態変更_2026_04_healthInsurance_emp001） */
+export function buildEmploymentChangeRunId(
+  effectiveDate: Date,
+  employeeId: string,
+  targetPeriodStart: number,
+  insuranceKeys: InsuranceChangeKey[],
+): string {
+  const workMonth = getWorkMonthForDate(effectiveDate, targetPeriodStart);
+  const keyPart = insuranceKeys.length > 0 ? `_${insuranceKeys.join('_')}` : '';
+  return `雇用形態変更_${formatYearMonth(workMonth.year, workMonth.month)}${keyPart}_${employeeId}`;
+}
+
+/** 保険情報変更の資格取得/喪失システム計算ID（保険種別ごと・社員ID付き） */
 export function buildInsuranceChangeRunId(
   type: '資格取得' | '資格喪失',
   date: Date,
   targetPeriodStart: number,
   insuranceKey: InsuranceChangeKey,
+  employeeId: string,
 ): string {
   const workMonth = getWorkMonthForDate(date, targetPeriodStart);
-  return `${type}_${formatYearMonth(workMonth.year, workMonth.month)}_${insuranceKey}`;
+  return `${type}_${formatYearMonth(workMonth.year, workMonth.month)}_${employeeId}_${insuranceKey}`;
 }
 
 /** 等級変更システム計算ID（例: 等級変更_2026_04） */
@@ -213,6 +234,11 @@ export function parseEventYearMonth(
   workingYear: number,
   workingMonth: number,
 ): YearMonth | null {
+  const yearMonthInfixMatch = eventId.match(/_(\d{4})_(\d{2})_/);
+  if (yearMonthInfixMatch) {
+    return { year: Number(yearMonthInfixMatch[1]), month: Number(yearMonthInfixMatch[2]) };
+  }
+
   const yearMonthSeqMatch = eventId.match(/_(\d{4})_(\d{2})_\d+$/);
   if (yearMonthSeqMatch) {
     return { year: Number(yearMonthSeqMatch[1]), month: Number(yearMonthSeqMatch[2]) };

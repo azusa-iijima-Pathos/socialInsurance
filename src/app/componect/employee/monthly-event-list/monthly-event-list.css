@@ -2,8 +2,15 @@
   margin-bottom: var(--im-size-16);
 }
 
+.monthly-event-list-page .employee-detail-section.employee-detail-events .employee-detail-events-table-wrap {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
 .monthly-event-list-export {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: var(--im-size-8);
   margin-top: var(--im-size-12);
 }

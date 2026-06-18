@@ -12,6 +12,7 @@ import {
   addMonths,
   buildCurrentWorkMonthEventId,
   buildDependentChangeEventBaseId,
+  buildEmploymentChangeRunId,
   buildGradeChangeRunId,
   buildInsuranceChangeRunId,
   buildWorkMonthEventId,
@@ -28,6 +29,7 @@ import {
 import type { InsuranceChangeKey } from './event-id-service';
 import { DependentChangeEventService } from './dependent-change-event.service';
 import { Event } from '../../model/event';
+import { EmployeeLogicService } from './employee-logic-service';
 
 export type ContractChangeEventsResult = {
   createdIds: string[];
@@ -105,6 +107,7 @@ export class EmployeeDetailEventService {
   private dependentService = inject(DependentService);
   private employeeService = inject(EmployeeService);
   private dependentChangeEventService = inject(DependentChangeEventService);
+  private employeeLogicService = inject(EmployeeLogicService);
 
   async createEventsFromWorkStatusChange(
     employeeId: string,
@@ -295,9 +298,7 @@ export class EmployeeDetailEventService {
         createdIds.push(eventId);
         if (!isFuture) {
           await this.employeeService.updateEmployee({ employeeId, employmentContract: after.employmentContract });
-          if (this.shouldCreateEmploymentSystemRun(before, after)) {
-            await this.createEmploymentSystemRunOnApproval(employeeId, before, after, effectiveDate);
-          }
+          await this.createEmploymentSystemRunOnApproval(employeeId, before, after, effectiveDate);
         }
       }
     }
@@ -516,13 +517,14 @@ export class EmployeeDetailEventService {
         const approved = workPeriodBounds
           ? isDateInWorkPeriod(date, workPeriodBounds.periodStart, workPeriodBounds.periodEnd)
           : !isWorkMonthAfterCurrent(date, targetPeriodStart);
-        const runId = buildInsuranceChangeRunId('資格取得', date, targetPeriodStart, key);
+        const baseRunId = buildInsuranceChangeRunId('資格取得', date, targetPeriodStart, key, employeeId);
+        const runId = await this.calculationRunService.allocateSequentialRunId(baseRunId);
         const createdRunId = await this.calculationRunService.createInsuranceChangeRun(
           employeeId,
           runId,
           '資格取得',
           key,
-          { before, after: afterInsurance },
+          this.buildSingleInsuranceChangePayload(key, before, afterInsurance),
           detectedDate,
           approved,
           loginEmployeeId,
@@ -543,13 +545,14 @@ export class EmployeeDetailEventService {
         const approved = workPeriodBounds
           ? isDateInWorkPeriod(date, workPeriodBounds.periodStart, workPeriodBounds.periodEnd)
           : !isWorkMonthAfterCurrent(date, targetPeriodStart);
-        const runId = buildInsuranceChangeRunId('資格喪失', date, targetPeriodStart, key);
+        const baseRunId = buildInsuranceChangeRunId('資格喪失', date, targetPeriodStart, key, employeeId);
+        const runId = await this.calculationRunService.allocateSequentialRunId(baseRunId);
         const createdRunId = await this.calculationRunService.createInsuranceChangeRun(
           employeeId,
           runId,
           '資格喪失',
           key,
-          { before, after: afterInsurance },
+          this.buildSingleInsuranceChangePayload(key, before, afterInsurance),
           detectedDate,
           approved,
           loginEmployeeId,
@@ -584,6 +587,7 @@ export class EmployeeDetailEventService {
     afterInsurance: EmployeeInsurance,
     loginEmployeeId: string,
     reachAgeEventId?: string,
+    reachAgeType?: string,
   ): Promise<{ success: boolean; runIds: string[] }> {
     const before = beforeInsurance ?? {};
     const targetPeriodStart = await this.getTargetPeriodStart();
@@ -594,13 +598,18 @@ export class EmployeeDetailEventService {
         const detectedDate = afterInsurance[key]?.acquiredDate;
         if (!detectedDate) return { success: false, runIds };
 
-        const runId = buildInsuranceChangeRunId('資格取得', detectedDate.toDate(), targetPeriodStart, key);
+        const baseRunId = buildInsuranceChangeRunId('資格取得', detectedDate.toDate(), targetPeriodStart, key, employeeId);
+        const runId = await this.calculationRunService.allocateSequentialRunId(baseRunId);
         const createdRunId = await this.calculationRunService.createAppliedEventQualificationRun(
           employeeId,
           runId,
           '資格取得',
           key,
-          { before, after: afterInsurance, reachAgeEventId },
+          {
+            ...this.buildSingleInsuranceChangePayload(key, before, afterInsurance),
+            ...(reachAgeEventId ? { reachAgeEventId } : {}),
+            ...(reachAgeType ? { reachAgeType } : {}),
+          },
           detectedDate,
           loginEmployeeId,
           '一定年齢到達',
@@ -613,13 +622,18 @@ export class EmployeeDetailEventService {
         const detectedDate = afterInsurance[key]?.lostDate;
         if (!detectedDate) return { success: false, runIds };
 
-        const runId = buildInsuranceChangeRunId('資格喪失', detectedDate.toDate(), targetPeriodStart, key);
+        const baseRunId = buildInsuranceChangeRunId('資格喪失', detectedDate.toDate(), targetPeriodStart, key, employeeId);
+        const runId = await this.calculationRunService.allocateSequentialRunId(baseRunId);
         const createdRunId = await this.calculationRunService.createAppliedEventQualificationRun(
           employeeId,
           runId,
           '資格喪失',
           key,
-          { before, after: afterInsurance, reachAgeEventId },
+          {
+            ...this.buildSingleInsuranceChangePayload(key, before, afterInsurance),
+            ...(reachAgeEventId ? { reachAgeEventId } : {}),
+            ...(reachAgeType ? { reachAgeType } : {}),
+          },
           detectedDate,
           loginEmployeeId,
           '一定年齢到達',
@@ -630,6 +644,31 @@ export class EmployeeDetailEventService {
     }
 
     return { success: true, runIds };
+  }
+
+  private buildSingleInsuranceChangePayload(
+    insuranceKey: InsuranceKey,
+    beforeInsurance: EmployeeInsurance | undefined,
+    afterInsurance: EmployeeInsurance,
+  ): { before: Record<string, unknown>; after: Record<string, unknown> } {
+    const before = beforeInsurance ?? {};
+    const beforeSnapshot: Record<string, unknown> = {
+      [insuranceKey]: before[insuranceKey] ?? { joined: false },
+    };
+    const afterSnapshot: Record<string, unknown> = {
+      [insuranceKey]: afterInsurance[insuranceKey] ?? { joined: false },
+    };
+
+    if (insuranceKey === 'healthInsurance') {
+      if (before.currentGrade !== undefined) {
+        beforeSnapshot['currentGrade'] = before.currentGrade;
+      }
+      if (afterInsurance.currentGrade !== undefined) {
+        afterSnapshot['currentGrade'] = afterInsurance.currentGrade;
+      }
+    }
+
+    return { before: beforeSnapshot, after: afterSnapshot };
   }
 
   private isSameInsuranceDetail(before?: InsuranceDetail, after?: InsuranceDetail): boolean {
@@ -659,35 +698,154 @@ export class EmployeeDetailEventService {
     after: Employee,
     occurredDate: Timestamp,
   ): Promise<string | null> {
+    const projection = await this.buildEmploymentInsuranceProjection(before, after, occurredDate);
+    if (!projection) return null;
+
     const targetPeriodStart = await this.getTargetPeriodStart();
-    const baseId = buildWorkMonthEventId('雇用形態変更', occurredDate.toDate(), targetPeriodStart);
-    return this.calculationRunService.createSystemEventRun(
+    const baseId = buildEmploymentChangeRunId(
+      occurredDate.toDate(),
+      employeeId,
+      targetPeriodStart,
+      projection.changedKeys,
+    );
+
+    return this.calculationRunService.createEmploymentChangeRun(
       employeeId,
       baseId,
-      '雇用形態変更',
       {
-        before: { insurance: before.insurance },
-        after: { insurance: after.insurance },
+        before: projection.beforeSnapshot,
+        after: projection.afterSnapshot,
+        insuranceKeys: projection.changedKeys,
       },
       occurredDate,
+      projection.qualificationType,
     );
   }
 
-  shouldCreateEmploymentSystemRun(before: Employee, after: Employee): boolean {
-    const beforeContract = before.employmentContract;
-    const afterContract = after.employmentContract;
-    if (!beforeContract || !afterContract) return false;
+  async buildEmploymentInsuranceProjection(
+    before: Employee,
+    after: Employee,
+    occurredDate: Timestamp,
+  ): Promise<{
+    beforeSnapshot: Record<string, unknown>;
+    afterSnapshot: Record<string, unknown>;
+    changedKeys: InsuranceKey[];
+    qualificationType: '資格取得' | '資格喪失';
+  } | null> {
+    await this.companyService.getCompany();
+    const isSpecificApplicableOffice = await this.companyService.isSpecificApplicableOffice();
+    const required = this.employeeLogicService.isInsuranceRequired(after, isSpecificApplicableOffice);
+    const autoGrade = await this.employeeLogicService.getInsuranceGradeAtNewEntry(after);
+    const beforeInsurance = before.insurance ?? this.createEmptyInsurance();
+    const currentGrade = beforeInsurance.currentGrade ?? 0;
 
-    const afterIsShortContractOrPart = this.isShortContractOrPart(afterContract);
-    const beforeIsShortContractOrPart = this.isShortContractOrPart(beforeContract);
-    const changedContractCondition =
-      beforeContract.employmentCategory !== afterContract.employmentCategory
-      || beforeContract.workStyle !== afterContract.workStyle
-      || beforeContract.contractedWorkingHoursPerWeek !== afterContract.contractedWorkingHoursPerWeek
-      || beforeContract.contractedWorkingDaysPerMonth !== afterContract.contractedWorkingDaysPerMonth;
+    const healthStatus = this.resolveAutoInsuranceStatus(required.isHealthInsuranceRequired, beforeInsurance.healthInsurance);
+    const nursingStatus = this.resolveAutoInsuranceStatus(required.isNursingCareInsuranceRequired, beforeInsurance.nursingCareInsurance);
+    const pensionStatus = this.resolveAutoInsuranceStatus(required.isPensionInsuranceRequired, beforeInsurance.employeePensionInsurance);
 
-    return (beforeContract.employmentCategory === '正社員' && afterIsShortContractOrPart)
-      || (beforeIsShortContractOrPart && changedContractCondition);
+    const afterInsurance: EmployeeInsurance = {
+      currentGrade: this.resolveProjectedGrade(healthStatus, currentGrade, autoGrade),
+      healthInsurance: this.buildProjectedInsuranceDetail(healthStatus, occurredDate, beforeInsurance.healthInsurance),
+      nursingCareInsurance: this.buildProjectedInsuranceDetail(nursingStatus, occurredDate, beforeInsurance.nursingCareInsurance),
+      employeePensionInsurance: this.buildProjectedInsuranceDetail(pensionStatus, occurredDate, beforeInsurance.employeePensionInsurance),
+      basicPensionNumber: beforeInsurance.basicPensionNumber,
+    };
+
+    const changedKeys = INSURANCE_PRIORITY.filter(key =>
+      isInsuranceAcquisition(beforeInsurance[key], afterInsurance[key])
+      || isInsuranceLoss(beforeInsurance[key], afterInsurance[key]),
+    );
+    if (changedKeys.length === 0) return null;
+
+    const hasAcquisition = changedKeys.some(key => isInsuranceAcquisition(beforeInsurance[key], afterInsurance[key]));
+    const hasLoss = changedKeys.some(key => isInsuranceLoss(beforeInsurance[key], afterInsurance[key]));
+    const qualificationType: '資格取得' | '資格喪失' = hasLoss ? '資格喪失' : '資格取得';
+    const beforeGrade = beforeInsurance.currentGrade ?? 0;
+    const afterGrade = afterInsurance.currentGrade ?? 0;
+
+    return {
+      beforeSnapshot: this.toEmploymentInsuranceSnapshot(
+        beforeInsurance,
+        hasLoss ? beforeGrade : undefined,
+      ),
+      afterSnapshot: this.toEmploymentInsuranceSnapshot(
+        afterInsurance,
+        hasAcquisition ? afterGrade : undefined,
+      ),
+      changedKeys,
+      qualificationType,
+    };
+  }
+
+  private createEmptyInsurance(): EmployeeInsurance {
+    return {
+      currentGrade: 0,
+      healthInsurance: { joined: false },
+      nursingCareInsurance: { joined: false },
+      employeePensionInsurance: { joined: false },
+    };
+  }
+
+  private resolveAutoInsuranceStatus(
+    required: boolean | undefined,
+    currentDetail?: InsuranceDetail,
+  ): 'joined' | 'notJoined' | 'lost' {
+    const current = getInsuranceJoinStatus(currentDetail);
+    if (!required) {
+      if (current === 'joined') return 'lost';
+      return current;
+    }
+    return 'joined';
+  }
+
+  private resolveProjectedGrade(
+    healthStatus: 'joined' | 'notJoined' | 'lost',
+    currentGrade: number,
+    autoGrade: number | undefined,
+  ): number {
+    if (healthStatus === 'notJoined') return 0;
+    if (healthStatus === 'lost') return currentGrade;
+    return autoGrade ?? currentGrade;
+  }
+
+  private buildProjectedInsuranceDetail(
+    status: 'joined' | 'notJoined' | 'lost',
+    changeDate: Timestamp,
+    existing?: InsuranceDetail,
+  ): InsuranceDetail {
+    if (status === 'notJoined') return { joined: false };
+
+    if (status === 'joined') {
+      return {
+        joined: true,
+        number: existing?.number,
+        acquiredDate: changeDate,
+        companyBurdenRate: existing?.companyBurdenRate ?? 50,
+      };
+    }
+
+    return {
+      joined: false,
+      number: existing?.number,
+      acquiredDate: existing?.acquiredDate ?? changeDate,
+      lostDate: changeDate,
+      companyBurdenRate: existing?.companyBurdenRate ?? 50,
+    };
+  }
+
+  private toEmploymentInsuranceSnapshot(
+    insurance: EmployeeInsurance,
+    grade?: number,
+  ): Record<string, unknown> {
+    const snapshot: Record<string, unknown> = {
+      healthInsurance: insurance.healthInsurance ?? { joined: false },
+      nursingCareInsurance: insurance.nursingCareInsurance ?? { joined: false },
+      employeePensionInsurance: insurance.employeePensionInsurance ?? { joined: false },
+    };
+    if (grade !== undefined) {
+      snapshot['currentGrade'] = grade;
+    }
+    return snapshot;
   }
 
   async createRetireEvents(
@@ -760,7 +918,7 @@ export class EmployeeDetailEventService {
         changeType: '削除',
         lifeEventType: '退社',
         appliedDate: Timestamp.now(),
-        applicantType: '管理者',
+        applicantType: 'システム',
         approval: {
           approvalStatus: '申請中',
         },
@@ -878,12 +1036,6 @@ export class EmployeeDetailEventService {
   private pickEmploymentContract(employee: Employee): EmploymentContract | undefined {
     if (!employee.employmentContract) return undefined;
     return { ...employee.employmentContract };
-  }
-
-  private isShortContractOrPart(contract: NonNullable<Employee['employmentContract']>): boolean {
-    return (contract.employmentCategory === '契約社員' && contract.workStyle === '時短')
-      || contract.employmentCategory === 'パート'
-      || contract.workStyle === 'パート';
   }
 
   private async getTargetPeriodStart(): Promise<number> {

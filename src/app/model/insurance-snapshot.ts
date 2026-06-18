@@ -1,6 +1,16 @@
 import { Timestamp } from "@angular/fire/firestore";
 import { InsuranceType, PayrollType } from "../constants/model-constants";
 
+/** 確定時点の保険加入状態 */
+export type InsuranceEnrollmentStatus = 'joined' | 'notJoined' | 'lost';
+
+/** 確定時点の各保険種別の加入状態 */
+export type InsuranceEnrollmentStatuses = {
+    healthInsurance?: InsuranceEnrollmentStatus;
+    nursingCareInsurance?: InsuranceEnrollmentStatus;
+    employeePensionInsurance?: InsuranceEnrollmentStatus;
+};
+
 /**
 * 保険支払い情報
 */
@@ -23,6 +33,9 @@ export type InsuranceSnapshot = {
 
     /** 等級 */
     grade?: string;
+
+    /** 確定時点の各保険種別の加入状態 */
+    insuranceEnrollmentStatuses?: InsuranceEnrollmentStatuses;
 
     /** 各種支払い保険料 */
     insurancePayments?: InsurancePayment[];

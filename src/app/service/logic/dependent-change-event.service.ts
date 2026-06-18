@@ -113,6 +113,7 @@ export class DependentChangeEventService {
     employeeId: string,
     changes: DependentChangeInput[],
     loginEmployeeId: string,
+    options?: { applicantType?: Event['applicantType'] },
   ): Promise<string[]> {
     const createdIds: string[] = [];
     await this.companyService.getCompany();
@@ -136,7 +137,7 @@ export class DependentChangeEventService {
         eventType: '扶養情報変更',
         changeType: change.changeType,
         appliedDate: Timestamp.now(),
-        applicantType: '管理者',
+        applicantType: options?.applicantType ?? '管理者',
         approval: {
           approvalStatus: '適用済み',
           approvedDate: Timestamp.now(),

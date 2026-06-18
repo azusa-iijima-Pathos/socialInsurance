@@ -1,20 +1,59 @@
-<div class="add-insurance-info-container">
+<div class="add-insurance-info-container" *ngIf="isWorkingMonthStep">
+    <h1>作業対象期間設定</h1>
+
+    <div class="information-area">
+        <p>何年何月分の給与から保険料計算を開始するか設定してください。</p>
+    </div>
+
+    <div class="initial-setup-nav">
+        <button type="button" class="im-btn-soft" (click)="toAddDependents()">◀扶養設定に戻る</button>
+        <button type="button" class="im-btn-primary" (click)="goToPastSalary()" [disabled]="!isWorkingMonthSaved">過去給与情報登録へ▶</button>
+    </div>
+
+    <div *ngIf="!isComplete" class="add-insurance-working-month-step">
+        <p>給与設定が完了していません。給与設定を行ってください。</p>
+        <button type="button" class="im-btn-primary" (click)="toSetting()">給与設定へ</button>
+    </div>
+
+    <div *ngIf="isComplete" class="add-insurance-working-month-step">
+        <p *ngIf="message" class="im-action-message add-insurance-working-month-step__message">{{ message }}</p>
+        <form [formGroup]="workingMonthForm" (ngSubmit)="setWorkingMonth()" class="add-insurance-working-month-form">
+            <div class="add-insurance-working-month-form__inputs" style="margin-top: 20px;">
+                <input type="number" id="initialWorkingYear" formControlName="workingYear" min="1900" max="9999">
+                <span>年</span>
+                <input type="number" id="initialWorkingMonth" formControlName="workingMonth" min="1" max="12">
+                <span>月</span>
+            </div>
+            <div class="error add-insurance-working-month-form__errors">
+                <p *ngIf="workingMonthForm.get('workingYear')?.invalid && workingMonthForm.get('workingYear')?.touched">
+                    作業年は1900年から9999年の範囲で入力してください
+                </p>
+                <p *ngIf="workingMonthForm.get('workingMonth')?.invalid && workingMonthForm.get('workingMonth')?.touched">
+                    作業月は1月から12月の範囲で入力してください
+                </p>
+            </div>
+            <div class="add-insurance-working-month-form__actions">
+                <button type="submit" class="im-btn-primary">設定</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="add-insurance-info-container" *ngIf="!isWorkingMonthStep">
     <h1>保険情報登録</h1>
 
     <div class="information-area">
         <p>既存社員の保険情報の登録をお願いします。</p>
-        <p>入社・退社処理ではありません。すでに保険情報が確定済みの社員の情報のみ入力してください。</p>
         <p>※休職ではない場合、保険料の会社負担率は一律50%です。</p>
     </div>
 
-    <div *ngIf="mode === 'initial'" style="display: flex; justify-content: space-between;">
-        <button type="button" class="im-btn-soft" (click)="toPermissionSetting()">◀従業員権限設定に戻る</button>
-        <button type="button" class="im-btn-soft" (click)="toAddDependents()">扶養情報を追加へ▶</button>
-        <button type="button" class="im-btn-primary" (click)="toStartStart()">作業月設定へ▶</button>
+    <div *ngIf="mode === 'initial'" class="initial-setup-nav">
+        <button type="button" class="im-btn-soft" (click)="toPermissionSetting()">◀権限設定に戻る</button>
+        <button type="button" class="im-btn-primary" (click)="toAddDependents()">扶養設定へ▶</button>
     </div>
 
     <div class="add-insurance-info-registration-layout">
-        <app-add-insurance-csv></app-add-insurance-csv>
+        <app-add-insurance-csv (registered)="onCsvRegistered()"></app-add-insurance-csv>
 
         <section class="add-insurance-info-form-card">
             <div class="add-insurance-info-form-header">
@@ -48,13 +87,8 @@
                         <input type="number" id="currentGrade" formControlName="currentGrade">
                         <p>※保険未加入の場合は0で入力してください</p>
                         <div class="error">
-                            <p
-                                *ngIf="form.get('currentGrade')?.errors?.['required'] && form.get('currentGrade')?.touched">
-                                標準報酬等級は必須です</p>
-                            <p *ngIf="form.get('currentGrade')?.errors?.['min'] && form.get('currentGrade')?.touched">
-                                標準報酬等級は0以上です</p>
-                            <p *ngIf="form.get('currentGrade')?.errors?.['max'] && form.get('currentGrade')?.touched">
-                                標準報酬等級は50以下です</p>
+                            <p *ngIf="getInsuranceControlError('currentGrade', '標準報酬等級')">
+                                {{ getInsuranceControlError('currentGrade', '標準報酬等級') }}</p>
                         </div>
 
                     </div>
@@ -118,6 +152,9 @@
                                 <p
                                     *ngIf="form.get('healthInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && form.get('healthInsurance.lostDate')?.touched">
                                     健康保険喪失日は取得日より後の日付で入力してください</p>
+                                <p
+                                    *ngIf="form.get('healthInsurance.lostDate')?.errors?.['lostDateNotAllowed'] && form.get('healthInsurance.lostDate')?.touched">
+                                    健康保険加入の場合、喪失日は入力できません</p>
                             </div>
                         </div>
                         <div class="add-insurance-info-form-group">
@@ -183,6 +220,9 @@
                                 <p
                                     *ngIf="form.get('nursingCareInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && form.get('nursingCareInsurance.lostDate')?.touched">
                                     介護保険喪失日は取得日より後の日付で入力してください</p>
+                                <p
+                                    *ngIf="form.get('nursingCareInsurance.lostDate')?.errors?.['lostDateNotAllowed'] && form.get('nursingCareInsurance.lostDate')?.touched">
+                                    介護保険加入の場合、喪失日は入力できません</p>
                             </div>
                         </div>
                         <div class="add-insurance-info-form-group">
@@ -256,6 +296,9 @@
                                 <p
                                     *ngIf="form.get('employeePensionInsurance.lostDate')?.errors?.['lostDateBeforeAcquiredDate'] && form.get('employeePensionInsurance.lostDate')?.touched">
                                     厚生年金喪失日は取得日より後の日付で入力してください</p>
+                                <p
+                                    *ngIf="form.get('employeePensionInsurance.lostDate')?.errors?.['lostDateNotAllowed'] && form.get('employeePensionInsurance.lostDate')?.touched">
+                                    厚生年金加入の場合、喪失日は入力できません</p>
                             </div>
                         </div>
                         <div class="add-insurance-info-form-group">
@@ -284,49 +327,32 @@
             </form>
         </section>
     </div>
-</div>
 
-<div class="employee-edit-modal add-insurance-working-month-modal" *ngIf="mode === 'initial' && isShowModal"
-    (click)="closeWorkingMonthModal()">
-    <div class="employee-edit-modal__panel" (click)="$event.stopPropagation()">
-        <div class="employee-edit-modal__header">
-            <h2>{{ isComplete ? '作業月設定' : '給与設定が必要です' }}</h2>
+    <section class="employee-overview-section">
+        <h3>全従業員 保険情報一覧</h3>
+        <p *ngIf="overviewLoading">読み込み中...</p>
+        <div class="employee-overview-table-wrap" *ngIf="!overviewLoading">
+            <table class="employee-overview-table">
+                <thead>
+                    <tr>
+                        <th>社員ID</th>
+                        <th>名前</th>
+                        <th>標準報酬等級</th>
+                        <th>保険情報</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let row of employeeOverviewRows">
+                        <td>{{ row.employeeId }}</td>
+                        <td>{{ row.employeeName }}</td>
+                        <td>{{ row.currentGrade }}</td>
+                        <td>{{ row.insuranceSummary }}</td>
+                    </tr>
+                    <tr *ngIf="employeeOverviewRows.length === 0">
+                        <td colspan="4">登録済みの従業員がいません</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
-
-        <div *ngIf="!isComplete" class="add-insurance-working-month-modal__body">
-            <p>給与設定が完了していません。給与設定を行ってください。</p>
-            <div class="add-insurance-working-month-modal__actions">
-                <button type="button" class="im-btn-primary" (click)="toSetting()">給与設定へ</button>
-                <button type="button" class="im-btn-soft" (click)="closeWorkingMonthModal()">キャンセル</button>
-            </div>
-        </div>
-
-        <div *ngIf="isComplete" class="add-insurance-working-month-modal__body">
-            <p>何年何月分の給与から保険料計算を開始するか設定してください。</p>
-            <form [formGroup]="workingMonthForm" (ngSubmit)="setWorkingMonthAndGoTop()">
-                <div class="add-insurance-working-month-modal__fields">
-                    <label class="add-insurance-working-month-modal__field" for="initialWorkingYear">
-                        <span>年</span>
-                        <input type="number" id="initialWorkingYear" formControlName="workingYear" min="1900" max="9999">
-                    </label>
-                    <label class="add-insurance-working-month-modal__field" for="initialWorkingMonth">
-                        <span>月</span>
-                        <input type="number" id="initialWorkingMonth" formControlName="workingMonth" min="1" max="12">
-                    </label>
-                </div>
-                <div class="error">
-                    <p *ngIf="workingMonthForm.get('workingYear')?.invalid && workingMonthForm.get('workingYear')?.touched">
-                        作業年は1900年から9999年の範囲で入力してください
-                    </p>
-                    <p *ngIf="workingMonthForm.get('workingMonth')?.invalid && workingMonthForm.get('workingMonth')?.touched">
-                        作業月は1月から12月の範囲で入力してください
-                    </p>
-                </div>
-                <div class="add-insurance-working-month-modal__actions">
-                    <button type="submit" class="im-btn-primary">設定してシステム利用を開始する</button>
-                    <button type="button" class="im-btn-soft" (click)="closeWorkingMonthModal()">キャンセル</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    </section>
 </div>

@@ -57,6 +57,7 @@ export type CsvInsurancePreviewResult = {
 
 // 最終登録処理（registerPreviewRows）の完了結果をまとめる型定義
 export type CsvInsuranceImportResult = {
+  success: boolean;
   message: string;  // 「○件登録成功」などのメッセージ
   errors: string[]; // 登録処理中にDB側等で失敗した行のエラー文
 };
@@ -98,7 +99,7 @@ export class AddInsuranceCsv {
     const headers = Object.values(this.headers);
     return [
       headers.join(','), // 1行目：カンマ区切りのヘッダー
-      'E001,10,1,H12345,2026-04-01,,50,0,,,,,1,H12345,2026-04-01,,50,B12345', // 2行目：ユーザーが迷わないための「入力サンプル行」
+      'E001,10,1,H12345,2026-04-01,,50,0,,,1,H12345,2026-04-01,,50,B12345', // 2行目：ユーザーが迷わないための「入力サンプル行」（介護未加入時は空欄3列：取得日・喪失日・負担率）
       '入力内容）', // 3行目：「ここから下に入力してください」と伝えるガイドテキストの開始文
       '',
     ].join('\r\n'); // WindowsでもExcelでも確実に改行されるように、改行コード（CRLF）で結合
@@ -154,9 +155,15 @@ export class AddInsuranceCsv {
 
     // 社員IDが本当に実在するかを検証するため、マスターデータを取得して「ID ➔ 名前」のマップを作る
     let employeeNameMap: Record<string, string> = {};
+    const registeredEmployeeIds = new Set<string>();
     try {
-      await this.employeeService.getAllEmployees(); // 最新の社員一覧をFirestoreからロード
+      await this.employeeService.getAllEmployees(true); // 最新の社員一覧をFirestoreからロード
       employeeNameMap = this.employeeService.allEmployeeNameMap(); // 「"E001": "山田太郎"」のようなマップを取得
+      for (const employee of this.employeeService.allEmployees()) {
+        if (this.hasRegisteredInsurance(employee.insurance)) {
+          registeredEmployeeIds.add(employee.employeeId);
+        }
+      }
     } catch (error) {
       console.error(error); // 失敗時はログを出して続行
     }
@@ -203,12 +210,16 @@ export class AddInsuranceCsv {
         if (employeeId && !/^[a-zA-Z0-9]+$/.test(employeeId)) errors.push(`${rowNumber}行目：社員IDは半角英数字で入力してください`);
         if (employeeId && /^[a-zA-Z0-9]+$/.test(employeeId) && !employeeNameMap[employeeId]) errors.push(`${rowNumber}行目：社員IDが存在しません`);
         if (employeeId && csvEmployeeIds.has(employeeId)) errors.push(`${rowNumber}行目：社員ID ${employeeId} がCSV内で重複しています`);
+        if (employeeId && registeredEmployeeIds.has(employeeId)) errors.push(`${rowNumber}行目：すでに登録済みです`);
         if (employeeId) csvEmployeeIds.add(employeeId); // 重複チェック用セットにこのIDを記憶
 
         // --- 標準報酬等級（currentGrade）に関するバリデーション ---
         if (!currentGradeText) errors.push(`${rowNumber}行目：標準報酬等級が未入力です`);
         if (currentGradeText && currentGrade === null) errors.push(`${rowNumber}行目：標準報酬等級は数値で入力してください`);
         if (currentGrade !== null && (currentGrade < 0 || currentGrade > 50)) errors.push(`${rowNumber}行目：標準報酬等級は0以上50以下で入力してください`);
+        if (healthStatus === 'joined' && currentGrade !== null && currentGrade < 1) {
+          errors.push(`${rowNumber}行目：健康保険が加入の場合、標準報酬等級は1以上で入力してください`);
+        }
         
         // --- 社会保険の制度上の組み合わせ整合性チェック（重要業務ルール） ---
         // 健康保険に未加入・喪失しているのに、おまけである「介護保険」や「厚生年金」だけにピンポイントで加入することは日本の法律・制度上あり得ないためエラーにする
@@ -256,15 +267,23 @@ export class AddInsuranceCsv {
     const selectedRows = rows.filter(row => row.selected && row.canRegister && row.insurance);
     // 対象が1件もない場合はメッセージを出して登録を行わない
     if (!selectedRows.length) {
-      return { message: '登録対象の行を選択してください', errors: [] };
+      return { success: false, message: '登録対象の行を選択してください', errors: [] };
     }
 
     const errors: string[] = []; // DB保存時に失敗したエラーを溜める配列
     let successCount = 0;        // 成功数を数えるカウンター
 
+    await this.employeeService.getAllEmployees(true);
+
     // 選択された安全な行データだけをループでFirestoreへ保存していく
     for (const row of selectedRows) {
       try {
+        const employee = this.employeeService.allEmployees().find(item => item.employeeId === row.employeeId);
+        if (employee && this.hasRegisteredInsurance(employee.insurance)) {
+          errors.push(`${row.rowNumber}行目：すでに登録済みです`);
+          continue;
+        }
+
         // 社員サービスを呼び出し、該当社員の「employees/社員ID」ドキュメント配下にある保険情報を非同期で上書き保存
         const result = await this.employeeService.updateEmployeeInsurance(row.employeeId, row.insurance!);
         if (result) {
@@ -290,12 +309,23 @@ export class AddInsuranceCsv {
     // 全員の登録が終わったら、システム全体の「全社員一覧データ（キャッシュ）」を強制的に最新版に再ロード（リフレッシュフラグ true）
     await this.employeeService.getAllEmployees(true);
     return {
+      success: successCount > 0,
       // 1件でも失敗があれば失敗数を出し、すべて綺麗にいけば「保険情報を更新しました：○件」と成功を出す
       message: errors.length
         ? `登録完了：${successCount} 件、失敗 ${errors.length} 件`
         : `保険情報を${UPDATE_MESSAGES.SUCCESS}：${successCount} 件`,
       errors,
     };
+  }
+
+  /** 入社時のプレースホルダー（等級0のみ）以外に保険情報が登録済みか */
+  private hasRegisteredInsurance(insurance?: EmployeeInsurance): boolean {
+    if (!insurance) return false;
+    if (insurance.healthInsurance || insurance.nursingCareInsurance || insurance.employeePensionInsurance) {
+      return true;
+    }
+    if (insurance.basicPensionNumber) return true;
+    return insurance.currentGrade != null && insurance.currentGrade > 0;
   }
 
   // 【内部処理】CSVの1つのデータ行から、健康保険・介護保険・厚生年金の3つそれぞれの「詳細データ」を個別に組み立てて1つに結合する関数
@@ -390,8 +420,12 @@ export class AddInsuranceCsv {
       if (acquiredDateText && !acquiredDate) errors.push(`${rowNumber}行目：${label}取得日の日付形式が正しくありません（yyyy-mm-dd形式で入力してください）`);
       if (needsLostDate && !lostDateText) errors.push(`${rowNumber}行目：${label}喪失日が未入力です`);
       if (lostDateText && !lostDate) errors.push(`${rowNumber}行目：${label}喪失日の日付形式が正しくありません（yyyy-mm-dd形式で入力してください）`);
-      // 「取得日（入社日など）」よりも「喪失日（退職日など）」の方が前の日付になっていたら日付矛盾エラー
-      if (acquiredDateText && lostDateText && acquiredDateText >= lostDateText) errors.push(`${rowNumber}行目：${label}喪失日は取得日より後の日付で入力してください`);
+      if (status === 'joined' && lostDateText) {
+        errors.push(`${rowNumber}行目：${label}加入の場合、喪失日は入力できません`);
+      }
+      if (acquiredDate && lostDate && acquiredDate.toDate().getTime() >= lostDate.toDate().getTime()) {
+        errors.push(`${rowNumber}行目：${label}喪失日は取得日より後の日付で入力してください`);
+      }
       if (!companyBurdenRateText) errors.push(`${rowNumber}行目：${label}会社負担率が未入力です`);
       if (companyBurdenRateText && companyBurdenRate === null) errors.push(`${rowNumber}行目：${label}会社負担率は数値で入力してください`);
       if (companyBurdenRate !== null && (companyBurdenRate < 0 || companyBurdenRate > 100)) errors.push(`${rowNumber}行目：${label}会社負担率は0以上100以下で入力してください`);
@@ -407,7 +441,7 @@ export class AddInsuranceCsv {
       joined: status === 'joined', // statusが'joined'ならtrue、'lost'ならfalseになる
       number,
       ...(acquiredDate ? { acquiredDate } : {}), // 取得日が存在すればオブジェクトにマージ
-      ...(lostDate ? { lostDate } : {}),         // 喪失日が存在すればオブジェクトにマージ
+      ...(status === 'lost' && lostDate ? { lostDate } : {}), // 喪失の場合のみ喪失日を保存
       companyBurdenRate: companyBurdenRate ?? 50, // 入力漏れがあれば標準の折半（50%）を補完
     };
   }

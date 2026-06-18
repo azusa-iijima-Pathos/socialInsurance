@@ -2,7 +2,7 @@
     <h1 class="page-title">今月の申請一覧（システム）</h1>
 
     <div class="information-area">
-        <p>{{ workingYear }}年{{ workingMonth }}月作業分以前の、申請中イベントを一覧表示します。</p>
+        <p>現在の作業対象期間以前の、申請中イベントを一覧表示します。</p>
         <p>変更内容を確認の上、承認してください。</p>
         <p>※{{ workingMonth }}月以前の変更がある場合、！が表示されます。その場合は差額調整が必要な場合があります。</p>
         <p>　確認の上、必要であれば差額調整から保険料の遡及修正を行ってください。</p>
@@ -11,8 +11,8 @@
     <div style="display: flex; gap: 10px; margin-bottom: 10px;">
         <button class="im-btn-soft" (click)="toMonthlySalary()">◀給与入力へ</button>
         <div style="display: flex; gap: 10px ;margin-left: auto;">
-        <button class="im-btn-soft" (click)="toCorrection()">遡及修正へ▶</button>
-        <button class="im-btn-primary" (click)="toInsuranceConfirm()">保険料確認へ▶</button>
+            <button class="im-btn-soft" (click)="toCorrection()">遡及修正へ▶</button>
+            <button class="im-btn-primary" (click)="toInsuranceConfirm()">保険料確認へ▶</button>
         </div>
     </div>
 
@@ -46,7 +46,8 @@
                     <tbody>
                         <tr *ngFor="let event of reachAgeEvents">
                             <td>
-                                <span *ngIf="isPriorMonthUnprocessed(event.eventId)" class="system-application-priority-mark">！</span>
+                                <span *ngIf="isPriorMonthUnprocessed(event.eventId)"
+                                    class="system-application-priority-mark">！</span>
                             </td>
                             <td>
                                 <input type="checkbox" [checked]="selectedReachAge.has(getEventKey(event))"
@@ -84,8 +85,7 @@
         <div class="system-application-section-header">
             <h2>随時改定</h2>
             <button type="button" class="im-btn-primary" (click)="bulkApplyFixedSalary()"
-                [disabled]="!canBulkApplyFixedSalary"
-                style="margin-left: auto;">承認済み随時改定の適用</button>
+                [disabled]="!canBulkApplyFixedSalary" style="margin-left: auto;">承認済み随時改定の適用</button>
         </div>
         <p>固定給を変更した月を含む3か月分の給与をもとに随時改定の結果を算出します。</p>
         <p>承認では計算結果の確認のみ行い、等級の反映は翌月の「承認済み随時改定の適用」から行ってください。</p>
@@ -105,7 +105,8 @@
                 <tbody>
                     <tr *ngFor="let run of fixedSalaryRuns">
                         <td>
-                            <span *ngIf="isPriorMonthUnprocessed(run.runId)" class="system-application-priority-mark">！</span>
+                            <span *ngIf="isPriorMonthUnprocessed(run.runId)"
+                                class="system-application-priority-mark">！</span>
                         </td>
                         <td class="employee-detail-events-table__actions">
                             <button type="button" class="im-btn-primary im-btn-sm"
@@ -133,9 +134,10 @@
     <section class="employee-detail-section employee-detail-events">
         <div class="system-application-section-header">
             <h2>入社時保険情報登録</h2>
-            <a class="im-btn-soft" routerLink="/employee-hire-entry" style="margin-left: auto;">入社予定者の承認へ▶</a>
+            <a class="im-btn-primary" routerLink="/employee-hire-entry" style="margin-left: auto;">入社予定者の承認へ▶</a>
         </div>
-        <p>入社登録時の保険・扶養情報の申請です。確認で内容を修正の上、承認すると従業員情報に反映されます。</p>
+        <p>入社登録時の保険・扶養情報の申請です。入社を承認後に表示されます。</p>
+        <p>内容を確認の上、承認すると従業員情報に反映されます。</p>
         <div *ngIf="hireRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
         <div *ngIf="hireRuns.length > 0" class="employee-detail-events-table-wrap">
             <table class="employee-detail-events-table">
@@ -161,8 +163,7 @@
                         <td class="employee-detail-events-table__actions">
                             <button type="button" class="im-btn-primary im-btn-sm"
                                 (click)="openHireDetail(run)">確認</button>
-                            <button type="button" class="im-btn-soft im-btn-sm"
-                                (click)="rejectHireRun(run)">却下</button>
+                            <button type="button" class="im-btn-soft im-btn-sm" (click)="rejectHireRun(run)">却下</button>
                         </td>
                     </tr>
                 </tbody>
@@ -174,9 +175,10 @@
     <section class="employee-detail-section employee-detail-events">
         <div class="system-application-section-header">
             <h2>退社時保険喪失登録</h2>
-            <a class="im-btn-soft" routerLink="/employee-retire-entry" style="margin-left: auto;">退職予定者の承認へ▶</a>
+            <a class="im-btn-primary" routerLink="/employee-retire-entry" style="margin-left: auto;">退職予定者の承認へ▶</a>
         </div>
-        <p>退社登録時の保険・扶養情報の申請です。詳細で内容を確認の上、承認すると従業員情報に反映されます。</p>
+        <p>退社登録時の保険・扶養情報の申請です。退社を承認後に表示されます。
+        <p>承認すると従業員情報に反映されます。</p>
         <div *ngIf="retireRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
         <ng-container *ngIf="retireRuns.length > 0">
             <div class="employee-detail-events-table-wrap">
@@ -203,7 +205,8 @@
                                     {{ getEmployeeName(run.employeeId) }}
                                 </a>
                             </td>
-                            <td>{{ commonService.formatDate(run.payload?.['resignationDate'] ?? run.payload?.['occurredDate']) }}</td>
+                            <td>{{ commonService.formatDate(run.payload?.['resignationDate'] ??
+                                run.payload?.['occurredDate']) }}</td>
                             <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
                             <td class="employee-detail-events-table__actions">
                                 <button type="button" class="im-btn-soft im-btn-sm"
@@ -279,7 +282,8 @@
         <div *ngIf="scheduledEvents.length === 0 && scheduledSystemRuns.length === 0" class="employee-detail-empty">
             申請中のイベントはありません
         </div>
-        <div *ngIf="scheduledEvents.length > 0 || scheduledSystemRuns.length > 0" class="employee-detail-events-table-wrap">
+        <div *ngIf="scheduledEvents.length > 0 || scheduledSystemRuns.length > 0"
+            class="employee-detail-events-table-wrap">
             <table class="employee-detail-events-table">
                 <thead>
                     <tr>
@@ -295,7 +299,8 @@
                 <tbody>
                     <tr *ngFor="let event of scheduledEvents">
                         <td>
-                            <span *ngIf="isPriorMonthUnprocessed(event.eventId)" class="system-application-priority-mark">！</span>
+                            <span *ngIf="isPriorMonthUnprocessed(event.eventId)"
+                                class="system-application-priority-mark">！</span>
                         </td>
                         <td class="employee-detail-events-table__actions">
                             <button type="button" class="im-btn-primary im-btn-sm"
@@ -313,7 +318,8 @@
                     </tr>
                     <tr *ngFor="let run of scheduledSystemRuns">
                         <td>
-                            <span *ngIf="isPriorMonthUnprocessed(run.runId)" class="system-application-priority-mark">！</span>
+                            <span *ngIf="isPriorMonthUnprocessed(run.runId)"
+                                class="system-application-priority-mark">！</span>
                         </td>
                         <td class="employee-detail-events-table__actions">
                             <button type="button" class="im-btn-primary im-btn-sm"
@@ -355,7 +361,8 @@
                 <tbody>
                     <tr *ngFor="let run of qualificationRuns">
                         <td>
-                            <span *ngIf="isPriorMonthUnprocessed(run.runId)" class="system-application-priority-mark">！</span>
+                            <span *ngIf="isPriorMonthUnprocessed(run.runId)"
+                                class="system-application-priority-mark">！</span>
                         </td>
                         <td class="employee-detail-events-table__actions">
                             <button type="button" class="im-btn-primary im-btn-sm"
@@ -389,7 +396,8 @@
             <h2>退社処理の確認</h2>
         </div>
         <div class="employee-approval-modal__body">
-            <p>{{ getEmployeeName(reviewingRetireRun.employeeId) }}（退職日：{{ commonService.formatDate(retireInsuranceDetail.resignationDate) }}）</p>
+            <p>{{ getEmployeeName(reviewingRetireRun.employeeId) }}（退職日：{{
+                commonService.formatDate(retireInsuranceDetail.resignationDate) }}）</p>
             <p>承認すると、以下の保険は喪失（喪失日＝退職日の翌日）となり、扶養対象は扶養対象外に変更されます。</p>
             <dl class="employee-detail-info-grid">
                 <div class="employee-detail-info-grid__item">
@@ -400,19 +408,22 @@
             <div class="employee-approval-insurance-block">
                 <h3>健康保険</h3>
                 <p>{{ getInsuranceJoinedLabel(retireInsuranceDetail.healthInsurance) }}
-                    <span *ngIf="retireInsuranceDetail.healthInsurance.joined"> → 喪失（喪失日：{{ commonService.formatDate(retireInsuranceDetail.qualificationLossDate) }}）</span>
+                    <span *ngIf="retireInsuranceDetail.healthInsurance.joined"> → 喪失（喪失日：{{
+                        commonService.formatDate(retireInsuranceDetail.qualificationLossDate) }}）</span>
                 </p>
             </div>
             <div class="employee-approval-insurance-block">
                 <h3>介護保険</h3>
                 <p>{{ getInsuranceJoinedLabel(retireInsuranceDetail.nursingCareInsurance) }}
-                    <span *ngIf="retireInsuranceDetail.nursingCareInsurance.joined"> → 喪失（喪失日：{{ commonService.formatDate(retireInsuranceDetail.qualificationLossDate) }}）</span>
+                    <span *ngIf="retireInsuranceDetail.nursingCareInsurance.joined"> → 喪失（喪失日：{{
+                        commonService.formatDate(retireInsuranceDetail.qualificationLossDate) }}）</span>
                 </p>
             </div>
             <div class="employee-approval-insurance-block">
                 <h3>厚生年金</h3>
                 <p>{{ getInsuranceJoinedLabel(retireInsuranceDetail.employeePensionInsurance) }}
-                    <span *ngIf="retireInsuranceDetail.employeePensionInsurance.joined"> → 喪失（喪失日：{{ commonService.formatDate(retireInsuranceDetail.qualificationLossDate) }}）</span>
+                    <span *ngIf="retireInsuranceDetail.employeePensionInsurance.joined"> → 喪失（喪失日：{{
+                        commonService.formatDate(retireInsuranceDetail.qualificationLossDate) }}）</span>
                 </p>
             </div>
             <div *ngIf="retireInsuranceDetail.dependents.length > 0">
@@ -451,7 +462,8 @@
         </div>
         <div class="employee-approval-modal__body hire-approval-modal__body">
             <p class="hire-approval-modal__summary">
-                {{ getEmployeeName(reviewingHireRun.employeeId) }}（入社日：{{ commonService.formatDate(reviewingHireRun.payload?.['occurredDate']) }}）
+                {{ getEmployeeName(reviewingHireRun.employeeId) }}（入社日：{{
+                commonService.formatDate(reviewingHireRun.payload?.['occurredDate']) }}）
             </p>
             <div class="hire-approval-modal__grade-row">
                 <div class="im-field-block im-field-row hire-approval-compact-field">
@@ -460,6 +472,8 @@
                         <input id="hireApprovalGrade" type="number" min="0" max="50"
                             [(ngModel)]="hireApprovalDraft.currentGrade">
                         <p class="hire-entry-auto-judgement">等級自動判定：{{ hireApprovalDraft.autoGrade ?? '判定不能' }}</p>
+                        <p *ngIf="hireApprovalDraft.healthJoined && hireApprovalDraft.currentGrade < 1" class="error">
+                            健康保険が加入の場合、等級は1以上で入力してください</p>
                     </div>
                 </div>
                 <div class="im-field-block im-field-row hire-approval-compact-field">
@@ -603,7 +617,8 @@
                             <div class="im-field-row__label"><span>障害</span></div>
                             <div class="im-field-row__control">
                                 <select [(ngModel)]="dependent.disabilityStatus">
-                                    <option *ngFor="let status of DISABILITY_STATUSES" [value]="status">{{ status }}</option>
+                                    <option *ngFor="let status of DISABILITY_STATUSES" [value]="status">{{ status }}
+                                    </option>
                                 </select>
                             </div>
                         </div>
@@ -621,7 +636,8 @@
                             <div class="im-field-row__label"><span>学生</span></div>
                             <div class="im-field-row__control">
                                 <select [(ngModel)]="dependent.studentStatus">
-                                    <option *ngFor="let status of STUDENT_STATUSES" [value]="status">{{ status }}</option>
+                                    <option *ngFor="let status of STUDENT_STATUSES" [value]="status">{{ status }}
+                                    </option>
                                 </select>
                             </div>
                         </div>
@@ -726,9 +742,19 @@
 <div class="employee-edit-modal" *ngIf="approvalModalOpen && approvalModalType === 'insurance' && insuranceDraft">
     <div class="employee-edit-modal__panel employee-approval-modal employee-approval-modal--wide">
         <div class="employee-edit-modal__header">
-            <h2>雇用形態変更の承認（保険）</h2>
+            <h2>{{ isApprovingEmploymentChangeRun() ? '雇用形態変更' : '保険情報変更' }}の承認（保険）</h2>
         </div>
         <div class="employee-approval-modal__body">
+            <dl class="employee-detail-info-grid">
+                <div class="employee-detail-info-grid__item">
+                    <dt>発生理由</dt>
+                    <dd>{{ isApprovingEmploymentChangeRun() ? '雇用形態変更' : '保険情報変更' }}</dd>
+                </div>
+                <div class="employee-detail-info-grid__item">
+                    <dt>事象発生日</dt>
+                    <dd>{{ commonService.formatDate(approvingSystemRun?.detectedDate) }}</dd>
+                </div>
+            </dl>
             <dl class="employee-detail-info-grid">
                 <div class="employee-detail-info-grid__item">
                     <dt>現在の等級</dt>
@@ -746,6 +772,8 @@
                         [(ngModel)]="insuranceDraft.approvedGrade" [readonly]="!isInsuranceGradeEditable()">
                     <p *ngIf="insuranceDraft.healthStatus === 'notJoined'" class="error">健康保険未加入のため等級は0です</p>
                     <p *ngIf="insuranceDraft.healthStatus === 'lost'" class="error">健康保険喪失のため等級は変更されません</p>
+                    <p *ngIf="insuranceDraft.healthStatus === 'joined' && insuranceDraft.approvedGrade < 1" class="error">
+                        健康保険が加入の場合、等級は1以上で入力してください</p>
                 </div>
             </div>
             <p *ngIf="insuranceApprovalValidationError" class="error">{{ insuranceApprovalValidationError }}</p>
@@ -1018,7 +1046,8 @@
             </ul>
         </div>
         <div class="employee-approval-modal__body" *ngIf="reviewingScheduledSystemRun">
-            <p>{{ getEmployeeName(reviewingScheduledSystemRun.employeeId) }} / {{ reviewingScheduledSystemRun.eventType }}</p>
+            <p>{{ getEmployeeName(reviewingScheduledSystemRun.employeeId) }} / {{ reviewingScheduledSystemRun.eventType
+                }}</p>
             <p>発生日：{{ commonService.formatDate(reviewingScheduledSystemRun.payload?.['occurredDate']) }}</p>
         </div>
         <div class="employee-edit-actions">

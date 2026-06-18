@@ -3,7 +3,7 @@
     <div class="header-left">
         <h1 class="app-title">
             <button type="button" class="app-title-button" (click)="toTop()"
-                [disabled]="!showHeaderActions()">社会保険管理システム</button>
+                [disabled]="!showHeaderActions() || loginEmployeeId() === null">社会保険管理システム</button>
         </h1>
     </div>
 
@@ -21,7 +21,7 @@
                     <span class="header-session-panel__item">社員ID: {{ loginEmployeeId() }}</span>
                     <span class="header-session-panel__item">権限: {{ permission() }}</span>
                     <span class="header-session-panel__item" *ngIf="workingYear() && workingMonth()">
-                        {{ workingYear() }}年{{ workingMonth() }}月分
+                        {{ commonService.targetPeriod() }}
                     </span>
                 </div>
             <button type="button" class="im-btn-soft" (click)="logout()">ログアウト</button>

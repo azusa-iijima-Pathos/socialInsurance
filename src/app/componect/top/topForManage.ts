@@ -5,17 +5,18 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PayrollLockService } from '../../service/Firestore/payroll-lock-service';
 import { InsuranceSnapshotService } from '../../service/Firestore/insurance-snapshot-service';
-import { STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_2025, STANDARD_MONTHLY_REMUNERATION_2024 } from '../../insuranceData/forEmployee';
-import { STANDARD_MONTHLY_REMUNERATION_PERIOD_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025, STANDARD_MONTHLY_REMUNERATION_PERIOD_2024 } from '../../insuranceData/forEmployee';
-import { PREFECTURE_INSURANCE_RATES_2026, PREFECTURE_INSURANCE_RATES_2025, PREFECTURE_INSURANCE_RATES_2024 } from '../../insuranceData/forEmployee';
-import { INSURANCE_RATE_PERIOD_2026, INSURANCE_RATE_PERIOD_2025, INSURANCE_RATE_PERIOD_2024 } from '../../insuranceData/forEmployee';
+import { STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_2025, STANDARD_MONTHLY_REMUNERATION_2024, STANDARD_MONTHLY_REMUNERATION_2023 } from '../../insuranceData/forEmployee';
+import { STANDARD_MONTHLY_REMUNERATION_PERIOD_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025, STANDARD_MONTHLY_REMUNERATION_PERIOD_2024, STANDARD_MONTHLY_REMUNERATION_PERIOD_2023 } from '../../insuranceData/forEmployee';
+import { PREFECTURE_INSURANCE_RATES_2026, PREFECTURE_INSURANCE_RATES_2025, PREFECTURE_INSURANCE_RATES_2024, PREFECTURE_INSURANCE_RATES_2023 } from '../../insuranceData/forEmployee';
+import { INSURANCE_RATE_PERIOD_2026, INSURANCE_RATE_PERIOD_2025, INSURANCE_RATE_PERIOD_2024, INSURANCE_RATE_PERIOD_2023 } from '../../insuranceData/forEmployee';
 import { Firestore, doc, writeBatch } from '@angular/fire/firestore';
 import { consumeGuardMessage } from '../../service/common/guard-message.util';
+import { SubmissionChecklist } from './submission-checklist/submission-checklist';
 
 
 @Component({
   selector: 'app-topformanage',
-  imports: [RouterLink, CommonModule, FormsModule],
+  imports: [RouterLink, CommonModule, FormsModule, SubmissionChecklist],
   templateUrl: './topForManage.html',
   styleUrl: './topForManage.css',
 })
@@ -51,7 +52,7 @@ export class TopForManage {
 
   async ngOnInit() {
     this.guardMessage = consumeGuardMessage(this.route, this.router);
-    this.companyService.getCompany();
+    await this.companyService.getCompany();
     if (this.workingMonth && !this.workingYear) {
       this.workingYear = new Date().getFullYear().toString();
       sessionStorage.setItem('workingYear', this.workingYear);
@@ -139,9 +140,9 @@ export class TopForManage {
     await this.seedGradesForYear('2025', STANDARD_MONTHLY_REMUNERATION_2025, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025);
   }
 
-  async seedGrades2024() {
-    console.log('seedGrades2024');
-    await this.seedGradesForYear('2024', STANDARD_MONTHLY_REMUNERATION_2024, STANDARD_MONTHLY_REMUNERATION_PERIOD_2024);
+  async seedGrades2023() {
+    console.log('seedGrades2023');
+    await this.seedGradesForYear('2023', STANDARD_MONTHLY_REMUNERATION_2023, STANDARD_MONTHLY_REMUNERATION_PERIOD_2023);
   }
 
   //保険料率をFirestoreに保存
@@ -153,9 +154,9 @@ export class TopForManage {
     await this.seedInsuranceRatesForYear('2025', PREFECTURE_INSURANCE_RATES_2025, INSURANCE_RATE_PERIOD_2025);
   }
 
-  async seedInsuranceRates2024() {
-    console.log('seedInsuranceRates2024');
-    await this.seedInsuranceRatesForYear('2024', PREFECTURE_INSURANCE_RATES_2024, INSURANCE_RATE_PERIOD_2024);
+  async seedInsuranceRates2023() {
+    console.log('seedInsuranceRates2023');
+    await this.seedInsuranceRatesForYear('2023', PREFECTURE_INSURANCE_RATES_2023, INSURANCE_RATE_PERIOD_2023);
   }
 
   //保険料率をFirestoreに保存
