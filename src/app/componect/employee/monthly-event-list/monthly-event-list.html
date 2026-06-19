@@ -35,7 +35,8 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let event of hireEvents">
+          <tr *ngFor="let event of hireEvents"
+            [class.employee-detail-events-table__row--rejected]="isRejectedItem(event)">
             <td class="employee-detail-events-table__actions">
               <button type="button" class="im-btn-muted" *ngIf="canShowEventDetail(event)"
                 (click)="showEventDetail(event)">詳細</button>
@@ -79,7 +80,8 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let event of retireEvents">
+          <tr *ngFor="let event of retireEvents"
+            [class.employee-detail-events-table__row--rejected]="isRejectedItem(event)">
             <td>{{ event.employeeId }}</td>
             <td>
               <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: event.employeeId }">
@@ -93,7 +95,8 @@
             <td>{{ getApproverName(event) }}</td>
             <td>{{ getApprovalDate(event) }}</td>
           </tr>
-          <tr *ngFor="let run of retireRuns">
+          <tr *ngFor="let run of retireRuns"
+            [class.employee-detail-events-table__row--rejected]="isRejectedItem(run)">
             <td>{{ run.employeeId }}</td>
             <td>
               <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
@@ -132,7 +135,8 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let run of fixedSalaryRuns">
+          <tr *ngFor="let run of fixedSalaryRuns"
+            [class.employee-detail-events-table__row--rejected]="isRejectedItem(run)">
             <td class="employee-detail-events-table__actions">
               <button type="button" class="im-btn-muted" (click)="showSystemRunDetail(run)">詳細</button>
             </td>
@@ -177,7 +181,8 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let event of dependentChangeEvents">
+          <tr *ngFor="let event of dependentChangeEvents"
+            [class.employee-detail-events-table__row--rejected]="isRejectedItem(event)">
             <td class="employee-detail-events-table__actions">
               <button type="button" class="im-btn-muted" *ngIf="canShowEventDetail(event)"
                 (click)="showEventDetail(event)">詳細</button>
@@ -226,7 +231,8 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let event of workStatusChangeEvents">
+          <tr *ngFor="let event of workStatusChangeEvents"
+            [class.employee-detail-events-table__row--rejected]="isRejectedItem(event)">
             <td class="employee-detail-events-table__actions">
               <button type="button" class="im-btn-muted" *ngIf="canShowEventDetail(event)"
                 (click)="showEventDetail(event)">詳細</button>
@@ -275,7 +281,8 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let run of insuranceRuns">
+          <tr *ngFor="let run of insuranceRuns"
+            [class.employee-detail-events-table__row--rejected]="isRejectedItem(run)">
             <td class="employee-detail-events-table__actions">
               <button type="button" class="im-btn-muted" (click)="showInsuranceRunDetail(run)">詳細</button>
             </td>
@@ -362,7 +369,8 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let event of otherEvents">
+          <tr *ngFor="let event of otherEvents"
+            [class.employee-detail-events-table__row--rejected]="isRejectedItem(event)">
             <td class="employee-detail-events-table__actions">
               <button type="button" class="im-btn-muted" *ngIf="canShowEventDetail(event)"
                 (click)="showEventDetail(event)">詳細</button>
@@ -380,7 +388,8 @@
             <td>{{ getApproverName(event) }}</td>
             <td>{{ getApprovalDate(event) }}</td>
           </tr>
-          <tr *ngFor="let run of otherSystemRuns">
+          <tr *ngFor="let run of otherSystemRuns"
+            [class.employee-detail-events-table__row--rejected]="isRejectedItem(run)">
             <td class="employee-detail-events-table__actions">
               <button type="button" class="im-btn-muted" (click)="showSystemRunDetail(run)">詳細</button>
             </td>

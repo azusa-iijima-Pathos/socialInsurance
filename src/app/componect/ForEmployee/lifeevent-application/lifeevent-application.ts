@@ -7,20 +7,25 @@ import { RELATIONSHIPS, Relationship, LifeEventType, LeaveType, COHABITATION_TYP
 import { DependentDisabilityStudentFields } from '../../common/dependent-disability-student-fields/dependent-disability-student-fields';
 import {
   canRegisterDependentByHealthInsurance,
+  DependentCoverageStatus,
+  dependentBirthDateNotFutureValidator,
   getDependentDisabilityStudentFormDefaults,
   getDependentEndDateFormDefault,
   getDependentStartDateFormDefault,
   mapDependentDisabilityStudentFromForm,
   mapDependentPeriodFromForm,
+  setupDependentAppliedDateValidators,
   setupDependentDisabilityStudentValidators,
+  setupDependentHealthInsuranceValidator,
   setupDependentPeriodValidators,
+  validateAllDependentAppliedDates,
   validateAllDependentPeriods,
 } from '../../../service/common/dependent-field.util';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { Employee } from '../../../model/employee';
 import { DependentService } from '../../../service/Firestore/dependent-service';
 import { EventService } from '../../../service/Firestore/event-service';
-import { parseDateInputValue, timestampFromDateInput, optionalTimestampFromDateInput } from '../../../service/common/date-input.util';
+import { parseDateInputValue, timestampFromDateInput, optionalTimestampFromDateInput, formatTimestampForDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
 import { Event } from '../../../model/event';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
@@ -36,7 +41,6 @@ import { EmployeeDetailEventService } from '../../../service/logic/employee-deta
 import { Router } from '@angular/router';
 
 type LifeEventTab = 'marriage' | 'birth' | 'name' | 'dependent';
-type DependentCoverageStatus = 'dependent' | 'notDependent';
 
 type DependentFormPayload = {
   dependentId: string;
@@ -144,7 +148,7 @@ export class LifeeventApplication {
             leaveTypes: '育児'
           });
           this.birthDependents.push(
-            this.createDependentForm()
+            this.createNewDependentForm()
           );
           this.patchBirthDependentStartDates();
         }
@@ -169,7 +173,10 @@ export class LifeeventApplication {
   }
 
   private validateDependentArray(formArray: FormArray): boolean {
-    let valid = validateAllDependentPeriods(formArray, this.validationService, () => this.employee);
+    let valid = validateAllDependentAppliedDates(formArray, this.validationService, () => this.employee);
+    if (!validateAllDependentPeriods(formArray, this.validationService, () => this.employee)) {
+      valid = false;
+    }
     for (const control of formArray.controls) {
       if (control.invalid) {
         control.markAllAsTouched();
@@ -181,6 +188,11 @@ export class LifeeventApplication {
 
   /** 結婚/離婚申請 */
   async submitMarriageForm() {
+    if (!validateAllDependentAppliedDates(this.marriageDependents, this.validationService, () => this.employee)) {
+      this.marriageForm.markAllAsTouched();
+      this.showMessage('適用日の入力内容を確認してください');
+      return;
+    }
     if (this.marriageForm.invalid || !this.validateDependentArray(this.marriageDependents)) {
       this.marriageForm.markAllAsTouched();
       return;
@@ -415,6 +427,11 @@ export class LifeeventApplication {
 
   /** 扶養変更申請 */
   async submitDependentChangeForm() {
+    if (!validateAllDependentAppliedDates(this.dependentChangeDependents, this.validationService, () => this.employee)) {
+      this.dependentChangeForm.markAllAsTouched();
+      this.showMessage('適用日の入力内容を確認してください');
+      return;
+    }
     if (this.dependentChangeForm.invalid || !this.validateDependentArray(this.dependentChangeDependents)) {
       this.dependentChangeForm.markAllAsTouched();
       return;
@@ -458,7 +475,7 @@ export class LifeeventApplication {
       this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
       return;
     }
-    const form = this.createDependentForm();
+    const form = this.createNewDependentForm();
     switch (type) {
       case 1:
         this.marriageDependents.push(form);
@@ -472,6 +489,23 @@ export class LifeeventApplication {
         this.dependentChangeDependents.push(form);
         break;
     }
+  }
+
+  removeDependentRow(type: 1 | 2 | 3, index: number) {
+    const formArray = type === 1
+      ? this.marriageDependents
+      : type === 2
+        ? this.birthDependents
+        : this.dependentChangeDependents;
+    if (formArray.at(index).get('isExisting')?.value === true) return;
+    formArray.removeAt(index);
+    if (formArray.length === 0 && type === 3) {
+      formArray.push(this.createNewDependentForm());
+    }
+  }
+
+  isExistingDependentRow(formArray: FormArray, index: number): boolean {
+    return formArray.at(index).get('isExisting')?.value === true;
   }
 
   get marriageDependents(): FormArray {
@@ -502,7 +536,7 @@ export class LifeeventApplication {
   private initMarriageDependents() {
     this.marriageDependents.clear();
     this.dependents.forEach(dependent => {
-      this.marriageDependents.push(this.createDependentForm(dependent));
+      this.marriageDependents.push(this.createExistingDependentForm(dependent));
     });
   }
 
@@ -514,52 +548,77 @@ export class LifeeventApplication {
     this.dependentChangeDependents.clear();
     if (this.dependents.length > 0) {
       this.dependents.forEach(dependent => {
-        this.dependentChangeDependents.push(this.createDependentForm(dependent));
+        this.dependentChangeDependents.push(this.createExistingDependentForm(dependent));
       });
     } else {
-      this.dependentChangeDependents.push(this.createDependentForm());
+      this.dependentChangeDependents.push(this.createNewDependentForm());
     }
   }
 
   private createDependentForm(existing?: Dependent): FormGroup {
-    const disabilityStudentDefaults = getDependentDisabilityStudentFormDefaults(existing);
-    const group = this.fb.nonNullable.group({
-      dependentId: [existing?.dependentId ?? ''],
-      isExisting: [!!existing],
-      name: [existing?.name ?? '', [this.validationService.requiredIfAnyDependentFieldEntered]],
-      relationship: [(existing?.relationship ?? '') as Relationship | '', [this.validationService.requiredIfAnyDependentFieldEntered]],
-      birthDate: [
-        existing?.birthDate ? this.formatDateInput(existing.birthDate.toDate()) : '',
-        [this.validationService.requiredIfAnyDependentFieldEntered, this.validationService.birthDateValidator],
-      ],
-      isDependentStatus: [
-        (existing ? (existing.isDependent !== false ? 'dependent' : 'notDependent') : 'dependent') as DependentCoverageStatus,
-      ],
-      dependentStartDate: [
-        getDependentStartDateFormDefault(existing),
-        existing
-          ? [Validators.required]
-          : [this.validationService.requiredIfAnyDependentFieldEntered],
-      ],
-      dependentEndDate: [getDependentEndDateFormDefault(existing)],
-      appliedDate: [''],
-      cohabitationType: [existing?.cohabitationType ?? ('' as CohabitationType | '')],
-      annualIncome: [existing?.annualIncome ?? ''],
-      occupation: [existing?.occupation ?? ''],
-      ...disabilityStudentDefaults,
-    });
+    return existing ? this.createExistingDependentForm(existing) : this.createNewDependentForm();
+  }
 
+  private createExistingDependentForm(dependent: Dependent): FormGroup {
+    const disabilityStudentDefaults = getDependentDisabilityStudentFormDefaults(dependent);
+    const initialStatus = (dependent.isDependent !== false ? 'dependent' : 'notDependent') as DependentCoverageStatus;
+    const group = this.fb.nonNullable.group({
+      dependentId: [dependent.dependentId],
+      isExisting: [true],
+      name: [dependent.name ?? '', [Validators.required]],
+      birthDate: [formatTimestampForDateInput(dependent.birthDate), [Validators.required, dependentBirthDateNotFutureValidator]],
+      relationship: [dependent.relationship ?? ('' as Relationship | ''), [Validators.required]],
+      cohabitationType: [dependent.cohabitationType ?? ('' as CohabitationType | '')],
+      annualIncome: [dependent.annualIncome ?? ''],
+      occupation: [dependent.occupation ?? ''],
+      ...disabilityStudentDefaults,
+      isDependentStatus: [initialStatus],
+      initialDependentStatus: [initialStatus],
+      dependentStartDate: [getDependentStartDateFormDefault(dependent), [Validators.required]],
+      dependentEndDate: [getDependentEndDateFormDefault(dependent)],
+      appliedDate: [''],
+    });
+    setupDependentDisabilityStudentValidators(group, this.destroyRef);
+    setupDependentPeriodValidators(group, this.destroyRef, this.validationService, () => this.employee);
+    setupDependentHealthInsuranceValidator(group, this.destroyRef, initialStatus, () => this.canRegisterDependent());
+    setupDependentAppliedDateValidators(group, this.destroyRef, this.validationService, () => this.employee);
+    return group;
+  }
+
+  private createNewDependentForm(): FormGroup {
+    const disabilityStudentDefaults = getDependentDisabilityStudentFormDefaults();
+    const group = this.fb.nonNullable.group({
+      dependentId: [''],
+      isExisting: [false],
+      name: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      birthDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered, dependentBirthDateNotFutureValidator]],
+      relationship: ['' as Relationship | '', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      cohabitationType: ['' as CohabitationType | ''],
+      annualIncome: [''],
+      occupation: [''],
+      ...disabilityStudentDefaults,
+      isDependentStatus: ['dependent' as DependentCoverageStatus],
+      initialDependentStatus: ['notDependent' as DependentCoverageStatus],
+      dependentStartDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      dependentEndDate: [''],
+      appliedDate: [''],
+    });
+    this.setupDependentRowValidation(group);
+    setupDependentDisabilityStudentValidators(group, this.destroyRef);
+    setupDependentPeriodValidators(group, this.destroyRef, this.validationService, () => this.employee, {
+      enableEndDateField: false,
+    });
+    setupDependentHealthInsuranceValidator(group, this.destroyRef, 'notDependent', () => this.canRegisterDependent());
+    setupDependentAppliedDateValidators(group, this.destroyRef, this.validationService, () => this.employee);
+    return group;
+  }
+
+  private setupDependentRowValidation(group: FormGroup) {
     (['name', 'birthDate', 'relationship', 'dependentStartDate'] as const).forEach(fieldName => {
       group.get(fieldName)?.valueChanges
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(() => this.validationService.refreshDependentRowValidation(group));
     });
-    setupDependentDisabilityStudentValidators(group, this.destroyRef);
-    setupDependentPeriodValidators(group, this.destroyRef, this.validationService, () => this.employee, {
-      enableEndDateField: !!existing,
-    });
-
-    return group;
   }
 
   private patchMarriageDependentStartDates() {

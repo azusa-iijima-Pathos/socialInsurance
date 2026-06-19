@@ -295,6 +295,10 @@ export class MonthlyEventList {
     return event.approval?.approvalStatus ?? '—';
   }
 
+  isRejectedItem(item: { approval?: { approvalStatus?: string } }): boolean {
+    return item.approval?.approvalStatus === '却下';
+  }
+
   getApproverName(event: Event): string {
     return this.commonService.getEmployeeName(event.approval?.approvedBy ?? '') || '—';
   }

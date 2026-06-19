@@ -1,6 +1,6 @@
 import { DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { AbstractControl, FormArray, FormGroup, Validators } from '@angular/forms';
+import { AbstractControl, FormArray, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import {
   DisabilityStatus,
   DisabilityType,
@@ -285,6 +285,169 @@ export function validateAllDependentPeriods(
       group.markAllAsTouched();
       valid = false;
     }
+  }
+  return valid;
+}
+
+export function dependentBirthDateNotFutureValidator(control: AbstractControl): ValidationErrors | null {
+  const value = control.value;
+  if (!value) return null;
+  const selected = new Date(value);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  selected.setHours(0, 0, 0, 0);
+  return selected <= today ? null : { futureBirthDate: true };
+}
+
+export function setupDependentHealthInsuranceValidator(
+  group: FormGroup,
+  destroyRef: DestroyRef,
+  initialStatus: DependentCoverageStatus,
+  canRegisterDependent: () => boolean,
+): void {
+  const control = group.get('isDependentStatus');
+  if (!control) return;
+
+  const clearHealthInsuranceError = () => {
+    const errors = control.errors;
+    if (!errors?.['healthInsuranceRequired']) return;
+    const { healthInsuranceRequired, ...rest } = errors;
+    control.setErrors(Object.keys(rest).length ? rest : null);
+  };
+
+  const validate = () => {
+    const value = control.value as DependentCoverageStatus;
+    if (value !== 'dependent') {
+      clearHealthInsuranceError();
+      return;
+    }
+
+    const isNewRow = group.get('isExisting')?.value !== true;
+    const isChangingToDependent = isNewRow || initialStatus === 'notDependent';
+    if (isChangingToDependent && !canRegisterDependent()) {
+      control.setErrors({ ...(control.errors ?? {}), healthInsuranceRequired: true });
+      control.markAsTouched();
+      return;
+    }
+    clearHealthInsuranceError();
+  };
+
+  control.valueChanges
+    .pipe(takeUntilDestroyed(destroyRef))
+    .subscribe(() => validate());
+}
+
+export function setupDependentAppliedDateValidators(
+  group: FormGroup,
+  destroyRef: DestroyRef,
+  validationService: ValidationService,
+  getEmployee: () => Employee | null,
+): void {
+  const appliedControl = group.get('appliedDate');
+  if (!appliedControl) return;
+
+  const setFieldError = (errorKey: string, message: string | null) => {
+    if (!message) {
+      if (!appliedControl.errors?.[errorKey]) return;
+      const { [errorKey]: _, ...rest } = appliedControl.errors ?? {};
+      appliedControl.setErrors(Object.keys(rest).length ? rest : null);
+      return;
+    }
+    appliedControl.setErrors({ ...(appliedControl.errors ?? {}), [errorKey]: message });
+  };
+
+  const validate = () => {
+    const value = group.getRawValue();
+    const isNewRow = value.isExisting !== true;
+    if (isNewRow && !value.name && !value.birthDate && !value.relationship) {
+      setFieldError('appliedDateMatch', null);
+      setFieldError('appliedDateInsurancePeriod', null);
+      return;
+    }
+    const initialStatus = value.initialDependentStatus as DependentCoverageStatus;
+    const currentStatus = value.isDependentStatus as DependentCoverageStatus;
+    const appliedDate = String(value.appliedDate ?? '');
+    const startDate = String(value.dependentStartDate ?? '');
+    const endDate = String(value.dependentEndDate ?? '');
+
+    const matchError = validationService.validateDependentAppliedDateMatch({
+      initialStatus,
+      currentStatus,
+      appliedDate,
+      startDate,
+      endDate: endDate || undefined,
+    });
+    setFieldError('appliedDateMatch', matchError);
+
+    const isRegisteringAsDependent =
+      (isNewRow && currentStatus === 'dependent')
+      || (initialStatus === 'notDependent' && currentStatus === 'dependent');
+    const insuranceError = isRegisteringAsDependent && appliedDate
+      ? validationService.validateDependentAppliedDateInInsurancePeriod(
+        getEmployee()?.insurance?.healthInsurance,
+        appliedDate,
+      )
+      : null;
+    setFieldError('appliedDateInsurancePeriod', insuranceError);
+  };
+
+  (['appliedDate', 'dependentStartDate', 'dependentEndDate', 'isDependentStatus'] as const).forEach(fieldName => {
+    group.get(fieldName)?.valueChanges
+      .pipe(takeUntilDestroyed(destroyRef))
+      .subscribe(() => validate());
+  });
+}
+
+export function validateAllDependentAppliedDates(
+  formArray: FormArray,
+  validationService: ValidationService,
+  getEmployee: () => Employee | null,
+): boolean {
+  let valid = true;
+  for (const control of formArray.controls) {
+    const group = control as FormGroup;
+    const value = group.getRawValue();
+    const initialStatus = value.initialDependentStatus as DependentCoverageStatus;
+    const currentStatus = value.isDependentStatus as DependentCoverageStatus;
+    const isNewRow = value.isExisting !== true;
+    if (isNewRow && !value.name && !value.birthDate && !value.relationship) continue;
+    const appliedDate = String(value.appliedDate ?? '');
+    const startDate = String(value.dependentStartDate ?? '');
+    const endDate = String(value.dependentEndDate ?? '');
+    const appliedControl = group.get('appliedDate');
+    if (!appliedControl) continue;
+
+    const clearAndSet = (errorKey: string, message: string | null) => {
+      if (message) {
+        appliedControl.setErrors({ ...(appliedControl.errors ?? {}), [errorKey]: message });
+        appliedControl.markAsTouched();
+        valid = false;
+        return;
+      }
+      if (appliedControl.errors?.[errorKey]) {
+        const { [errorKey]: _, ...rest } = appliedControl.errors ?? {};
+        appliedControl.setErrors(Object.keys(rest).length ? rest : null);
+      }
+    };
+
+    clearAndSet('appliedDateMatch', validationService.validateDependentAppliedDateMatch({
+      initialStatus,
+      currentStatus,
+      appliedDate,
+      startDate,
+      endDate: endDate || undefined,
+    }));
+
+    const isRegisteringAsDependent =
+      (isNewRow && currentStatus === 'dependent')
+      || (initialStatus === 'notDependent' && currentStatus === 'dependent');
+    const insuranceError = isRegisteringAsDependent && appliedDate
+      ? validationService.validateDependentAppliedDateInInsurancePeriod(
+        getEmployee()?.insurance?.healthInsurance,
+        appliedDate,
+      )
+      : null;
+    clearAndSet('appliedDateInsurancePeriod', insuranceError);
   }
   return valid;
 }
