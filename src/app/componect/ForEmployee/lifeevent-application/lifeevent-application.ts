@@ -1,5 +1,7 @@
 import { Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { merge } from 'rxjs';
+import { auditTime } from 'rxjs/operators';
 import { FormBuilder, ReactiveFormsModule, Validators, FormGroup, FormArray, AbstractControl, ValidationErrors } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Dependent } from '../../../model/dependent';
@@ -32,7 +34,8 @@ import { CommonService, MessageTimer } from '../../../service/common/common-serv
 import { CREATE_MESSAGES } from '../../../constants/constants';
 import { ValidationService } from '../../../service/common/validation-service';
 import { CompanyService } from '../../../service/Firestore/company-service';
-import { getWorkMonthForDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { isDateBeforeWorkPeriod, isWorkMonthAtOrAfterCurrent } from '../../../service/logic/event-id-service';
+import { buildPayrollPeriodBounds } from '../../../service/logic/employee-enrollment.util';
 import {
   DependentChangeEventService,
   getDependentChangeEffectiveDateInput,
@@ -93,8 +96,6 @@ export class LifeeventApplication {
   message = '';
   private messageTimer: MessageTimer | null = null;
 
-  dateValidMessage = '';
-
   marriageForm = this.fb.nonNullable.group({
     type: ['結婚' as '結婚' | '離婚', [Validators.required]],
     name: ['', [Validators.required]],
@@ -109,6 +110,7 @@ export class LifeeventApplication {
     resignationDate: [''],
     leaveEndDate: [''],
     childBirthDate: ['', [Validators.required]],
+    childName: [''],
     dependents: this.fb.array<FormGroup>([]),
   },
     { validators: [this.childBirthDateValidator, this.birthTypeValidator, this.birthLeaveDateValidator] },
@@ -123,7 +125,10 @@ export class LifeeventApplication {
   });
 
   async ngOnInit() {
-    const employee = await this.employeeService.getEmployeeByEmployeeId(this.loginEmployeeId);
+    const [, employee] = await Promise.all([
+      this.companyService.getCompany(),
+      this.employeeService.getEmployeeByEmployeeId(this.loginEmployeeId),
+    ]);
     if (!employee) return;
 
     this.employee = employee;
@@ -140,18 +145,20 @@ export class LifeeventApplication {
       .subscribe(type => {
         if (type === '出産') {
           this.birthForm.patchValue({
-            leaveTypes: '産前産後'
-          });
+            leaveTypes: '産前産後',
+          }, { emitEvent: false });
         }
         if (type === '育児') {
           this.birthForm.patchValue({
-            leaveTypes: '育児'
-          });
-          this.birthDependents.push(
-            this.createNewDependentForm()
-          );
-          this.patchBirthDependentStartDates();
+            leaveTypes: '育児',
+          }, { emitEvent: false });
+          if (this.birthDependents.length === 0) {
+            this.birthDependents.push(this.createBirthDependentForm());
+          }
+          this.patchBirthDependentFromChildBirthDate();
+          this.patchBirthDependentName(this.birthForm.get('childName')!.value);
         }
+        this.updateBirthLeaveValidators();
       });
 
     this.marriageForm.get('occurredDate')?.valueChanges
@@ -160,19 +167,72 @@ export class LifeeventApplication {
 
     this.birthForm.get('childBirthDate')?.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.patchBirthDependentStartDates());
+      .subscribe(() => {
+        if (this.birthForm.get('type')?.value === '育児') {
+          this.patchBirthDependentFromChildBirthDate();
+        }
+        this.birthForm.updateValueAndValidity({ emitEvent: false });
+      });
+
+    this.birthForm.get('leaveTypes')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.updateBirthLeaveValidators());
+
+    this.birthForm.get('resignationDate')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.birthForm.get('resignationDate')?.updateValueAndValidity({ emitEvent: false });
+        this.birthForm.updateValueAndValidity({ emitEvent: false });
+      });
+
+    this.birthForm.get('leaveEndDate')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.birthForm.get('leaveEndDate')?.updateValueAndValidity({ emitEvent: false });
+        this.birthForm.updateValueAndValidity({ emitEvent: false });
+      });
+
+    this.birthForm.get('childName')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(name => this.patchBirthDependentName(name));
+
+    this.updateBirthLeaveValidators();
   }
 
   setActiveTab(tab: LifeEventTab) {
-    this.dateValidMessage = '';
     this.activeTab = tab;
+  }
+
+  trackDependentRow(index: number, control: AbstractControl): string {
+    const dependentId = control.get('dependentId')?.value;
+    return dependentId ? `existing-${dependentId}` : `new-${index}`;
   }
 
   getDependentById(dependentId: string): Dependent | undefined {
     return this.dependents.find(dependent => dependent.dependentId === dependentId);
   }
 
+  private validateBirthDependentArray(formArray: FormArray): boolean {
+    for (const control of formArray.controls) {
+      this.validationService.refreshDependentRowValidation(control as FormGroup);
+    }
+    let valid = true;
+    if (!validateAllDependentPeriods(formArray, this.validationService, () => this.employee)) {
+      valid = false;
+    }
+    for (const control of formArray.controls) {
+      if (control.invalid) {
+        control.markAllAsTouched();
+        valid = false;
+      }
+    }
+    return valid;
+  }
+
   private validateDependentArray(formArray: FormArray): boolean {
+    for (const control of formArray.controls) {
+      this.validationService.refreshDependentRowValidation(control as FormGroup);
+    }
     let valid = validateAllDependentAppliedDates(formArray, this.validationService, () => this.employee);
     if (!validateAllDependentPeriods(formArray, this.validationService, () => this.employee)) {
       valid = false;
@@ -273,10 +333,10 @@ export class LifeeventApplication {
 
   /** 出産/育児申請 */
   async submitBirthForm() {
-    this.dateValidMessage = '';
     this.updateBirthLeaveValidators();
-    if (this.birthForm.invalid || !this.validateDependentArray(this.birthDependents)) {
+    if (this.birthForm.invalid || !this.validateBirthDependentArray(this.birthDependents)) {
       this.birthForm.markAllAsTouched();
+      this.birthDependents.controls.forEach(control => control.markAllAsTouched());
       return;
     }
 
@@ -297,25 +357,24 @@ export class LifeeventApplication {
       || this.employee?.workStatus !== afterEmployee.workStatus
     ) {
       if (leaveTypes && leaveStart) {
-        const allowed = await this.isLeaveStartAllowed(leaveStart);
-        if (!allowed) {
-          this.dateValidMessage = '休職開始日は現在の作業月以降の日付を指定してください';
-          return;
-        }
-
         const expectedBirthDate = parseDateInputValue(this.birthForm.get('childBirthDate')!.value);
-        const leaveEndDate = optionalTimestampFromDateInput(leaveEnd);
+        const leaveEndDate = timestampFromDateInput(leaveEnd);
         const leaveCreated = await this.employeeDetailEventService.createEmployeeLeaveStartApplicationEvent(
           this.loginEmployeeId,
           this.employee!,
           {
             leaveTypes,
             leaveStartDate: timestampFromDateInput(leaveStart),
-            ...(leaveEndDate ? { leaveEndDate } : {}),
+            leaveEndDate,
             lifeEventType,
             extraPayload: {
               expectedBirthDate: Timestamp.fromDate(expectedBirthDate),
-              isMultipleBirth: this.birthForm.get('isMultipleBirth')!.value ?? false,
+              ...(lifeEventType === '出産'
+                ? { isMultipleBirth: this.birthForm.get('isMultipleBirth')!.value ?? false }
+                : {}),
+              ...(lifeEventType === '育児'
+                ? { childName: this.birthForm.get('childName')!.value.trim() }
+                : {}),
             },
           },
         );
@@ -339,7 +398,12 @@ export class LifeeventApplication {
             before: this.employee,
             after: afterEmployee,
             expectedBirthDate: Timestamp.fromDate(parseDateInputValue(this.birthForm.get('childBirthDate')!.value)),
-            isMultipleBirth: this.birthForm.get('isMultipleBirth')!.value ?? false,
+            ...(lifeEventType === '出産'
+              ? { isMultipleBirth: this.birthForm.get('isMultipleBirth')!.value ?? false }
+              : {}),
+            ...(lifeEventType === '育児'
+              ? { childName: this.birthForm.get('childName')!.value.trim() }
+              : {}),
           },
         };
 
@@ -475,19 +539,23 @@ export class LifeeventApplication {
       this.showMessage('健康保険に加入していないため、扶養の登録はできません。');
       return;
     }
-    const form = this.createNewDependentForm();
     switch (type) {
-      case 1:
+      case 1: {
+        const form = this.createNewDependentForm();
         this.marriageDependents.push(form);
         this.patchMarriageDependentStartDates();
         break;
+      }
       case 2:
-        this.birthDependents.push(form);
-        this.patchBirthDependentStartDates();
+        this.birthDependents.push(this.createBirthDependentForm());
+        this.patchBirthDependentFromChildBirthDate();
+        this.patchBirthDependentName(this.birthForm.get('childName')!.value);
         break;
-      case 3:
+      case 3: {
+        const form = this.createNewDependentForm();
         this.dependentChangeDependents.push(form);
         break;
+      }
     }
   }
 
@@ -525,13 +593,31 @@ export class LifeeventApplication {
     return dependent.isDependent !== false ? '扶養' : '扶養ではない';
   }
 
-  private async isLeaveStartAllowed(leaveStart: string): Promise<boolean> {
-    await this.companyService.getCompany();
-    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
-    const workMonth = getWorkMonthForDate(parseDateInputValue(leaveStart), targetPeriodStart);
-    const working = getWorkingYearMonth();
-    return workMonth.year * 12 + workMonth.month >= working.year * 12 + working.month;
+  private getLeaveStartWorkPeriodError(dateStr: string): string | null {
+    const company = this.companyService.company();
+    const targetPeriodStart = company?.settings?.targetPeriod[0] ?? 1;
+    const targetPeriod = company?.settings?.targetPeriod ?? [1, 31];
+    const date = parseDateInputValue(dateStr);
+    const year = Number(sessionStorage.getItem('workingYear'));
+    const month = Number(sessionStorage.getItem('workingMonth'));
+    if (year && month) {
+      const bounds = buildPayrollPeriodBounds(year, month, targetPeriod as [number, number]);
+      if (isDateBeforeWorkPeriod(date, bounds.periodStart)) {
+        return '日付は現在の作業対象期間以降で指定してください';
+      }
+    }
+    if (!isWorkMonthAtOrAfterCurrent(date, targetPeriodStart)) {
+      return '日付は現在の作業対象期間以降で指定してください';
+    }
+    return null;
   }
+
+  private birthLeaveStartWorkPeriodValidator = (control: AbstractControl): ValidationErrors | null => {
+    const value = control.value as string;
+    if (!value) return null;
+    const message = this.getLeaveStartWorkPeriodError(value);
+    return message ? { leaveStartBeforeWorkPeriod: message } : null;
+  };
 
   private initMarriageDependents() {
     this.marriageDependents.clear();
@@ -613,12 +699,43 @@ export class LifeeventApplication {
     return group;
   }
 
-  private setupDependentRowValidation(group: FormGroup) {
-    (['name', 'birthDate', 'relationship', 'dependentStartDate'] as const).forEach(fieldName => {
-      group.get(fieldName)?.valueChanges
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe(() => this.validationService.refreshDependentRowValidation(group));
+  /** 育児申請タブ専用の扶養フォーム（適用日バリデーションなし・初期値あり） */
+  private createBirthDependentForm(): FormGroup {
+    const disabilityStudentDefaults = getDependentDisabilityStudentFormDefaults();
+    const group = this.fb.nonNullable.group({
+      dependentId: [''],
+      isExisting: [false],
+      name: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      birthDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered, dependentBirthDateNotFutureValidator]],
+      relationship: ['' as Relationship | '', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      cohabitationType: ['同居' as CohabitationType],
+      annualIncome: [0],
+      occupation: ['なし'],
+      ...disabilityStudentDefaults,
+      isDependentStatus: ['dependent' as DependentCoverageStatus],
+      initialDependentStatus: ['notDependent' as DependentCoverageStatus],
+      dependentStartDate: ['', [this.validationService.requiredIfAnyDependentFieldEntered]],
+      dependentEndDate: [''],
+      appliedDate: [''],
     });
+    this.setupDependentRowValidation(group);
+    setupDependentDisabilityStudentValidators(group, this.destroyRef);
+    setupDependentPeriodValidators(group, this.destroyRef, this.validationService, () => this.employee, {
+      enableEndDateField: false,
+    });
+    setupDependentHealthInsuranceValidator(group, this.destroyRef, 'notDependent', () => this.canRegisterDependent());
+    return group;
+  }
+
+  private setupDependentRowValidation(group: FormGroup) {
+    const streams = (['name', 'birthDate', 'relationship', 'dependentStartDate'] as const)
+      .map(fieldName => group.get(fieldName)?.valueChanges)
+      .filter((stream): stream is NonNullable<typeof stream> => !!stream);
+    if (streams.length === 0) return;
+
+    merge(...streams)
+      .pipe(auditTime(0), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.validationService.refreshDependentRowValidation(group));
   }
 
   private patchMarriageDependentStartDates() {
@@ -633,16 +750,19 @@ export class LifeeventApplication {
     }
   }
 
-  private patchBirthDependentStartDates() {
+  private patchBirthDependentFromChildBirthDate() {
+    if (this.birthForm.get('type')?.value !== '育児') return;
     const childBirthDate = this.birthForm.get('childBirthDate')?.value;
-    if (!childBirthDate) return;
-    for (const control of this.birthDependents.controls) {
-      if (control.get('isExisting')?.value) continue;
-      const startControl = control.get('dependentStartDate');
-      if (!startControl?.value) {
-        startControl?.setValue(childBirthDate, { emitEvent: false });
-      }
-    }
+    if (!childBirthDate || this.birthDependents.length === 0) return;
+
+    const first = this.birthDependents.at(0) as FormGroup;
+    if (first.get('isExisting')?.value === true) return;
+
+    first.patchValue({
+      birthDate: childBirthDate,
+      dependentStartDate: childBirthDate,
+    }, { emitEvent: false });
+    this.validationService.refreshDependentRowValidation(first);
   }
 
   private collectChangedDependents(formArray: FormArray): {
@@ -655,14 +775,18 @@ export class LifeeventApplication {
       after: DependentFormPayload;
       appliedDateInput?: string;
     }[] = [];
+    let nextDependentId = Number(this.getNextDependentId());
 
     for (const control of formArray.controls) {
       const group = control as FormGroup;
       const raw = group.getRawValue();
-      const after = this.toDependentPayload(raw);
       const before = raw.dependentId
         ? this.dependents.find(dependent => dependent.dependentId === raw.dependentId) ?? null
         : null;
+      const after = this.toDependentPayload(raw);
+      if (!before && this.hasDependentInput(raw)) {
+        after.dependentId = after.dependentId || String(nextDependentId++);
+      }
 
       if (!before && !this.hasDependentInput(raw)) continue;
       if (before && !this.hasDependentChanged(raw, before)) continue;
@@ -762,7 +886,7 @@ export class LifeeventApplication {
     nextDependentId?: number,
   ): Partial<Dependent> {
     const dependentId = after.dependentId || before?.dependentId || (nextDependentId != null ? String(nextDependentId) : '');
-    return {
+    const entity: Partial<Dependent> = {
       dependentId,
       name: after.name,
       relationship: after.relationship as Relationship,
@@ -780,6 +904,10 @@ export class LifeeventApplication {
       isStudent: after.isStudent ?? false,
       ...(after.studentType ? { studentType: after.studentType } : {}),
     };
+    if (!before) {
+      entity.isDependent = after.isDependent !== false;
+    }
+    return entity;
   }
 
   private hasDependentInput(raw: Record<string, unknown>): boolean {
@@ -850,13 +978,49 @@ export class LifeeventApplication {
 
   private updateBirthLeaveValidators() {
     const needsLeaveDate = this.birthForm.get('leaveTypes')!.value !== 'なし';
-    const control = this.birthForm.get('resignationDate')!;
+    const isParentalLeave = this.birthForm.get('type')!.value === '育児';
+    const startControl = this.birthForm.get('resignationDate')!;
+    const endControl = this.birthForm.get('leaveEndDate')!;
+    const childNameControl = this.birthForm.get('childName')!;
     if (needsLeaveDate) {
-      control.setValidators([Validators.required]);
+      startControl.setValidators([
+        Validators.required,
+        this.birthLeaveStartWorkPeriodValidator,
+      ]);
+      endControl.setValidators([Validators.required, this.birthLeaveEndAfterStartValidator.bind(this)]);
     } else {
-      control.clearValidators();
+      startControl.clearValidators();
+      endControl.clearValidators();
     }
-    control.updateValueAndValidity();
+    if (isParentalLeave && needsLeaveDate) {
+      childNameControl.setValidators([Validators.required]);
+    } else {
+      childNameControl.clearValidators();
+      if (!isParentalLeave) {
+        childNameControl.setValue('', { emitEvent: false });
+      }
+    }
+    const updateOptions = { emitEvent: false };
+    startControl.updateValueAndValidity(updateOptions);
+    endControl.updateValueAndValidity(updateOptions);
+    childNameControl.updateValueAndValidity(updateOptions);
+    this.birthForm.updateValueAndValidity(updateOptions);
+  }
+
+  private patchBirthDependentName(name: string) {
+    if (this.birthForm.get('type')?.value !== '育児') return;
+    for (const dependent of this.birthDependents.controls) {
+      dependent.get('name')?.setValue(name, { emitEvent: false });
+      this.validationService.refreshDependentRowValidation(dependent as FormGroup);
+    }
+  }
+
+  private birthLeaveEndAfterStartValidator(control: AbstractControl): ValidationErrors | null {
+    const end = control.value as string;
+    if (!end) return null;
+    const start = this.birthForm.get('resignationDate')?.value as string;
+    if (!start) return null;
+    return end >= start ? null : { leaveEndBeforeStart: true };
   }
 
   private getNextDependentId(): string {
@@ -891,11 +1055,15 @@ export class LifeeventApplication {
       resignationDate: '',
       leaveEndDate: '',
       childBirthDate: '',
+      childName: '',
     });
     this.birthForm.get('resignationDate')?.clearValidators();
+    this.birthForm.get('leaveEndDate')?.clearValidators();
+    this.birthForm.get('childName')?.clearValidators();
     this.birthForm.get('resignationDate')?.updateValueAndValidity({ emitEvent: false });
+    this.birthForm.get('leaveEndDate')?.updateValueAndValidity({ emitEvent: false });
+    this.birthForm.get('childName')?.updateValueAndValidity({ emitEvent: false });
     this.initBirthDependents();
-    this.dateValidMessage = '';
     this.clearFormState(this.birthForm);
   }
 
@@ -971,6 +1139,9 @@ export class LifeeventApplication {
 
   private birthLeaveDateValidator(control: AbstractControl) {
     const leaveType = control.get('leaveTypes')?.value;
+    if (leaveType === 'なし') {
+      return null;
+    }
     const childBirthDate = control.get('childBirthDate')?.value;
     const leaveStartDate = control.get('resignationDate')?.value;
     const isMultipleBirth = control.get('isMultipleBirth')?.value;

@@ -847,7 +847,16 @@ export class SystemApplicationList {
 
   /** 保険料確認へ遷移 */
   toInsuranceConfirm() {
+    if (this.hasPendingApprovedApplies()) {
+      window.alert('承認済みのイベントの適用が実施されていません。実施後に保険料の確認をおこなってください。');
+      return;
+    }
     this.router.navigate(['/insurance-confirm', this.workingYear, this.workingMonth]);
+  }
+
+  /** 承認済み随時改定・従業員申請の適用が未実施か */
+  hasPendingApprovedApplies(): boolean {
+    return this.canBulkApplyFixedSalary || this.approvedEmployeeApplicationEvents.length > 0;
   }
 
   /** 遡及修正へ遷移 */

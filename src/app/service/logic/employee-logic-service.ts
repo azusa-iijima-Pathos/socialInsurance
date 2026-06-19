@@ -383,8 +383,10 @@ export class EmployeeLogicService {
       return { status: '判定不可', currentGrade, reason: '現在等級が未設定のため判定できません', targetPayrolls: [] };
     }
 
-    const year = changeMonth.year.toString();
-    await this.insuranceRates.getRemunerationData(year);
+    const targetYearMonth = `${changeMonth.year}-${String(changeMonth.month).padStart(2, '0')}`;
+    const masterYear = await this.insuranceRates.resolveRemunerationMasterYearForMonth(targetYearMonth);
+    await this.insuranceRates.getRemunerationData(masterYear);
+    const remunerationData = this.insuranceRates.getRemunerationDataForCalculation(masterYear, targetYearMonth);
 
     const targetMonths: YearMonth[] = [
       changeMonth,
@@ -429,7 +431,17 @@ export class EmployeeLogicService {
 
 
     const averageSalary = matchedPayrolls.reduce((total, payroll) => total + payroll.actualPaymentAmount!, 0) / 3;
-    const remunerationData = this.StandardMonthlyRemuneration[year] ?? [];
+
+    if (remunerationData.length === 0) {
+      return {
+        status: '判定不可',
+        currentGrade,
+        averageSalary,
+        reason: `${masterYear}年の標準報酬月額マスタが登録されていません`,
+        targetPayrolls: this.toAdHocRevisionPayrolls(matchedPayrolls),
+      };
+    }
+
     let calculatedGrade: number | undefined;
 
     for (const remuneration of remunerationData) {

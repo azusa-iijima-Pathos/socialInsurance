@@ -70,15 +70,137 @@
 
             <h3 class="employee-edit-section-title">扶養情報</h3>
             <div class="employee-dependent-list" formArrayName="dependents">
-                <div class="employee-dependent-row" *ngFor="let dependent of marriageDependents.controls; let i = index"
+                <div class="employee-dependent-row" *ngFor="let dependent of marriageDependents.controls; let i = index; trackBy: trackDependentRow"
                     [formGroupName]="i">
-                    <ng-container *ngTemplateOutlet="dependentFormFields; context: {
-                        $implicit: dependent,
-                        index: i,
-                        idPrefix: 'marriageDependent',
-                        formArray: marriageDependents,
-                        removeType: 1
-                    }"></ng-container>
+                    <div class="employee-dependent-row__fields">
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentAppliedDate' + i">適用日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'marriageDependentAppliedDate' + i" formControlName="appliedDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('appliedDate')?.errors?.['appliedDateMatch']">
+                                        {{ dependent.get('appliedDate')?.errors?.['appliedDateMatch'] }}
+                                    </p>
+                                    <p *ngIf="dependent.get('appliedDate')?.errors?.['appliedDateInsurancePeriod']">
+                                        {{ dependent.get('appliedDate')?.errors?.['appliedDateInsurancePeriod'] }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentName' + i">扶養者名前</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [id]="'marriageDependentName' + i" formControlName="name">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('name')?.errors?.['required'] && dependent.get('name')?.touched">
+                                        扶養者名前は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentBirthDate' + i">生年月日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'marriageDependentBirthDate' + i" formControlName="birthDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">
+                                        生年月日は必須です</p>
+                                    <p *ngIf="dependent.get('birthDate')?.errors?.['futureBirthDate'] && dependent.get('birthDate')?.touched">
+                                        生年月日は今日以前の日付で入力してください</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentRelationship' + i">続柄</label></div>
+                            <div class="im-field-row__control">
+                                <select [id]="'marriageDependentRelationship' + i" formControlName="relationship">
+                                    <option value="">続柄を選択してください</option>
+                                    <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}</option>
+                                </select>
+                                <div class="error">
+                                    <p *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">
+                                        続柄は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentStartDate' + i">扶養開始日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'marriageDependentStartDate' + i" formControlName="dependentStartDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('dependentStartDate')?.errors?.['required'] && dependent.get('dependentStartDate')?.touched">
+                                        扶養開始日は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
+                            *ngIf="isExistingDependentRow(marriageDependents, i) && dependent.get('isDependentStatus')?.value === 'notDependent'">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentEndDate' + i">扶養終了日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'marriageDependentEndDate' + i" formControlName="dependentEndDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('dependentEndDate')?.errors?.['required'] && dependent.get('dependentEndDate')?.touched">
+                                        扶養対象外の場合、扶養終了日は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide" *ngIf="dependent.errors?.['dependentPeriod']">
+                            <div class="error">
+                                <p>{{ dependent.errors?.['dependentPeriod'] }}</p>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentCohabitation' + i">同居・別居区分</label></div>
+                            <div class="im-field-row__control">
+                                <select [id]="'marriageDependentCohabitation' + i" formControlName="cohabitationType">
+                                    <option value=""></option>
+                                    <option *ngFor="let type of COHABITATION_TYPES" [value]="type">{{ type }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentAnnualIncome' + i">収入額（年収見込み）</label></div>
+                            <div class="im-field-row__control">
+                                <input type="number" min="0" [id]="'marriageDependentAnnualIncome' + i" formControlName="annualIncome">
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'marriageDependentOccupation' + i">職業</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [id]="'marriageDependentOccupation' + i" formControlName="occupation">
+                            </div>
+                        </div>
+                        <app-dependent-disability-student-fields
+                            [group]="$any(dependent)"
+                            [idPrefix]="'marriageDependent' + i">
+                        </app-dependent-disability-student-fields>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide employee-dependent-status-field"
+                            *ngIf="isExistingDependentRow(marriageDependents, i)">
+                            <div class="im-field-row__label"><span>現在の扶養状況</span></div>
+                            <div class="im-field-row__control">
+                                <div class="im-radio-group">
+                                    <label class="im-radio-option" [for]="'marriageDependentStatus1_' + i"
+                                        [class.im-radio-option--disabled]="!canRegisterDependent()">
+                                        <input type="radio" [id]="'marriageDependentStatus1_' + i"
+                                            formControlName="isDependentStatus" value="dependent"
+                                            [disabled]="!canRegisterDependent()">
+                                        <span>扶養対象</span>
+                                    </label>
+                                    <label class="im-radio-option" [for]="'marriageDependentStatus2_' + i">
+                                        <input type="radio" [id]="'marriageDependentStatus2_' + i"
+                                            formControlName="isDependentStatus" value="notDependent">
+                                        <span>扶養対象外</span>
+                                    </label>
+                                </div>
+                                <div class="error">
+                                    <p *ngIf="dependent.get('isDependentStatus')?.errors?.['healthInsuranceRequired']">
+                                        健康保険に加入していないため、扶養の登録はできません。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="im-btn-soft" *ngIf="!isExistingDependentRow(marriageDependents, i)"
+                        (click)="removeDependentRow(1, i)">削除</button>
                 </div>
             </div>
             <button type="button" class="im-btn-soft employee-detail-add-dependent" (click)="addDependent(1)">扶養情報を追加</button>
@@ -140,6 +262,17 @@
                         </label>
                     </div>
                 </div>
+                <div class="im-field-block im-field-row employee-edit-field"
+                    *ngIf="birthForm.get('type')?.value === '育児' && birthForm.get('leaveTypes')?.value !== 'なし'">
+                    <div class="im-field-row__label"><label for="childName">子どもの名前</label></div>
+                    <div class="im-field-row__control">
+                        <input id="childName" type="text" formControlName="childName">
+                        <div class="error">
+                            <p *ngIf="birthForm.get('childName')?.errors?.['required'] && birthForm.get('childName')?.touched">
+                                子どもの名前は必須です</p>
+                        </div>
+                    </div>
+                </div>
                 <div class="im-field-block im-field-row employee-edit-field">
                     <div class="im-field-row__label"><label for="leaveTypes">休職種別</label></div>
                     <div class="im-field-row__control">
@@ -162,7 +295,8 @@
                                 休職開始日は必須です</p>
                             <p *ngIf="birthForm.errors?.['invalidLeaveStartDate'] && birthForm.get('resignationDate')?.touched">
                                 {{ birthForm.errors?.['invalidLeaveStartDate'] }}</p>
-                            <p *ngIf="dateValidMessage">{{ dateValidMessage }}</p>
+                            <p *ngIf="birthForm.get('resignationDate')?.errors?.['leaveStartBeforeWorkPeriod'] && birthForm.get('resignationDate')?.touched">
+                                {{ birthForm.get('resignationDate')?.errors?.['leaveStartBeforeWorkPeriod'] }}</p>
                         </div>
                     </div>
                 </div>
@@ -170,7 +304,12 @@
                     <div class="im-field-row__label"><label for="leaveEndDate">終了予定日</label></div>
                     <div class="im-field-row__control">
                         <input id="leaveEndDate" type="date" formControlName="leaveEndDate">
-                        <p class="employee-detail-field-note">任意入力</p>
+                        <div class="error">
+                            <p *ngIf="birthForm.get('leaveEndDate')?.errors?.['required'] && birthForm.get('leaveEndDate')?.touched">
+                                終了予定日は必須です</p>
+                            <p *ngIf="birthForm.get('leaveEndDate')?.errors?.['leaveEndBeforeStart'] && birthForm.get('leaveEndDate')?.touched">
+                                終了予定日は休職開始日以降にしてください</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -178,7 +317,7 @@
             <ng-container *ngIf="birthForm.get('type')?.value === '育児'">
                 <h3 class="employee-edit-section-title">扶養情報</h3>
                 <div class="employee-dependent-list" formArrayName="dependents">
-                    <div class="employee-dependent-row" *ngFor="let dependent of birthDependents.controls; let i = index"
+                    <div class="employee-dependent-row" *ngFor="let dependent of birthDependents.controls; let i = index; trackBy: trackDependentRow"
                         [formGroupName]="i">
                         <div class="employee-dependent-row__fields">
                             <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
@@ -208,7 +347,7 @@
                                     <input type="date" [id]="'birthDependentBirthDate' + i" formControlName="birthDate">
                                     <div class="error">
                                         <p *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">生年月日は必須です</p>
-                                        <p *ngIf="dependent.get('birthDate')?.errors?.['invalidBirthDate'] && dependent.get('birthDate')?.touched">日付が正しくありません</p>
+                                        <p *ngIf="dependent.get('birthDate')?.errors?.['futureBirthDate'] && dependent.get('birthDate')?.touched">生年月日は今日以前を入力してください</p>
                                     </div>
                                 </div>
                             </div>
@@ -291,15 +430,137 @@
         </div>
         <form class="employee-edit-form retroactive-form" [formGroup]="dependentChangeForm" (ngSubmit)="submitDependentChangeForm()">
             <div class="employee-dependent-list" formArrayName="dependents">
-                <div class="employee-dependent-row" *ngFor="let dependent of dependentChangeDependents.controls; let i = index"
+                <div class="employee-dependent-row" *ngFor="let dependent of dependentChangeDependents.controls; let i = index; trackBy: trackDependentRow"
                     [formGroupName]="i">
-                    <ng-container *ngTemplateOutlet="dependentFormFields; context: {
-                        $implicit: dependent,
-                        index: i,
-                        idPrefix: 'dependentChange',
-                        formArray: dependentChangeDependents,
-                        removeType: 3
-                    }"></ng-container>
+                    <div class="employee-dependent-row__fields">
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeAppliedDate' + i">適用日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'dependentChangeAppliedDate' + i" formControlName="appliedDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('appliedDate')?.errors?.['appliedDateMatch']">
+                                        {{ dependent.get('appliedDate')?.errors?.['appliedDateMatch'] }}
+                                    </p>
+                                    <p *ngIf="dependent.get('appliedDate')?.errors?.['appliedDateInsurancePeriod']">
+                                        {{ dependent.get('appliedDate')?.errors?.['appliedDateInsurancePeriod'] }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeName' + i">扶養者名前</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [id]="'dependentChangeName' + i" formControlName="name">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('name')?.errors?.['required'] && dependent.get('name')?.touched">
+                                        扶養者名前は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeBirthDate' + i">生年月日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'dependentChangeBirthDate' + i" formControlName="birthDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">
+                                        生年月日は必須です</p>
+                                    <p *ngIf="dependent.get('birthDate')?.errors?.['futureBirthDate'] && dependent.get('birthDate')?.touched">
+                                        生年月日は今日以前の日付で入力してください</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeRelationship' + i">続柄</label></div>
+                            <div class="im-field-row__control">
+                                <select [id]="'dependentChangeRelationship' + i" formControlName="relationship">
+                                    <option value="">続柄を選択してください</option>
+                                    <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}</option>
+                                </select>
+                                <div class="error">
+                                    <p *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">
+                                        続柄は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeStartDate' + i">扶養開始日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'dependentChangeStartDate' + i" formControlName="dependentStartDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('dependentStartDate')?.errors?.['required'] && dependent.get('dependentStartDate')?.touched">
+                                        扶養開始日は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
+                            *ngIf="isExistingDependentRow(dependentChangeDependents, i) && dependent.get('isDependentStatus')?.value === 'notDependent'">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeEndDate' + i">扶養終了日</label></div>
+                            <div class="im-field-row__control">
+                                <input type="date" [id]="'dependentChangeEndDate' + i" formControlName="dependentEndDate">
+                                <div class="error">
+                                    <p *ngIf="dependent.get('dependentEndDate')?.errors?.['required'] && dependent.get('dependentEndDate')?.touched">
+                                        扶養対象外の場合、扶養終了日は必須です</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide" *ngIf="dependent.errors?.['dependentPeriod']">
+                            <div class="error">
+                                <p>{{ dependent.errors?.['dependentPeriod'] }}</p>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeCohabitation' + i">同居・別居区分</label></div>
+                            <div class="im-field-row__control">
+                                <select [id]="'dependentChangeCohabitation' + i" formControlName="cohabitationType">
+                                    <option value=""></option>
+                                    <option *ngFor="let type of COHABITATION_TYPES" [value]="type">{{ type }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeAnnualIncome' + i">収入額（年収見込み）</label></div>
+                            <div class="im-field-row__control">
+                                <input type="number" min="0" [id]="'dependentChangeAnnualIncome' + i" formControlName="annualIncome">
+                            </div>
+                        </div>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
+                            <div class="im-field-row__label"><label [for]="'dependentChangeOccupation' + i">職業</label></div>
+                            <div class="im-field-row__control">
+                                <input type="text" [id]="'dependentChangeOccupation' + i" formControlName="occupation">
+                            </div>
+                        </div>
+                        <app-dependent-disability-student-fields
+                            [group]="$any(dependent)"
+                            [idPrefix]="'dependentChange' + i">
+                        </app-dependent-disability-student-fields>
+                        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide employee-dependent-status-field"
+                            *ngIf="isExistingDependentRow(dependentChangeDependents, i)">
+                            <div class="im-field-row__label"><span>現在の扶養状況</span></div>
+                            <div class="im-field-row__control">
+                                <div class="im-radio-group">
+                                    <label class="im-radio-option" [for]="'dependentChangeStatus1_' + i"
+                                        [class.im-radio-option--disabled]="!canRegisterDependent()">
+                                        <input type="radio" [id]="'dependentChangeStatus1_' + i"
+                                            formControlName="isDependentStatus" value="dependent"
+                                            [disabled]="!canRegisterDependent()">
+                                        <span>扶養対象</span>
+                                    </label>
+                                    <label class="im-radio-option" [for]="'dependentChangeStatus2_' + i">
+                                        <input type="radio" [id]="'dependentChangeStatus2_' + i"
+                                            formControlName="isDependentStatus" value="notDependent">
+                                        <span>扶養対象外</span>
+                                    </label>
+                                </div>
+                                <div class="error">
+                                    <p *ngIf="dependent.get('isDependentStatus')?.errors?.['healthInsuranceRequired']">
+                                        健康保険に加入していないため、扶養の登録はできません。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="im-btn-soft" *ngIf="!isExistingDependentRow(dependentChangeDependents, i)"
+                        (click)="removeDependentRow(3, i)">削除</button>
                 </div>
             </div>
             <button type="button" class="im-btn-soft employee-detail-add-dependent" (click)="addDependent(3)">扶養情報を追加</button>
@@ -310,135 +571,3 @@
         </form>
     </section>
 </div>
-
-<ng-template #dependentFormFields let-dependent let-i="index" let-idPrefix="idPrefix" let-formArray="formArray" let-removeType="removeType">
-    <div class="employee-dependent-row__fields">
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
-            <div class="im-field-row__label"><label [for]="idPrefix + 'AppliedDate' + i">適用日</label></div>
-            <div class="im-field-row__control">
-                <input type="date" [id]="idPrefix + 'AppliedDate' + i" formControlName="appliedDate">
-                <div class="error">
-                    <p *ngIf="dependent.get('appliedDate')?.errors?.['appliedDateMatch']">
-                        {{ dependent.get('appliedDate')?.errors?.['appliedDateMatch'] }}
-                    </p>
-                    <p *ngIf="dependent.get('appliedDate')?.errors?.['appliedDateInsurancePeriod']">
-                        {{ dependent.get('appliedDate')?.errors?.['appliedDateInsurancePeriod'] }}
-                    </p>
-                </div>
-            </div>
-        </div>
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
-            <div class="im-field-row__label"><label [for]="idPrefix + 'Name' + i">扶養者名前</label></div>
-            <div class="im-field-row__control">
-                <input type="text" [id]="idPrefix + 'Name' + i" formControlName="name">
-                <div class="error">
-                    <p *ngIf="dependent.get('name')?.errors?.['required'] && dependent.get('name')?.touched">
-                        扶養者名前は必須です</p>
-                </div>
-            </div>
-        </div>
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
-            <div class="im-field-row__label"><label [for]="idPrefix + 'BirthDate' + i">生年月日</label></div>
-            <div class="im-field-row__control">
-                <input type="date" [id]="idPrefix + 'BirthDate' + i" formControlName="birthDate">
-                <div class="error">
-                    <p *ngIf="dependent.get('birthDate')?.errors?.['required'] && dependent.get('birthDate')?.touched">
-                        生年月日は必須です</p>
-                    <p *ngIf="dependent.get('birthDate')?.errors?.['futureBirthDate'] && dependent.get('birthDate')?.touched">
-                        生年月日は今日以前の日付で入力してください</p>
-                </div>
-            </div>
-        </div>
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
-            <div class="im-field-row__label"><label [for]="idPrefix + 'Relationship' + i">続柄</label></div>
-            <div class="im-field-row__control">
-                <select [id]="idPrefix + 'Relationship' + i" formControlName="relationship">
-                    <option value="">続柄を選択してください</option>
-                    <option *ngFor="let relationship of RELATIONSHIPS" [value]="relationship">{{ relationship }}</option>
-                </select>
-                <div class="error">
-                    <p *ngIf="dependent.get('relationship')?.errors?.['required'] && dependent.get('relationship')?.touched">
-                        続柄は必須です</p>
-                </div>
-            </div>
-        </div>
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
-            <div class="im-field-row__label"><label [for]="idPrefix + 'StartDate' + i">扶養開始日</label></div>
-            <div class="im-field-row__control">
-                <input type="date" [id]="idPrefix + 'StartDate' + i" formControlName="dependentStartDate">
-                <div class="error">
-                    <p *ngIf="dependent.get('dependentStartDate')?.errors?.['required'] && dependent.get('dependentStartDate')?.touched">
-                        扶養開始日は必須です</p>
-                </div>
-            </div>
-        </div>
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide"
-            *ngIf="isExistingDependentRow(formArray, i) && dependent.get('isDependentStatus')?.value === 'notDependent'">
-            <div class="im-field-row__label"><label [for]="idPrefix + 'EndDate' + i">扶養終了日</label></div>
-            <div class="im-field-row__control">
-                <input type="date" [id]="idPrefix + 'EndDate' + i" formControlName="dependentEndDate">
-                <div class="error">
-                    <p *ngIf="dependent.get('dependentEndDate')?.errors?.['required'] && dependent.get('dependentEndDate')?.touched">
-                        扶養対象外の場合、扶養終了日は必須です</p>
-                </div>
-            </div>
-        </div>
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide" *ngIf="dependent.errors?.['dependentPeriod']">
-            <div class="error">
-                <p>{{ dependent.errors?.['dependentPeriod'] }}</p>
-            </div>
-        </div>
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
-            <div class="im-field-row__label"><label [for]="idPrefix + 'Cohabitation' + i">同居・別居区分</label></div>
-            <div class="im-field-row__control">
-                <select [id]="idPrefix + 'Cohabitation' + i" formControlName="cohabitationType">
-                    <option value=""></option>
-                    <option *ngFor="let type of COHABITATION_TYPES" [value]="type">{{ type }}</option>
-                </select>
-            </div>
-        </div>
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
-            <div class="im-field-row__label"><label [for]="idPrefix + 'AnnualIncome' + i">収入額（年収見込み）</label></div>
-            <div class="im-field-row__control">
-                <input type="number" min="0" [id]="idPrefix + 'AnnualIncome' + i" formControlName="annualIncome">
-            </div>
-        </div>
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide">
-            <div class="im-field-row__label"><label [for]="idPrefix + 'Occupation' + i">職業</label></div>
-            <div class="im-field-row__control">
-                <input type="text" [id]="idPrefix + 'Occupation' + i" formControlName="occupation">
-            </div>
-        </div>
-        <app-dependent-disability-student-fields
-            [group]="$any(dependent)"
-            [idPrefix]="idPrefix + i">
-        </app-dependent-disability-student-fields>
-        <div class="im-field-block im-field-row employee-edit-field employee-edit-field--wide employee-dependent-status-field"
-            *ngIf="isExistingDependentRow(formArray, i)">
-            <div class="im-field-row__label"><span>現在の扶養状況</span></div>
-            <div class="im-field-row__control">
-                <div class="im-radio-group">
-                    <label class="im-radio-option" [for]="idPrefix + 'Status1_' + i"
-                        [class.im-radio-option--disabled]="!canRegisterDependent()">
-                        <input type="radio" [id]="idPrefix + 'Status1_' + i"
-                            formControlName="isDependentStatus" value="dependent"
-                            [disabled]="!canRegisterDependent()">
-                        <span>扶養対象</span>
-                    </label>
-                    <label class="im-radio-option" [for]="idPrefix + 'Status2_' + i">
-                        <input type="radio" [id]="idPrefix + 'Status2_' + i"
-                            formControlName="isDependentStatus" value="notDependent">
-                        <span>扶養対象外</span>
-                    </label>
-                </div>
-                <div class="error">
-                    <p *ngIf="dependent.get('isDependentStatus')?.errors?.['healthInsuranceRequired']">
-                        健康保険に加入していないため、扶養の登録はできません。
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-    <button type="button" class="im-btn-soft" *ngIf="!isExistingDependentRow(formArray, i)"
-        (click)="removeDependentRow(removeType, i)">削除</button>
-</ng-template>

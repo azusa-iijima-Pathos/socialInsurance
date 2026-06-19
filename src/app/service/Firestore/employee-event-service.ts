@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { Timestamp } from '@angular/fire/firestore';
 import { Event as EmployeeEvent } from '../../model/event';
 import { CrudService } from '../common/crud-service';
+import { getCurrentApprovedWorkingMonth } from '../logic/event-id-service';
 
 @Injectable({
   providedIn: 'root',
@@ -31,6 +32,7 @@ export class EmployeeEventService {
           approvalStatus: '承認済み',
           approvedDate: Timestamp.now(),
           approvedBy: loginEmployeeId,
+          approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
         },
         payload,
       },

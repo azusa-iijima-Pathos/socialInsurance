@@ -9,6 +9,7 @@ import { EventService } from '../Firestore/event-service';
 import {
   buildDependentChangeEventBaseId,
   getCurrentAppliedFromMonth,
+  getCurrentApprovedWorkingMonth,
   isWorkMonthAfterCurrent,
 } from './event-id-service';
 import { parseDateInputValue, timestampFromDateInput } from '../common/date-input.util';
@@ -143,6 +144,7 @@ export class DependentChangeEventService {
           approvedDate: Timestamp.now(),
           approvedBy: loginEmployeeId,
           appliedFromMonth: getCurrentAppliedFromMonth(),
+          approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
         },
         payload: {
           before: change.before,
@@ -228,10 +230,11 @@ export class DependentChangeEventService {
 
   private async applyDependentChange(employeeId: string, change: DependentChangeInput): Promise<boolean> {
     const after = change.after;
-    if (!after.dependentId) return false;
+    const dependentId = String(after.dependentId ?? '').trim();
+    if (!dependentId) return false;
 
     const dependent: Partial<Dependent> = {
-      dependentId: after.dependentId,
+      dependentId,
       name: after.name,
       relationship: after.relationship,
       birthDate: after.birthDate,
@@ -247,8 +250,6 @@ export class DependentChangeEventService {
       studentType: after.studentType,
     };
 
-    return change.before
-      ? this.dependentService.updateDependent(employeeId, dependent)
-      : this.dependentService.registerDependents(employeeId, [dependent]);
+    return this.dependentService.saveDependent(employeeId, dependent);
   }
 }

@@ -33,8 +33,10 @@ export class RetireEntry {
   private employeeEventApprovalService = inject(EmployeeEventApprovalService);
   commonService = inject(CommonService);
 
+  employeeSearchText = '';
+
   form = this.fb.nonNullable.group({
-    employeeId: ['', [Validators.required, Validators.pattern('^[a-zA-Z0-9]+$')], [this.validationService.validateRetireEntryEmployeeId]],
+    employeeId: ['', [Validators.required], [this.validationService.validateRetireEntryEmployeeId]],
     workStatus: ['退社予定' as WorkStatus, [Validators.required]],
     occurredDate: ['', [Validators.required]],
   });
@@ -138,7 +140,27 @@ export class RetireEntry {
       : '退職登録に成功しました';
     this.showMessage(successMessage);
     this.form.reset({ workStatus: '退社予定' });
+    this.employeeSearchText = '';
     await this.loadScheduledRetires();
+  }
+
+  getFilteredRetireTargetEmployees(): Employee[] {
+    return this.filterEmployeesBySearch(
+      this.employeeService.allEmployees().filter(employee =>
+        employee.workStatus !== '退社済み' && employee.workStatus !== '退社予定',
+      ),
+    );
+  }
+
+  private filterEmployeesBySearch(employees: Employee[]): Employee[] {
+    const query = this.employeeSearchText.trim().toLowerCase();
+    const sorted = [...employees].sort((left, right) => left.employeeId.localeCompare(right.employeeId));
+    if (!query) return sorted;
+
+    return sorted.filter(employee => {
+      const name = `${employee.firstName ?? ''} ${employee.lastName ?? ''}`.toLowerCase();
+      return employee.employeeId.toLowerCase().includes(query) || name.includes(query);
+    });
   }
 
   async loadScheduledRetires() {

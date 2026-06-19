@@ -232,63 +232,93 @@ export class EmployeeEventDisplayService {
   ): string[] {
     const expectedBirthDate = event.payload?.['expectedBirthDate'];
     const isMultipleBirth = event.payload?.['isMultipleBirth'] as boolean | undefined;
+    const childName = event.payload?.['childName'] as string | undefined;
     const beforePayload = event.payload?.['before'] as Record<string, unknown> | undefined;
     const afterPayload = event.payload?.['after'] as Record<string, unknown> | undefined;
+    const leaveTypes = this.resolveLeaveTypes(beforeEmp, afterEmp, beforePayload, afterPayload);
     const lines: string[] = [];
+
+    if (event.changeType) {
+      lines.push(`変更タイプ：${event.changeType}`);
+    }
 
     if (event.changeType === '休職開始') {
       lines.push(`勤務状況：${this.formatText(beforePayload?.['workStatus'] ?? beforeEmp?.workStatus)} → 休職中`);
-      if (afterPayload?.['leaveTypes']) {
-        lines.push(`休業種別：${this.formatText(afterPayload['leaveTypes'])}`);
-      }
-      if (afterPayload?.['leaveStartDate'] || event.occurredDate) {
-        lines.push(`休職開始日：${this.formatPayloadDate(afterPayload?.['leaveStartDate'] ?? event.occurredDate)}`);
-      }
-      if (afterPayload?.['leaveEndDate']) {
-        lines.push(`終了予定日：${this.formatPayloadDate(afterPayload['leaveEndDate'])}`);
-      }
-      return lines;
-    }
-
-    if (event.changeType === '休職終了') {
+    } else if (event.changeType === '休職終了') {
       lines.push(`勤務状況：休職中 → 通常勤務`);
-      if (beforePayload?.['leaveTypes']) {
-        lines.push(`休業種別：${this.formatText(beforePayload['leaveTypes'])}`);
-      }
-      if (beforePayload?.['leaveStartDate']) {
-        lines.push(`休職開始日：${this.formatPayloadDate(beforePayload['leaveStartDate'])}`);
-      }
-      if (afterPayload?.['leaveEndDate'] || event.occurredDate) {
-        lines.push(`休職終了日：${this.formatPayloadDate(afterPayload?.['leaveEndDate'] ?? event.occurredDate)}`);
-      }
-      return lines;
-    }
-
-    if (beforeEmp?.workStatus !== afterEmp?.workStatus) {
+    } else if (beforeEmp?.workStatus !== afterEmp?.workStatus) {
       lines.push(`勤務状況：${beforeEmp?.workStatus ?? '—'} → ${afterEmp?.workStatus ?? '—'}`);
     }
-    if (beforeEmp?.leaveTypes !== afterEmp?.leaveTypes) {
-      lines.push(`休業種別：${beforeEmp?.leaveTypes ?? '—'} → ${afterEmp?.leaveTypes ?? '—'}`);
+
+    if (leaveTypes) {
+      lines.push(`休業種別：${this.formatText(leaveTypes)}`);
     }
-    if (event.occurredDate) {
-      lines.push(`休職開始日：${this.commonService.formatDate(event.occurredDate)}`);
+
+    const leaveStartDate = this.resolveLeaveStartDate(event, beforePayload, afterPayload);
+    const leaveEndDate = this.resolveLeaveEndDate(event, beforePayload, afterPayload);
+    if (leaveStartDate) {
+      lines.push(`休職開始日：${this.formatPayloadDate(leaveStartDate)}`);
     }
-    if (expectedBirthDate) {
-      if (event.lifeEventType === '出産') {
+    if (leaveEndDate) {
+      const endLabel = event.changeType === '休職終了' ? '休職終了日' : '終了予定日';
+      lines.push(`${endLabel}：${this.formatPayloadDate(leaveEndDate)}`);
+    }
+
+    if (this.isMaternityOrParentalLeave(leaveTypes) && expectedBirthDate) {
+      if (leaveTypes === '産前産後' || event.lifeEventType === '出産') {
         lines.push(`出産予定日：${this.formatPayloadDate(expectedBirthDate)}`);
-      } else if (event.lifeEventType === '育児') {
+      } else {
         lines.push(`子どもの誕生日：${this.formatPayloadDate(expectedBirthDate)}`);
       }
     }
-    if (isMultipleBirth === true) {
-      lines.push('多胎妊娠：○');
-    } else if (isMultipleBirth === false) {
-      lines.push('多胎妊娠：×');
+    if (leaveTypes === '産前産後' && isMultipleBirth !== undefined) {
+      lines.push(`多胎妊娠：${isMultipleBirth ? '○' : '×'}`);
+    }
+    if (leaveTypes === '育児' && childName) {
+      lines.push(`子どもの名前：${this.formatText(childName)}`);
     }
     if (event.lifeEventType) {
-      lines.unshift(`ライフイベント：${event.lifeEventType}`);
+      lines.push(`ライフイベント：${event.lifeEventType}`);
     }
+
     return lines.length ? lines : ['変更内容を確認してください'];
+  }
+
+  private resolveLeaveTypes(
+    beforeEmp: Employee | undefined,
+    afterEmp: Employee | undefined,
+    beforePayload?: Record<string, unknown>,
+    afterPayload?: Record<string, unknown>,
+  ): string | undefined {
+    const value = afterPayload?.['leaveTypes']
+      ?? beforePayload?.['leaveTypes']
+      ?? afterEmp?.leaveTypes
+      ?? beforeEmp?.leaveTypes;
+    return value ? String(value) : undefined;
+  }
+
+  private isMaternityOrParentalLeave(leaveTypes?: string): boolean {
+    return leaveTypes === '産前産後' || leaveTypes === '育児';
+  }
+
+  private resolveLeaveStartDate(
+    event: Event,
+    beforePayload?: Record<string, unknown>,
+    afterPayload?: Record<string, unknown>,
+  ): unknown {
+    return afterPayload?.['leaveStartDate']
+      ?? beforePayload?.['leaveStartDate']
+      ?? (event.changeType === '休職開始' ? event.occurredDate : undefined);
+  }
+
+  private resolveLeaveEndDate(
+    event: Event,
+    beforePayload?: Record<string, unknown>,
+    afterPayload?: Record<string, unknown>,
+  ): unknown {
+    return afterPayload?.['leaveEndDate']
+      ?? beforePayload?.['leaveEndDate']
+      ?? (event.changeType === '休職終了' ? event.occurredDate : undefined);
   }
 
   private isDependentArrayPayload(value: unknown): value is { dependents: Dependent[] } {

@@ -11,15 +11,29 @@
     <form class="im-fields-grid retire-entry-form" [formGroup]="form" (ngSubmit)="registerRetireEntry()">
         <div class="im-field-block im-field-row">
             <div class="im-field-row__label">
-                <label for="employeeId">社員ID（半角）</label>
+                <label for="retireEmployeeSearch">社員検索</label>
             </div>
             <div class="im-field-row__control">
-                <input type="text" id="employeeId" formControlName="employeeId">
+                <input type="text" id="retireEmployeeSearch" class="retire-entry-employee-search"
+                    [(ngModel)]="employeeSearchText" [ngModelOptions]="{standalone: true}"
+                    placeholder="社員ID・氏名で絞り込み">
+            </div>
+        </div>
+
+        <div class="im-field-block im-field-row">
+            <div class="im-field-row__label">
+                <label for="employeeId"></label>
+            </div>
+            <div class="im-field-row__control">
+                <select id="employeeId" class="retire-entry-employee-select" formControlName="employeeId">
+                    <option value="">従業員を選択してください</option>
+                    <option *ngFor="let employee of getFilteredRetireTargetEmployees()" [value]="employee.employeeId">
+                        {{ employee.employeeId }}：{{ employee.firstName }} {{ employee.lastName }}
+                    </option>
+                </select>
                 <div class="error">
-                    <p *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">社員IDは必須です
+                    <p *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">社員は必須です
                     </p>
-                    <p *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">
-                        半角で入力してください</p>
                     <p
                         *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">
                         社員IDが正しくありません</p>
@@ -33,14 +47,7 @@
             </div>
         </div>
 
-        <div class="im-field-block im-field-row" *ngIf="form.get('employeeId')?.value">
-            <div class="im-field-row__label">
-                <label for="name">氏名</label>
-            </div>
-            <div class="im-field-row__control">
-                <p class="retire-entry-readonly-value">{{ commonService.getEmployeeName(form.get('employeeId')?.value ?? '') }}</p>
-            </div>
-        </div>
+
 
         <div class="retire-entry-pair">
             <div class="im-field-block im-field-row">

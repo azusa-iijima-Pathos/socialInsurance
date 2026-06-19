@@ -70,6 +70,107 @@
   gap: var(--im-size-16);
 }
 
+.employee-infomation-area {
+  display: grid;
+  gap: var(--im-size-16);
+}
+
+.employee-detail-system-notice-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-12);
+}
+
+.employee-detail-system-notice-row .employee-detail-system-run-notice {
+  margin-bottom: 0;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.employee-detail-profile-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-16);
+  align-items: stretch;
+}
+
+.employee-detail-profile-row > .employee-detail-section--profile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.employee-detail-section--retired-muted {
+  background: var(--im-color-gray-50, #f3f4f6);
+}
+
+.employee-detail-profile-fields {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 10.5rem;
+}
+
+.employee-detail-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(2.75rem, auto);
+  gap: var(--im-size-8) var(--im-size-10);
+  margin: 0;
+  flex: 1;
+  width: 100%;
+  align-content: start;
+}
+
+.employee-detail-profile-grid__cell {
+  display: grid;
+  gap: var(--im-size-4);
+  min-width: 0;
+}
+
+.employee-detail-profile-grid__cell dt {
+  margin: 0;
+  color: #8d96a3;
+  font-size: var(--im-font-13);
+  font-weight: 600;
+}
+
+.employee-detail-profile-grid__cell dd {
+  margin: 0;
+  color: #000;
+  font-size: var(--im-font-14);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.employee-detail-events-history-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--im-size-16);
+  align-items: start;
+}
+
+.employee-detail-events-history-col {
+  min-width: 0;
+}
+
+.employee-detail-events-history-title {
+  margin: 0 0 var(--im-size-12);
+  font-size: var(--im-font-18);
+}
+
+.employee-detail-events-history-row .employee-detail-events-table-wrap {
+  overflow: auto;
+}
+
+.employee-detail-events-history-row .employee-detail-events-table-wrap--scroll {
+  max-height: 420px;
+  overflow: auto;
+}
+
 .employee-detail-section {
   padding: var(--im-size-20);
   border: 1px solid var(--im-color-gray-150);
@@ -164,7 +265,12 @@
   padding: var(--im-size-14);
   border: 1px solid var(--im-color-gray-150);
   border-radius: var(--im-radius-8);
-  background: var(--im-color-gray-50);
+  background: #f3f4f6;
+}
+
+.employee-detail-insurance-card--joined {
+  background: #eff6ff;
+  border-color: #bfdbfe;
 }
 
 .employee-detail-insurance-card__missing-number {
@@ -275,6 +381,7 @@
 
 .employee-detail-dependent-list {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--im-size-12);
 }
 
@@ -282,7 +389,66 @@
   padding: var(--im-size-14);
   border: 1px solid var(--im-color-gray-150);
   border-radius: var(--im-radius-8);
-  background: var(--im-color-gray-50);
+  background: #f3f4f6;
+}
+
+.employee-detail-dependent-card--active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.employee-detail-dependent-card__rows {
+  display: grid;
+  gap: var(--im-size-6);
+}
+
+.employee-detail-dependent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--im-size-4) var(--im-size-6);
+  margin: 0;
+}
+
+.employee-detail-dependent-grid--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.employee-detail-dependent-field {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.employee-detail-dependent-field--main dt {
+  margin: 0;
+  color: #8d96a3;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.employee-detail-dependent-field--main dd {
+  margin: 0;
+  color: #000;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.employee-detail-dependent-card .employee-detail-dependent-field--sub dt {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.employee-detail-dependent-card .employee-detail-dependent-field--sub dd {
+  margin: 0;
+  color: #000;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.25;
 }
 
 .employee-detail-empty {

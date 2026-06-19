@@ -42,6 +42,7 @@ import {
   EmploymentCategory,
   LEAVE_TYPES,
   LeaveType,
+  LifeEventType,
   RELATIONSHIPS,
   Relationship,
   COHABITATION_TYPES,
@@ -241,7 +242,10 @@ export class EmployeeDetail {
     leaveStartDate: [''],
     leaveEndDate: [''],
     switchDate: [''],
-  });
+    childBirthDate: [''],
+    isMultipleBirth: [false],
+    childName: [''],
+  }, { validators: [this.workStatusMaternityValidator.bind(this)] });
 
   employmentContractForm = this.fb.nonNullable.group({
     effectiveDate: ['', [Validators.required]],
@@ -457,9 +461,16 @@ export class EmployeeDetail {
     this.workStatusForm.reset({
       workStatus: currentStatus,
       leaveTypes: this.selectedEmployee.leaveTypes ?? '',
-      leaveStartDate: '',
-      leaveEndDate: '',
+      leaveStartDate: currentStatus === '休職中'
+        ? this.formatDateForInput(this.selectedEmployee.leaveStartDate)
+        : '',
+      leaveEndDate: currentStatus === '休職中'
+        ? this.formatDateForInput(this.selectedEmployee.leaveEndDate)
+        : '',
       switchDate: '',
+      childBirthDate: '',
+      isMultipleBirth: false,
+      childName: '',
     });
     this.updateWorkStatusFieldValidation();
     this.workStatusModalOpen = true;
@@ -866,6 +877,8 @@ export class EmployeeDetail {
 
   /** 扶養情報を送信 */
   async submitDependentModal() {
+    this.syncNewDependentAppliedDates();
+
     if (!this.validateAllDependentAppliedDates()) {
       this.dependentForm.markAllAsTouched();
       this.showMessage('適用日の入力内容を確認してください');
@@ -934,6 +947,17 @@ export class EmployeeDetail {
     this.closeDependentModal();
   }
 
+  private syncNewDependentAppliedDates(): void {
+    for (const control of this.dependentsArray.controls) {
+      const group = control as FormGroup;
+      const value = group.getRawValue();
+      if (value.isExisting === true) continue;
+      if (!value.name && !value.birthDate && !value.relationship) continue;
+      if (!value.dependentStartDate || value.appliedDate) continue;
+      group.patchValue({ appliedDate: value.dependentStartDate }, { emitEvent: false });
+    }
+  }
+
   private collectDependentChangesFromForm(): {
     before: Dependent | null;
     after: Partial<Dependent>;
@@ -960,7 +984,7 @@ export class EmployeeDetail {
       }
 
       const after: Partial<Dependent> = {
-        dependentId: before?.dependentId ?? `${nextId++}`,
+        dependentId: before?.dependentId ?? String(nextId++),
         name: value.name,
         birthDate: timestampFromDateInput(value.birthDate),
         relationship: value.relationship as Relationship,
@@ -971,10 +995,12 @@ export class EmployeeDetail {
         after.isDependent = true;
       }
 
+      const appliedDateInput = value.appliedDate || value.dependentStartDate || undefined;
+
       results.push({
         before,
         after,
-        appliedDateInput: value.appliedDate || undefined,
+        appliedDateInput,
       });
     }
 
@@ -1353,6 +1379,11 @@ export class EmployeeDetail {
       return '随時改定（固定給変更）';
     }
     return item.data.eventType ?? '—';
+  }
+
+  getEventListItemChangeType(item: EmployeeDetailEventListItem): string {
+    if (item.kind === 'event') return item.data.changeType ?? '—';
+    return '—';
   }
 
   getEventListItemReason(item: EmployeeDetailEventListItem): string {
@@ -1804,7 +1835,7 @@ export class EmployeeDetail {
       '扶養状況',
       '扶養開始日',
       '扶養終了日',
-      '同居・別居区分',
+      '同居・別居区分（同居/別居）',
       '収入額（年収見込み）',
       '職業',
       '障害',
@@ -2526,12 +2557,38 @@ export class EmployeeDetail {
 
   showWorkStatusLeaveStartField(): boolean {
     const current = this.selectedEmployee?.workStatus === '休職中' ? '休職中' : '通常勤務';
-    return current === '通常勤務' && this.workStatusForm.controls.workStatus.value === '休職中';
+    const target = this.workStatusForm.controls.workStatus.value;
+    return (current === '通常勤務' && target === '休職中') || (current === '休職中' && target === '休職中');
   }
 
   showWorkStatusLeaveEndField(): boolean {
     const current = this.selectedEmployee?.workStatus === '休職中' ? '休職中' : '通常勤務';
     return current === '休職中' && this.workStatusForm.controls.workStatus.value === '通常勤務';
+  }
+
+  showWorkStatusMaternityFields(): boolean {
+    const current = this.selectedEmployee?.workStatus === '休職中' ? '休職中' : '通常勤務';
+    const target = this.workStatusForm.controls.workStatus.value;
+    const leaveType = this.workStatusForm.controls.leaveTypes.value;
+    return current === '通常勤務'
+      && target === '休職中'
+      && (leaveType === '産前産後' || leaveType === '育児');
+  }
+
+  showWorkStatusMultipleBirthField(): boolean {
+    return this.showWorkStatusMaternityFields()
+      && this.workStatusForm.controls.leaveTypes.value === '産前産後';
+  }
+
+  showWorkStatusChildNameField(): boolean {
+    return this.showWorkStatusMaternityFields()
+      && this.workStatusForm.controls.leaveTypes.value === '育児';
+  }
+
+  workStatusChildBirthDateLabel(): string {
+    return this.workStatusForm.controls.leaveTypes.value === '育児'
+      ? '子どもの生年月日'
+      : '出産予定日';
   }
 
   showWorkStatusSwitchDateField(): boolean {
@@ -2623,7 +2680,68 @@ export class EmployeeDetail {
       .subscribe(() => this.updateWorkStatusFieldValidation());
     this.workStatusForm.controls.leaveStartDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.workStatusForm.controls.leaveEndDate.updateValueAndValidity({ emitEvent: false }));
+      .subscribe(() => {
+        this.workStatusForm.controls.leaveEndDate.updateValueAndValidity({ emitEvent: false });
+        this.workStatusForm.updateValueAndValidity({ emitEvent: false });
+      });
+    this.workStatusForm.controls.childBirthDate.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.workStatusForm.updateValueAndValidity({ emitEvent: false }));
+  }
+
+  private workStatusMaternityValidator(control: AbstractControl): ValidationErrors | null {
+    if (!this.selectedEmployee) return null;
+    const current = this.selectedEmployee.workStatus === '休職中' ? '休職中' : '通常勤務';
+    const target = control.get('workStatus')?.value;
+    const leaveType = control.get('leaveTypes')?.value;
+    if (current !== '通常勤務' || target !== '休職中' || (leaveType !== '産前産後' && leaveType !== '育児')) {
+      return null;
+    }
+
+    const childBirthDate = control.get('childBirthDate')?.value as string;
+    if (!childBirthDate) {
+      return {
+        requiredChildBirthDate: leaveType === '育児'
+          ? '子どもの生年月日は必須です'
+          : '出産予定日は必須です',
+      };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetDate = parseDateInputValue(childBirthDate);
+    if (leaveType === '産前産後' && targetDate < today) {
+      return { invalidBirthDate: '出産予定日は今日以降を入力してください' };
+    }
+    if (leaveType === '育児' && targetDate >= today) {
+      return { invalidBirthDate: '子どもの誕生日は今日以前を入力してください' };
+    }
+
+    const leaveStartDate = control.get('leaveStartDate')?.value as string;
+    if (!childBirthDate || !leaveStartDate) return null;
+    const birthDate = parseDateInputValue(childBirthDate);
+    const startDate = parseDateInputValue(leaveStartDate);
+    if (leaveType === '育児' && startDate < birthDate) {
+      return { invalidLeaveStartDate: '育児休業開始日は出生日以降を入力してください' };
+    }
+    if (leaveType === '育児') {
+      const childName = control.get('childName')?.value as string;
+      if (!childName?.trim()) {
+        return { requiredChildName: '子どもの名前は必須です' };
+      }
+    }
+    if (leaveType === '産前産後') {
+      const isMultipleBirth = control.get('isMultipleBirth')?.value ?? false;
+      const days = isMultipleBirth ? 98 : 42;
+      const minStartDate = new Date(birthDate);
+      minStartDate.setDate(minStartDate.getDate() - days);
+      if (startDate < minStartDate) {
+        return {
+          invalidLeaveStartDate: `産前産後休業開始日は出産予定日の${days}日前以降を入力してください`,
+        };
+      }
+    }
+    return null;
   }
 
   private leaveEndAfterStartValidator = (control: AbstractControl): ValidationErrors | null => {
@@ -2660,21 +2778,36 @@ export class EmployeeDetail {
     const form = this.workStatusForm;
     const current = this.selectedEmployee?.workStatus === '休職中' ? '休職中' : '通常勤務';
     const target = form.controls.workStatus.value;
+    const isMaternityLeaveStart = this.showWorkStatusMaternityFields();
 
     const leaveTypesRequired = target === '休職中';
     form.controls.leaveTypes.setValidators(leaveTypesRequired ? [Validators.required] : null);
     if (!leaveTypesRequired) form.controls.leaveTypes.setValue('', { emitEvent: false });
 
-    const leaveStartRequired = current === '通常勤務' && target === '休職中';
+    const leaveStartRequired = (current === '通常勤務' && target === '休職中')
+      || (current === '休職中' && target === '休職中');
     form.controls.leaveStartDate.setValidators(leaveStartRequired ? [Validators.required] : null);
     if (!leaveStartRequired) form.controls.leaveStartDate.setValue('', { emitEvent: false });
 
-    const leaveEndRequired = current === '休職中' && target === '通常勤務';
+    const leaveEndRequired = (current === '休職中' && target === '通常勤務')
+      || isMaternityLeaveStart;
     const leaveEndValidators = [];
     if (leaveEndRequired) leaveEndValidators.push(Validators.required);
     if (leaveStartRequired || leaveEndRequired) leaveEndValidators.push(this.leaveEndAfterStartValidator);
     form.controls.leaveEndDate.setValidators(leaveEndValidators.length ? leaveEndValidators : null);
-    if (!leaveEndRequired && !leaveStartRequired) form.controls.leaveEndDate.setValue('', { emitEvent: false });
+    if (!leaveEndRequired && !(current === '休職中' && target === '休職中')) {
+      form.controls.leaveEndDate.setValue('', { emitEvent: false });
+    }
+
+    form.controls.childBirthDate.setValidators(isMaternityLeaveStart ? [Validators.required] : null);
+    form.controls.childName.setValidators(
+      isMaternityLeaveStart && form.controls.leaveTypes.value === '育児' ? [Validators.required] : null,
+    );
+    if (!isMaternityLeaveStart) {
+      form.controls.childBirthDate.setValue('', { emitEvent: false });
+      form.controls.isMultipleBirth.setValue(false, { emitEvent: false });
+      form.controls.childName.setValue('', { emitEvent: false });
+    }
 
     const switchRequired = this.showWorkStatusSwitchDateField();
     form.controls.switchDate.setValidators(switchRequired ? [Validators.required] : null);
@@ -2683,7 +2816,10 @@ export class EmployeeDetail {
     form.controls.leaveTypes.updateValueAndValidity({ emitEvent: false });
     form.controls.leaveStartDate.updateValueAndValidity({ emitEvent: false });
     form.controls.leaveEndDate.updateValueAndValidity({ emitEvent: false });
+    form.controls.childBirthDate.updateValueAndValidity({ emitEvent: false });
+    form.controls.childName.updateValueAndValidity({ emitEvent: false });
     form.controls.switchDate.updateValueAndValidity({ emitEvent: false });
+    form.updateValueAndValidity({ emitEvent: false });
   }
 
   private updateInsuranceEffectiveDateValidation() {
@@ -2699,12 +2835,26 @@ export class EmployeeDetail {
   ): WorkStatusChangeInput | null {
     const form = this.workStatusForm;
     if (currentStatus === '通常勤務' && targetStatus === '休職中') {
+      const leaveTypes = form.controls.leaveTypes.value as LeaveType;
+      const isMaternity = leaveTypes === '産前産後' || leaveTypes === '育児';
       return {
         scenario: 'leaveStart',
-        leaveTypes: form.controls.leaveTypes.value as LeaveType,
+        leaveTypes,
         leaveStartDate: timestampFromDateInput(form.controls.leaveStartDate.value),
-        ...(form.controls.leaveEndDate.value
+        ...(isMaternity || form.controls.leaveEndDate.value
           ? { leaveEndDate: timestampFromDateInput(form.controls.leaveEndDate.value) }
+          : {}),
+        ...(isMaternity
+          ? {
+            lifeEventType: (leaveTypes === '産前産後' ? '出産' : '育児') as LifeEventType,
+            expectedBirthDate: timestampFromDateInput(form.controls.childBirthDate.value),
+            ...(leaveTypes === '産前産後'
+              ? { isMultipleBirth: form.controls.isMultipleBirth.value ?? false }
+              : {}),
+            ...(leaveTypes === '育児'
+              ? { childName: form.controls.childName.value.trim() }
+              : {}),
+          }
           : {}),
       };
     }
@@ -2716,17 +2866,48 @@ export class EmployeeDetail {
     }
     if (currentStatus === '休職中' && targetStatus === '休職中') {
       const newType = form.controls.leaveTypes.value as LeaveType;
-      if (!newType || newType === this.selectedEmployee?.leaveTypes) return null;
+      if (newType && newType !== this.selectedEmployee?.leaveTypes) {
+        return {
+          scenario: 'leaveSwitch',
+          leaveTypes: newType,
+          switchDate: timestampFromDateInput(form.controls.switchDate.value),
+        };
+      }
+
+      const currentStart = this.formatDateForInput(this.selectedEmployee?.leaveStartDate);
+      const currentEnd = this.formatDateForInput(this.selectedEmployee?.leaveEndDate);
+      const newStart = form.controls.leaveStartDate.value;
+      const newEnd = form.controls.leaveEndDate.value;
+      const startChanged = !!newStart && newStart !== currentStart;
+      const endChanged = newEnd !== currentEnd;
+      if (!startChanged && !endChanged) return null;
+
       return {
-        scenario: 'leaveSwitch',
-        leaveTypes: newType,
-        switchDate: timestampFromDateInput(form.controls.switchDate.value),
+        scenario: 'leaveModify',
+        leaveTypes: this.selectedEmployee?.leaveTypes ?? undefined,
+        leaveStartDate: timestampFromDateInput(newStart || currentStart),
+        ...(newEnd ? { leaveEndDate: timestampFromDateInput(newEnd) } : {}),
       };
     }
     return null;
   }
 
   private async validateWorkStatusDates(input: WorkStatusChangeInput): Promise<string | null> {
+    if (input.scenario === 'leaveModify') {
+      const form = this.workStatusForm;
+      const currentStart = this.formatDateForInput(this.selectedEmployee?.leaveStartDate);
+      const newStart = form.controls.leaveStartDate.value;
+      if (newStart && newStart !== currentStart) {
+        const startError = await this.validateDatesAtOrAfterCurrentPeriod([newStart]);
+        if (startError) return startError;
+      }
+      if (input.leaveStartDate && input.leaveEndDate
+        && input.leaveEndDate.toMillis() < input.leaveStartDate.toMillis()) {
+        return '終了予定日は休職開始日以降にしてください';
+      }
+      return null;
+    }
+
     if (input.scenario === 'leaveStart' && input.leaveStartDate && input.leaveEndDate) {
       if (input.leaveEndDate.toMillis() < input.leaveStartDate.toMillis()) {
         return '終了予定日は休職開始日以降にしてください';

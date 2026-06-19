@@ -190,7 +190,7 @@ export const PREFECTURE_INSURANCE_RATES_2023 = [
     { id: 'fukushima', year: 2023, prefecture: '福島県', healthInsuranceRate: 9.62, nursingCareRate: 1.82, pensionRate: 18.3 },
     { id: 'ibaraki', year: 2023, prefecture: '茨城県', healthInsuranceRate: 9.72, nursingCareRate: 1.82, pensionRate: 18.3 },
     { id: 'tochigi', year: 2023, prefecture: '栃木県', healthInsuranceRate: 9.88, nursingCareRate: 1.82, pensionRate: 18.3 },
-    { id: 'gunma', year: 2023, prefecture: '群馬県', healthInsuranceRate: 9.73, nursingCareRate: 1.82, pensionRate: 18.3 },
+    { id: 'gunma', year: 2023, prefecture: '群馬県', healthInsuranceRate: 9.76, nursingCareRate: 1.82, pensionRate: 18.3 },
     { id: 'saitama', year: 2023, prefecture: '埼玉県', healthInsuranceRate: 9.78, nursingCareRate: 1.82, pensionRate: 18.3 },
     { id: 'chiba', year: 2023, prefecture: '千葉県', healthInsuranceRate: 9.77, nursingCareRate: 1.82, pensionRate: 18.3 },
     { id: 'tokyo', year: 2023, prefecture: '東京都', healthInsuranceRate: 10.00, nursingCareRate: 1.82, pensionRate: 18.3 },

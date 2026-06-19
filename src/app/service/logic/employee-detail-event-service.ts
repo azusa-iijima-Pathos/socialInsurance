@@ -27,6 +27,7 @@ import {
   isEventAtOrBeforeWorkingMonth,
   isWorkMonthAfterCurrent,
   getCurrentAppliedFromMonth,
+  getCurrentApprovedWorkingMonth,
 } from './event-id-service';
 import type { InsuranceChangeKey } from './event-id-service';
 import { DependentChangeEventService } from './dependent-change-event.service';
@@ -42,7 +43,7 @@ export type RetireEventsResult = {
   needsRetroactiveNotice: boolean;
 };
 
-export type WorkStatusChangeScenario = 'leaveStart' | 'leaveEnd' | 'leaveSwitch';
+export type WorkStatusChangeScenario = 'leaveStart' | 'leaveEnd' | 'leaveSwitch' | 'leaveModify';
 
 export type WorkStatusChangeInput = {
   scenario: WorkStatusChangeScenario;
@@ -50,6 +51,10 @@ export type WorkStatusChangeInput = {
   leaveStartDate?: Timestamp;
   leaveEndDate?: Timestamp;
   switchDate?: Timestamp;
+  lifeEventType?: LifeEventType;
+  expectedBirthDate?: Timestamp;
+  isMultipleBirth?: boolean;
+  childName?: string;
 };
 
 export type ScheduledLeaveInfo = {
@@ -122,7 +127,7 @@ export class EmployeeDetailEventService {
 
     if (input.scenario === 'leaveStart' && input.leaveStartDate && input.leaveTypes) {
       const occurredDate = input.leaveStartDate;
-      const payload = {
+      const payload: Record<string, unknown> = {
         before: { workStatus: before.workStatus ?? '通常勤務' },
         after: {
           workStatus: '休職中' as const,
@@ -131,6 +136,11 @@ export class EmployeeDetailEventService {
           ...(input.leaveEndDate ? { leaveEndDate: input.leaveEndDate } : {}),
         },
       };
+      if (input.expectedBirthDate) payload['expectedBirthDate'] = input.expectedBirthDate;
+      if (input.leaveTypes === '産前産後' && input.isMultipleBirth !== undefined) {
+        payload['isMultipleBirth'] = input.isMultipleBirth;
+      }
+      if (input.childName) payload['childName'] = input.childName;
       const eventId = await this.createWorkStatusEvent(
         employeeId,
         '休職開始',
@@ -138,6 +148,7 @@ export class EmployeeDetailEventService {
         payload,
         loginEmployeeId,
         targetPeriodStart,
+        input.lifeEventType,
       );
       if (!eventId) return { createdIds, needsRetroactiveNotice: false };
       createdIds.push(eventId);
@@ -240,7 +251,54 @@ export class EmployeeDetailEventService {
       }
     }
 
+    if (input.scenario === 'leaveModify' && input.leaveStartDate) {
+      const startChanged = !this.isSameTimestamp(input.leaveStartDate, before.leaveStartDate);
+      const occurredDate = startChanged
+        ? input.leaveStartDate
+        : (input.leaveEndDate ?? input.leaveStartDate);
+      const payload = {
+        before: {
+          workStatus: '休職中' as const,
+          leaveTypes: before.leaveTypes,
+          leaveStartDate: before.leaveStartDate,
+          ...(before.leaveEndDate ? { leaveEndDate: before.leaveEndDate } : {}),
+        },
+        after: {
+          workStatus: '休職中' as const,
+          leaveTypes: before.leaveTypes,
+          leaveStartDate: input.leaveStartDate,
+          ...(input.leaveEndDate ? { leaveEndDate: input.leaveEndDate } : {}),
+        },
+      };
+      const eventId = await this.createWorkStatusEvent(
+        employeeId,
+        '変更',
+        occurredDate,
+        payload,
+        loginEmployeeId,
+        targetPeriodStart,
+      );
+      if (!eventId) return { createdIds, needsRetroactiveNotice: false };
+      createdIds.push(eventId);
+
+      if (!isWorkMonthAfterCurrent(occurredDate.toDate(), targetPeriodStart)) {
+        const update: { employeeId: string; leaveStartDate: Timestamp; leaveEndDate?: Timestamp } = {
+          employeeId,
+          leaveStartDate: input.leaveStartDate,
+        };
+        if (input.leaveEndDate) {
+          update.leaveEndDate = input.leaveEndDate;
+        }
+        await this.employeeService.updateEmployee(update);
+      }
+    }
+
     return { createdIds, needsRetroactiveNotice: false };
+  }
+
+  private isSameTimestamp(left?: Timestamp, right?: Timestamp): boolean {
+    if (!left || !right) return false;
+    return left.toMillis() === right.toMillis();
   }
 
   async createEventsFromEmploymentContractChange(
@@ -375,6 +433,7 @@ export class EmployeeDetailEventService {
           approvalStatus: '却下',
           approvedDate: Timestamp.now(),
           approvedBy: loginEmployeeId,
+          approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
         },
       });
       if (!rejected) return false;
@@ -384,13 +443,16 @@ export class EmployeeDetailEventService {
 
   getScheduledLeaveInfo(events: Event[], workStatus?: WorkStatus): ScheduledLeaveInfo | null {
     if (workStatus === '休職中') {
-      return this.getScheduledLeaveInfoForActiveLeave(events);
+      return this.getScheduledLeaveInfoForActiveLeave(events, workStatus);
     }
     return this.getScheduledLeaveInfoForPendingLeave(events);
   }
 
   private getScheduledLeaveInfoForPendingLeave(events: Event[]): ScheduledLeaveInfo | null {
-    const pendingStart = events.find(event => this.isPendingLeaveEvent(event) && event.changeType === '休職開始');
+    const pendingStarts = events
+      .filter(event => this.isPendingLeaveEvent(event) && event.changeType === '休職開始')
+      .sort((left, right) => (right.occurredDate?.toMillis() ?? 0) - (left.occurredDate?.toMillis() ?? 0));
+    const pendingStart = pendingStarts[0];
     if (!pendingStart) return null;
 
     const after = pendingStart.payload?.['after'] as Record<string, unknown> | undefined;
@@ -402,22 +464,57 @@ export class EmployeeDetailEventService {
     return { leaveTypes, leaveStartDate, leaveEndDate };
   }
 
-  private getScheduledLeaveInfoForActiveLeave(events: Event[]): ScheduledLeaveInfo | null {
-    const leaveStartEvent = this.findAppliedOpenLeaveStartEvent(events);
-    if (!leaveStartEvent) return null;
+  private getScheduledLeaveInfoForActiveLeave(events: Event[], workStatus?: WorkStatus): ScheduledLeaveInfo | null {
+    const scheduleEvents = events
+      .filter(event =>
+        event.eventType === '勤務状況変更'
+        && (event.changeType === '休職開始' || event.changeType === '変更' || event.changeType === '休職終了')
+        && (this.isAppliedLeaveEvent(event) || event.approval?.approvalStatus === '申請中'),
+      )
+      .sort((left, right) => (right.occurredDate?.toMillis() ?? 0) - (left.occurredDate?.toMillis() ?? 0));
 
-    const after = leaveStartEvent.payload?.['after'] as Record<string, unknown> | undefined;
-    const leaveTypes = after?.['leaveTypes'] as LeaveType | undefined;
-    const leaveStartDate = (after?.['leaveStartDate'] as Timestamp | undefined) ?? leaveStartEvent.occurredDate;
-    if (!leaveTypes || !leaveStartDate) return null;
+    for (const event of scheduleEvents) {
+      if (event.changeType === '休職終了' && event.approval?.approvalStatus === '申請中') {
+        const after = event.payload?.['after'] as Record<string, unknown> | undefined;
+        const before = event.payload?.['before'] as Record<string, unknown> | undefined;
+        const leaveTypes = (before?.['leaveTypes'] as LeaveType | undefined);
+        const leaveStartDate = (before?.['leaveStartDate'] as Timestamp | undefined);
+        const leaveEndDate = (after?.['leaveEndDate'] as Timestamp | undefined) ?? event.occurredDate;
+        if (leaveTypes && leaveStartDate && leaveEndDate) {
+          return { leaveTypes, leaveStartDate, leaveEndDate };
+        }
+        continue;
+      }
 
-    const leaveEndDate = this.resolveScheduledLeaveEndDate(
-      events,
-      leaveStartDate,
-      after?.['leaveEndDate'] as Timestamp | undefined,
-    );
+      if (event.changeType === '休職開始' || event.changeType === '変更') {
+        const after = event.payload?.['after'] as Record<string, unknown> | undefined;
+        const leaveTypes = after?.['leaveTypes'] as LeaveType | undefined;
+        const leaveStartDate = (after?.['leaveStartDate'] as Timestamp | undefined) ?? event.occurredDate;
+        const leaveEndDate = after?.['leaveEndDate'] as Timestamp | undefined;
+        if (leaveTypes && leaveStartDate) {
+          return { leaveTypes, leaveStartDate, leaveEndDate };
+        }
+      }
+    }
 
-    return { leaveTypes, leaveStartDate, leaveEndDate };
+    if (workStatus === '休職中') {
+      const openStart = this.findAppliedOpenLeaveStartEvent(events);
+      if (openStart) {
+        const after = openStart.payload?.['after'] as Record<string, unknown> | undefined;
+        const leaveTypes = after?.['leaveTypes'] as LeaveType | undefined;
+        const leaveStartDate = (after?.['leaveStartDate'] as Timestamp | undefined) ?? openStart.occurredDate;
+        if (leaveTypes && leaveStartDate) {
+          const leaveEndDate = this.resolveScheduledLeaveEndDate(
+            events,
+            leaveStartDate,
+            after?.['leaveEndDate'] as Timestamp | undefined,
+          );
+          return { leaveTypes, leaveStartDate, leaveEndDate };
+        }
+      }
+    }
+
+    return null;
   }
 
   private findAppliedOpenLeaveStartEvent(events: Event[]): Event | null {
@@ -665,6 +762,21 @@ export class EmployeeDetailEventService {
     }
 
     return { success: true, runIds };
+  }
+
+  async createAnnouncementsForInsuranceChangeRuns(runIds: string[]): Promise<void> {
+    for (const runId of runIds) {
+      const run = await this.calculationRunService.getSystemCalculationRunById(runId);
+      if (!run) continue;
+      if (!this.announcementLogicService.shouldCreateAnnouncementForStatus(run.approval?.approvalStatus)) {
+        continue;
+      }
+      try {
+        await this.announcementLogicService.createFromInsuranceChangeRun(run);
+      } catch (error) {
+        console.error('届け出チェックリストの作成に失敗しました', error);
+      }
+    }
   }
 
   async createReachAgeInsuranceChangeRuns(
@@ -1072,6 +1184,7 @@ export class EmployeeDetailEventService {
     payload: Record<string, unknown>,
     loginEmployeeId: string,
     targetPeriodStart: number,
+    lifeEventType?: LifeEventType,
   ): Promise<string | null> {
     const isFuture = isWorkMonthAfterCurrent(occurredDate.toDate(), targetPeriodStart);
     const baseId = buildWorkMonthEventId('勤務状況変更', occurredDate.toDate(), targetPeriodStart);
@@ -1082,11 +1195,13 @@ export class EmployeeDetailEventService {
         approvedDate: Timestamp.now(),
         approvedBy: loginEmployeeId,
         appliedFromMonth: getCurrentAppliedFromMonth(),
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
       };
     const eventId = await this.eventService.createEventWithBaseId(employeeId, baseId, {
       occurredDate,
       eventType: '勤務状況変更',
       changeType,
+      ...(lifeEventType ? { lifeEventType } : {}),
       appliedDate: Timestamp.now(),
       applicantType: '管理者',
       approval,
@@ -1099,6 +1214,7 @@ export class EmployeeDetailEventService {
         changeType,
         occurredDate,
         payload,
+        ...(lifeEventType ? { lifeEventType } : {}),
       });
     }
     return eventId;
@@ -1106,7 +1222,7 @@ export class EmployeeDetailEventService {
 
   private async createLeaveAnnouncementIfNeeded(
     employeeId: string,
-    event: Pick<Event, 'eventId' | 'eventType' | 'changeType' | 'occurredDate' | 'payload'>,
+    event: Pick<Event, 'eventId' | 'eventType' | 'changeType' | 'occurredDate' | 'payload' | 'lifeEventType'>,
   ): Promise<void> {
     if (!this.announcementLogicService.isMaternityOrParentalLeaveEvent(event)) return;
     try {
@@ -1137,6 +1253,7 @@ export class EmployeeDetailEventService {
           approvalStatus: '承認済み',
           approvedDate: Timestamp.now(),
           approvedBy: loginEmployeeId,
+          approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
         },
       payload,
     });
@@ -1194,6 +1311,7 @@ export class EmployeeDetailEventService {
         approvalStatus: '承認済み',
         approvedDate: Timestamp.now(),
         approvedBy: loginEmployeeId,
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
       },
       payload: { before, after },
     });

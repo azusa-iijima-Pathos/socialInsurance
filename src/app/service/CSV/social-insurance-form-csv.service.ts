@@ -47,12 +47,19 @@ export class SocialInsuranceFormCsvService {
     '扶養状況',
     '扶養開始日',
     '扶養終了日',
-    '同居・別居区分',
+    '同居・別居区分（同居/別居）',
     '収入額（年収見込み）',
     '職業',
     '障害',
     '学生',
   ] as const;
+
+  private readonly csvCategoryHeaders = {
+    healthInsuranceAcquisition: '健康保険取得区分（1：取得 0：未取得）',
+    pensionInsuranceAcquisition: '厚生年金取得区分（1：取得 0：未取得）',
+    shortTimeWorker: '短時間労働者区分（0：該当なし 1：短時間労働者）',
+    salaryChange: '昇給・降給区分（1：昇給 2：降給）',
+  } as const;
 
   async exportHireEventsCsv(events: EmployeeEventItem[], monthKey: string): Promise<void> {
     const headers = [
@@ -65,10 +72,10 @@ export class SocialInsuranceFormCsvService {
       '取得年月日',
       '報酬月額',
       '標準報酬月額',
-      '健康保険取得区分',
-      '厚生年金取得区分',
+      this.csvCategoryHeaders.healthInsuranceAcquisition,
+      this.csvCategoryHeaders.pensionInsuranceAcquisition,
       '雇用形態',
-      '短時間労働者区分',
+      this.csvCategoryHeaders.shortTimeWorker,
     ];
 
     const body: (string | number)[][] = [];
@@ -185,6 +192,18 @@ export class SocialInsuranceFormCsvService {
   }
 
   async exportApprovedFixedSalaryCsv(runs: SystemCalculationRunItem[], monthKey: string): Promise<void> {
+    return this.exportFixedSalaryCsvByApprovalStatus(runs, monthKey, '承認済み');
+  }
+
+  async exportAppliedFixedSalaryCsv(runs: SystemCalculationRunItem[], monthKey: string): Promise<void> {
+    return this.exportFixedSalaryCsvByApprovalStatus(runs, monthKey, '適用済み');
+  }
+
+  private async exportFixedSalaryCsvByApprovalStatus(
+    runs: SystemCalculationRunItem[],
+    monthKey: string,
+    approvalStatus: '承認済み' | '適用済み',
+  ): Promise<void> {
     const headers = [
       '被保険者整理番号',
       '改定年月',
@@ -195,13 +214,13 @@ export class SocialInsuranceFormCsvService {
       '2か月目報酬',
       '3か月目報酬',
       '各月支払基礎日数',
-      '昇給・降給区分',
+      this.csvCategoryHeaders.salaryChange,
     ];
 
     const body: (string | number)[][] = [];
-    const approvedRuns = runs.filter(run => run.approval?.approvalStatus === '承認済み');
+    const targetRuns = runs.filter(run => run.approval?.approvalStatus === approvalStatus);
 
-    for (const run of approvedRuns) {
+    for (const run of targetRuns) {
       const employeeId = String(run.payload?.['employeeId'] ?? run.targetEmployeeIds ?? '');
       const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
       if (!employee) continue;
@@ -249,7 +268,10 @@ export class SocialInsuranceFormCsvService {
       ]);
     }
 
-    this.downloadCsv(headers, body, `fixed-salary-revision-${monthKey}.csv`);
+    const fileName = approvalStatus === '適用済み'
+      ? `fixed-salary-revision-applied-${monthKey}.csv`
+      : `fixed-salary-revision-${monthKey}.csv`;
+    this.downloadCsv(headers, body, fileName);
   }
 
   exportDependentChangeEventsCsv(
@@ -337,6 +359,34 @@ export class SocialInsuranceFormCsvService {
   }
 
   async exportInsuranceAcquisitionCsv(runs: SystemCalculationRunItem[], monthKey: string): Promise<void> {
+    await this.exportInsuranceAcquisitionCsvInternal(
+      runs,
+      monthKey,
+      run => this.isApprovedOrApplied(run.approval?.approvalStatus) && this.isAcquisitionRun(run),
+      `insurance-acquisition-${monthKey}.csv`,
+      '出力対象の資格取得がありません',
+    );
+  }
+
+  async exportInsuranceAcquisitionExcludingReachAgeCsv(runs: SystemCalculationRunItem[], monthKey: string): Promise<void> {
+    await this.exportInsuranceAcquisitionCsvInternal(
+      runs,
+      monthKey,
+      run => !this.isReachAgeRun(run)
+        && this.isApprovedOrApplied(run.approval?.approvalStatus)
+        && this.isAcquisitionRun(run),
+      `insurance-acquisition-exclude-reach-age-${monthKey}.csv`,
+      '出力対象の資格取得（一定年齢到達を除く）がありません',
+    );
+  }
+
+  private async exportInsuranceAcquisitionCsvInternal(
+    runs: SystemCalculationRunItem[],
+    monthKey: string,
+    filterRun: (run: SystemCalculationRunItem) => boolean,
+    fileName: string,
+    emptyMessage: string,
+  ): Promise<void> {
     const headers = [
       '事業所整理記号',
       '事業所番号',
@@ -347,18 +397,17 @@ export class SocialInsuranceFormCsvService {
       '取得年月日',
       '報酬月額',
       '標準報酬月額',
-      '健康保険取得区分',
-      '厚生年金取得区分',
+      this.csvCategoryHeaders.healthInsuranceAcquisition,
+      this.csvCategoryHeaders.pensionInsuranceAcquisition,
       '雇用形態',
-      '短時間労働者区分',
+      this.csvCategoryHeaders.shortTimeWorker,
       '対象保険',
       '資格変更原因',
     ];
 
-    const filtered = this.filterMonthlyInsuranceCsvRuns(runs)
-      .filter(run => this.isApprovedOrApplied(run.approval?.approvalStatus) && this.isAcquisitionRun(run));
+    const filtered = this.filterMonthlyInsuranceCsvRuns(runs).filter(filterRun);
     if (filtered.length === 0) {
-      alert('出力対象の資格取得がありません');
+      alert(emptyMessage);
       return;
     }
 
@@ -369,14 +418,39 @@ export class SocialInsuranceFormCsvService {
     }
 
     if (body.length === 0) {
-      alert('出力対象の資格取得がありません');
+      alert(emptyMessage);
       return;
     }
 
-    this.downloadCsv(headers, body, `insurance-acquisition-${monthKey}.csv`);
+    this.downloadCsv(headers, body, fileName);
   }
 
   async exportInsuranceLossCsv(runs: SystemCalculationRunItem[], monthKey: string): Promise<void> {
+    await this.exportInsuranceLossCsvInternal(
+      runs,
+      run => this.isApprovedOrApplied(run.approval?.approvalStatus) && this.isLossRun(run),
+      `insurance-loss-${monthKey}.csv`,
+      '出力対象の資格喪失がありません',
+    );
+  }
+
+  async exportInsuranceLossExcludingReachAgeCsv(runs: SystemCalculationRunItem[], monthKey: string): Promise<void> {
+    await this.exportInsuranceLossCsvInternal(
+      runs,
+      run => !this.isReachAgeRun(run)
+        && this.isApprovedOrApplied(run.approval?.approvalStatus)
+        && this.isLossRun(run),
+      `insurance-loss-exclude-reach-age-${monthKey}.csv`,
+      '出力対象の資格喪失（一定年齢到達を除く）がありません',
+    );
+  }
+
+  private async exportInsuranceLossCsvInternal(
+    runs: SystemCalculationRunItem[],
+    filterRun: (run: SystemCalculationRunItem) => boolean,
+    fileName: string,
+    emptyMessage: string,
+  ): Promise<void> {
     const headers = [
       '事業所整理記号',
       '被保険者整理番号',
@@ -389,10 +463,9 @@ export class SocialInsuranceFormCsvService {
       '資格変更原因',
     ];
 
-    const filtered = this.filterMonthlyInsuranceCsvRuns(runs)
-      .filter(run => this.isApprovedOrApplied(run.approval?.approvalStatus) && this.isLossRun(run));
+    const filtered = this.filterMonthlyInsuranceCsvRuns(runs).filter(filterRun);
     if (filtered.length === 0) {
-      alert('出力対象の資格喪失がありません');
+      alert(emptyMessage);
       return;
     }
 
@@ -403,11 +476,11 @@ export class SocialInsuranceFormCsvService {
     }
 
     if (body.length === 0) {
-      alert('出力対象の資格喪失がありません');
+      alert(emptyMessage);
       return;
     }
 
-    this.downloadCsv(headers, body, `insurance-loss-${monthKey}.csv`);
+    this.downloadCsv(headers, body, fileName);
   }
 
   async exportCalculationBaseCsv(
@@ -719,6 +792,10 @@ export class SocialInsuranceFormCsvService {
 
   private filterMonthlyInsuranceCsvRuns(runs: SystemCalculationRunItem[]): SystemCalculationRunItem[] {
     return runs.filter(run => run.payload?.['source'] !== '保険情報変更');
+  }
+
+  private isReachAgeRun(run: SystemCalculationRunItem): boolean {
+    return run.payload?.['source'] === '一定年齢到達';
   }
 
   private hasEmploymentInsuranceAcquisition(run: SystemCalculationRunItem): boolean {

@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { EmployeeEventItem, EventService, compareEventsByAppliedDateDesc } from '../../../service/Firestore/event-service';
 import { CalculationRunService, SystemCalculationRunItem } from '../../../service/Firestore/calculation-run-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
@@ -15,6 +15,7 @@ import { SocialInsuranceFormCsvService } from '../../../service/CSV/social-insur
 import { Event } from '../../../model/event';
 
 type InsuranceStatus = 'joined' | 'notJoined' | 'lost';
+type MonthlyEventGroupingMode = 'occurred' | 'approved';
 
 @Component({
   selector: 'app-monthly-event-list',
@@ -32,10 +33,12 @@ export class MonthlyEventList {
   private employeeEventDisplayService = inject(EmployeeEventDisplayService);
   private employeeEventApprovalService = inject(EmployeeEventApprovalService);
   private formCsvService = inject(SocialInsuranceFormCsvService);
+  private route = inject(ActivatedRoute);
   commonService = inject(CommonService);
 
   monthOptions = this.correctionLogicService.getPastYearMonthOptions(24);
   selectedMonthKey = `${getWorkingYearMonth().year}-${getWorkingYearMonth().month}`;
+  groupingMode: MonthlyEventGroupingMode = 'occurred';
 
   /** 表示セクション用リスト（イベントデータ自体は変更しない） */
   hireEvents: EmployeeEventItem[] = [];
@@ -56,6 +59,10 @@ export class MonthlyEventList {
   insuranceHistoryDraft: InsuranceApprovalDraft | null = null;
 
   async ngOnInit() {
+    const grouping = this.route.snapshot.queryParamMap.get('grouping');
+    if (grouping === 'approved') {
+      this.groupingMode = 'approved';
+    }
     await this.employeeService.getAllEmployees();
     await this.officeService.getAllOffice();
     await this.loadEvents();
@@ -63,6 +70,18 @@ export class MonthlyEventList {
 
   async onMonthChange() {
     await this.loadEvents();
+  }
+
+  async setGroupingMode(mode: MonthlyEventGroupingMode) {
+    if (this.groupingMode === mode) return;
+    this.groupingMode = mode;
+    await this.loadEvents();
+  }
+
+  getExportMonthKey(): string {
+    return this.groupingMode === 'approved'
+      ? `${this.selectedMonthKey}-approved`
+      : this.selectedMonthKey;
   }
 
   get selectedMonthLabel(): string {
@@ -76,6 +95,14 @@ export class MonthlyEventList {
   }
 
   async loadEvents() {
+    if (this.groupingMode === 'approved') {
+      await this.loadEventsByApprovalMonth();
+      return;
+    }
+    await this.loadEventsByOccurredMonth();
+  }
+
+  private async loadEventsByOccurredMonth() {
     const { year, month } = this.getSelectedYearMonth();
     const [events, systemRuns, insuranceRuns, employeeApplicationEvents] = await Promise.all([
       this.eventService.getAllEventsForTargetMonth(year, month),
@@ -83,23 +110,60 @@ export class MonthlyEventList {
       this.calculationRunService.getInsuranceChangeHistoryForTargetMonth(year, month),
       this.eventService.getAllPendingEmployeeApplicationEvents(),
     ]);
+    this.assignEventSections(events, systemRuns, insuranceRuns, employeeApplicationEvents);
+  }
+
+  private async loadEventsByApprovalMonth() {
+    const { year, month } = this.getSelectedYearMonth();
+    const [events, systemRuns, insuranceRuns] = await Promise.all([
+      this.eventService.getAllEventsForApprovalMonth(year, month),
+      this.calculationRunService.getSystemRunsForApprovalMonth(year, month),
+      this.calculationRunService.getInsuranceChangeHistoryForApprovalMonth(year, month),
+    ]);
+    this.assignEventSections(events, systemRuns, insuranceRuns, []);
+  }
+
+  private assignEventSections(
+    events: EmployeeEventItem[],
+    systemRuns: SystemCalculationRunItem[],
+    insuranceRuns: SystemCalculationRunItem[],
+    employeeApplicationEvents: EmployeeEventItem[],
+  ) {
+    const excludeRejected = this.groupingMode === 'approved';
+    const visibleEvents = excludeRejected
+      ? events.filter(event => event.approval?.approvalStatus !== '却下')
+      : events;
+    const visibleRuns = excludeRejected
+      ? systemRuns.filter(run => run.approval?.approvalStatus !== '却下')
+      : systemRuns;
+    const visibleInsuranceRuns = excludeRejected
+      ? insuranceRuns.filter(run => run.approval?.approvalStatus !== '却下')
+      : insuranceRuns;
 
     const sortRuns = (runs: SystemCalculationRunItem[]) =>
       [...runs].sort((left, right) => (right.detectedDate?.toMillis() ?? 0) - (left.detectedDate?.toMillis() ?? 0));
 
-    // 入社セクション
-    this.hireEvents = events
-      .filter(event => event.eventType === '入社')
-      .sort(compareEventsByAppliedDateDesc);
+    if (excludeRejected) {
+      this.hireEvents = [];
+      this.retireEvents = [];
+      this.retireRuns = [];
+      this.employeeApplicationEvents = [];
+    } else {
+      // 入社セクション
+      this.hireEvents = visibleEvents
+        .filter(event => event.eventType === '入社')
+        .sort(compareEventsByAppliedDateDesc);
 
-    // 退社セクション（イベント + calculationRun）
-    this.retireEvents = events
-      .filter(event => event.eventType === '退社')
-      .sort(compareEventsByAppliedDateDesc);
-    this.retireRuns = sortRuns(systemRuns.filter(run => run.eventType === '退社'));
+      // 退社セクション（イベント + calculationRun）
+      this.retireEvents = visibleEvents
+        .filter(event => event.eventType === '退社')
+        .sort(compareEventsByAppliedDateDesc);
+      this.retireRuns = sortRuns(visibleRuns.filter(run => run.eventType === '退社'));
+      this.employeeApplicationEvents = employeeApplicationEvents;
+    }
 
     // 随時改定（calculationRun の固定給変更のみ）
-    this.fixedSalaryRuns = sortRuns(systemRuns.filter(run => run.eventType === '固定給変更'));
+    this.fixedSalaryRuns = sortRuns(visibleRuns.filter(run => run.eventType === '固定給変更'));
 
     const isOtherSectionEvent = (event: EmployeeEventItem) =>
       event.eventType !== '入社' && event.eventType !== '退社';
@@ -108,22 +172,21 @@ export class MonthlyEventList {
       event.applicantType === '社員' && event.approval?.approvalStatus === '申請中';
 
     // 扶養情報変更
-    this.dependentChangeEvents = events
+    this.dependentChangeEvents = visibleEvents
       .filter(event => event.eventType === '扶養情報変更' && !isEmployeePendingApplication(event))
       .sort(compareEventsByAppliedDateDesc);
 
     // 勤務状況変更
-    this.workStatusChangeEvents = events
+    this.workStatusChangeEvents = visibleEvents
       .filter(event => event.eventType === '勤務状況変更' && !isEmployeePendingApplication(event))
       .sort(compareEventsByAppliedDateDesc);
 
-    this.insuranceRuns = insuranceRuns.filter(run => run.payload?.['source'] !== '保険情報変更');
-    this.employeeApplicationEvents = employeeApplicationEvents;
+    this.insuranceRuns = visibleInsuranceRuns.filter(run => run.payload?.['source'] !== '保険情報変更');
 
-    const insuranceRunIds = new Set(insuranceRuns.map(run => run.runId));
+    const insuranceRunIds = new Set(visibleInsuranceRuns.map(run => run.runId));
 
     // その他（入社・退社・扶養情報変更・勤務状況変更を除く）
-    this.otherEvents = events
+    this.otherEvents = visibleEvents
       .filter(event =>
         isOtherSectionEvent(event)
         && event.eventType !== '扶養情報変更'
@@ -132,7 +195,7 @@ export class MonthlyEventList {
       )
       .sort(compareEventsByAppliedDateDesc);
 
-    this.otherSystemRuns = sortRuns(systemRuns.filter(run =>
+    this.otherSystemRuns = sortRuns(visibleRuns.filter(run =>
       run.eventType !== '退社'
       && run.eventType !== '固定給変更'
       && !insuranceRunIds.has(run.runId),
@@ -255,6 +318,16 @@ export class MonthlyEventList {
     return event.changeType ?? '—';
   }
 
+  getWorkStatusLeaveTypeLabel(event: Event): string {
+    const after = event.payload?.['after'] as Record<string, unknown> | undefined;
+    const before = event.payload?.['before'] as Record<string, unknown> | undefined;
+    return String(after?.['leaveTypes'] ?? before?.['leaveTypes'] ?? '—');
+  }
+
+  getWorkStatusChangeTypeLabel(event: Event): string {
+    return event.changeType ?? '—';
+  }
+
   getDependentChangeReasonLabel(event: Event): string {
     return event.lifeEventType ?? '—';
   }
@@ -314,7 +387,7 @@ export class MonthlyEventList {
       alert('入社イベントがありません');
       return;
     }
-    await this.formCsvService.exportHireEventsCsv(this.hireEvents, this.selectedMonthKey);
+    await this.formCsvService.exportHireEventsCsv(this.hireEvents, this.getExportMonthKey());
   }
 
   async exportRetireCsv() {
@@ -324,17 +397,34 @@ export class MonthlyEventList {
       alert('承認済みの退社イベントがありません');
       return;
     }
-    await this.formCsvService.exportApprovedRetireEventsCsv(this.retireEvents, this.retireRuns, this.selectedMonthKey);
+    await this.formCsvService.exportApprovedRetireEventsCsv(this.retireEvents, this.retireRuns, this.getExportMonthKey());
   }
 
   async exportFixedSalaryCsv() {
-    const approvedRuns = this.fixedSalaryRuns.filter(item => item.approval?.approvalStatus === '承認済み');
-    if (approvedRuns.length === 0) {
-      alert('承認済みの随時改定がありません');
+    await this.exportFixedSalaryCsvByStatus('承認済み');
+  }
+
+  async exportAppliedFixedSalaryCsv() {
+    await this.exportFixedSalaryCsvByStatus('適用済み');
+  }
+
+  private async exportFixedSalaryCsvByStatus(status: '承認済み' | '適用済み') {
+    const targetRuns = this.fixedSalaryRuns.filter(item => item.approval?.approvalStatus === status);
+    if (targetRuns.length === 0) {
+      alert(`${status}の随時改定がありません`);
       return;
     }
 
-    const enrichedRuns = await Promise.all(approvedRuns.map(async run => {
+    const enrichedRuns = await this.enrichFixedSalaryRuns(targetRuns);
+    if (status === '適用済み') {
+      await this.formCsvService.exportAppliedFixedSalaryCsv(enrichedRuns, this.getExportMonthKey());
+      return;
+    }
+    await this.formCsvService.exportApprovedFixedSalaryCsv(enrichedRuns, this.getExportMonthKey());
+  }
+
+  private async enrichFixedSalaryRuns(runs: SystemCalculationRunItem[]) {
+    return Promise.all(runs.map(async run => {
       const eventView = this.calculationRunService.toEventView(run);
       const draft = await this.employeeEventApprovalService.buildFixedSalaryApprovalDraft(eventView);
       const storedSummary = (run.payload?.['revisionSummary'] ?? {}) as Record<string, unknown>;
@@ -353,14 +443,12 @@ export class MonthlyEventList {
         },
       };
     }));
-
-    await this.formCsvService.exportApprovedFixedSalaryCsv(enrichedRuns, this.selectedMonthKey);
   }
 
   exportDependentAcquisitionCsv() {
     this.formCsvService.exportDependentChangeEventsCsv(
       this.dependentChangeEvents,
-      this.selectedMonthKey,
+      this.getExportMonthKey(),
       '追加',
     );
   }
@@ -368,7 +456,7 @@ export class MonthlyEventList {
   exportDependentLossCsv() {
     this.formCsvService.exportDependentChangeEventsCsv(
       this.dependentChangeEvents,
-      this.selectedMonthKey,
+      this.getExportMonthKey(),
       '削除',
     );
   }
@@ -376,25 +464,33 @@ export class MonthlyEventList {
   exportDependentChangeCsv() {
     this.formCsvService.exportDependentChangeEventsCsv(
       this.dependentChangeEvents,
-      this.selectedMonthKey,
+      this.getExportMonthKey(),
       '変更',
     );
   }
 
   async exportMaternityLeaveCsv() {
-    await this.formCsvService.exportMaternityLeaveCsv(this.workStatusChangeEvents, this.selectedMonthKey);
+    await this.formCsvService.exportMaternityLeaveCsv(this.workStatusChangeEvents, this.getExportMonthKey());
   }
 
   async exportParentalLeaveCsv() {
-    await this.formCsvService.exportParentalLeaveCsv(this.workStatusChangeEvents, this.selectedMonthKey);
+    await this.formCsvService.exportParentalLeaveCsv(this.workStatusChangeEvents, this.getExportMonthKey());
   }
 
   async exportInsuranceAcquisitionCsv() {
-    await this.formCsvService.exportInsuranceAcquisitionCsv(this.insuranceRuns, this.selectedMonthKey);
+    await this.formCsvService.exportInsuranceAcquisitionCsv(this.insuranceRuns, this.getExportMonthKey());
   }
 
   async exportInsuranceLossCsv() {
-    await this.formCsvService.exportInsuranceLossCsv(this.insuranceRuns, this.selectedMonthKey);
+    await this.formCsvService.exportInsuranceLossCsv(this.insuranceRuns, this.getExportMonthKey());
+  }
+
+  async exportInsuranceAcquisitionExcludingReachAgeCsv() {
+    await this.formCsvService.exportInsuranceAcquisitionExcludingReachAgeCsv(this.insuranceRuns, this.getExportMonthKey());
+  }
+
+  async exportInsuranceLossExcludingReachAgeCsv() {
+    await this.formCsvService.exportInsuranceLossExcludingReachAgeCsv(this.insuranceRuns, this.getExportMonthKey());
   }
 
 }

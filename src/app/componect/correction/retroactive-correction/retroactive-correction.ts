@@ -11,7 +11,7 @@ import { CalculationRunService } from '../../../service/Firestore/calculation-ru
 import { EventService } from '../../../service/Firestore/event-service';
 import { Employee, EmployeeInsurance, InsuranceDetail } from '../../../model/employee';
 import { LeaveType, WorkStatus } from '../../../constants/model-constants';
-import { addMonths, buildWorkMonthEventId, getCurrentAppliedFromMonth, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { addMonths, buildWorkMonthEventId, getCurrentAppliedFromMonth, getCurrentApprovedWorkingMonth, getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { InsuranceFormService, InsuranceName, InsuranceStatus } from '../../../service/logic/insurance-form.service';
 import { parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
@@ -515,6 +515,7 @@ export class RetroactiveCorrection {
           approvalStatus: '承認済み',
           approvedDate: Timestamp.now(),
           approvedBy: loginEmployeeId,
+          approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
         },
         payload: { before, after },
       },
@@ -665,6 +666,7 @@ export class RetroactiveCorrection {
         this.showMessage('保険情報のシステム計算作成に失敗しました');
         return false;
       }
+      await this.employeeDetailEventService.createAnnouncementsForInsuranceChangeRuns(runResult.runIds);
     }
 
     if (this.activeTab === 'leave') {
@@ -825,6 +827,7 @@ export class RetroactiveCorrection {
             approvedDate: Timestamp.now(),
             approvedBy: loginEmployeeId,
             appliedFromMonth: getCurrentAppliedFromMonth(),
+            approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
           },
           payload: { before, after },
         },
@@ -865,6 +868,7 @@ export class RetroactiveCorrection {
             approvedDate: Timestamp.now(),
             approvedBy: loginEmployeeId,
             appliedFromMonth: getCurrentAppliedFromMonth(),
+            approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
           },
           payload: { before, after },
         },

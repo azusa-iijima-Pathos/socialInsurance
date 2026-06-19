@@ -71,7 +71,7 @@ export class SubmissionChecklist implements OnInit {
   }
 
   toMonthlyEventList() {
-    this.router.navigate(['/monthly-event-list']);
+    this.router.navigate(['/monthly-event-list'], { queryParams: { grouping: 'approved' } });
   }
 
 }

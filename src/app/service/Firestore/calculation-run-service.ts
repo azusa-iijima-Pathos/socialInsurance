@@ -6,7 +6,7 @@ import { EmployeeService } from './employee-service';
 import { EmployeeLogicService } from '../logic/employee-logic-service';
 import { EmployeeEventType } from '../../constants/model-constants';
 import { Event } from '../../model/event';
-import { addMonths, buildHireQualificationAcquisitionRunId, buildRetireQualificationLossRunId, decodeAppliedFromMonth, getCurrentAppliedFromMonth, getQualificationLossDate, getWorkingYearMonth, isEmploymentChangeSystemRun, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth, buildAdHocRevisionRunId, parseEventYearMonth, YearMonth } from '../logic/event-id-service';
+import { addMonths, buildHireQualificationAcquisitionRunId, buildRetireQualificationLossRunId, decodeAppliedFromMonth, getCurrentAppliedFromMonth, getCurrentApprovedWorkingMonth, getQualificationLossDate, getWorkingYearMonth, isApprovedInTargetWorkingMonth, isEmploymentChangeSystemRun, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth, buildAdHocRevisionRunId, parseEventYearMonth, YearMonth } from '../logic/event-id-service';
 import { MonthlyInsuranceDiff, MonthlyInsuranceComparisonRow } from '../logic/correction-logic.service';
 
 export type SystemCalculationRunItem = CalculationRun & {
@@ -128,6 +128,7 @@ export class CalculationRunService {
           approvalStatus: '承認済み',
           approvedDate: Timestamp.now(),
           approvedBy: sessionStorage.getItem('loginEmployeeId') ?? '',
+          approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
         },
         payload: {
           ...calculationBase?.payload,
@@ -171,6 +172,7 @@ export class CalculationRunService {
             approvedDate: calculationBase.approval?.approvedDate ?? now,
             approvedBy: calculationBase.approval?.approvedBy ?? loginEmployeeId,
             appliedFromMonth,
+            approvedWorkingMonth: calculationBase.approval?.approvedWorkingMonth ?? getCurrentApprovedWorkingMonth(),
           },
           payload: {
             ...run.payload,
@@ -193,6 +195,7 @@ export class CalculationRunService {
           approvedDate: calculationBase.approval?.approvedDate ?? now,
           approvedBy: calculationBase.approval?.approvedBy ?? loginEmployeeId,
           appliedFromMonth,
+          approvedWorkingMonth: calculationBase.approval?.approvedWorkingMonth ?? getCurrentApprovedWorkingMonth(),
         },
         payload: {
           ...calculationBase.payload,
@@ -354,6 +357,7 @@ export class CalculationRunService {
         approvalStatus: '承認済み',
         approvedDate: Timestamp.now(),
         approvedBy: loginEmployeeId,
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
       },
       payload: {
         employeeId,
@@ -389,6 +393,7 @@ export class CalculationRunService {
           approvedDate: now,
           approvedBy: loginEmployeeId,
           appliedFromMonth: getCurrentAppliedFromMonth(),
+          approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
         }
         : { approvalStatus: '申請中' },
       payload: {
@@ -425,6 +430,7 @@ export class CalculationRunService {
         approvedDate: now,
         approvedBy: loginEmployeeId,
         appliedFromMonth: getCurrentAppliedFromMonth(),
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
       },
       payload: {
         employeeId,
@@ -458,6 +464,7 @@ export class CalculationRunService {
         approvalStatus: '承認済み',
         approvedDate: Timestamp.now(),
         approvedBy: loginEmployeeId,
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
       },
       payload: {
         employeeId,
@@ -490,6 +497,7 @@ export class CalculationRunService {
         approvedDate: now,
         approvedBy: loginEmployeeId,
         appliedFromMonth,
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
       },
       payload: {
         employeeId,
@@ -684,6 +692,7 @@ export class CalculationRunService {
         approvalStatus: '承認済み',
         approvedDate: Timestamp.now(),
         approvedBy: sessionStorage.getItem('loginEmployeeId') ?? '',
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
       },
       payload: {
         employeeId,
@@ -719,6 +728,7 @@ export class CalculationRunService {
           approvalStatus: '承認済み',
           approvedDate: Timestamp.now(),
           approvedBy: sessionStorage.getItem('loginEmployeeId') ?? '',
+          approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
         },
         payload: {
           employeeId,
@@ -1094,6 +1104,32 @@ export class CalculationRunService {
       .sort((left, right) => (right.detectedDate?.toMillis() ?? 0) - (left.detectedDate?.toMillis() ?? 0));
   }
 
+  /** 指定承認月のシステム計算結果（承認時作業月基準・全承認状況） */
+  async getSystemRunsForApprovalMonth(targetYear: number, targetMonth: number): Promise<SystemCalculationRunItem[]> {
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.type === 'イベント' || run.type === '随時改定')
+      .filter(run => isApprovedInTargetWorkingMonth(run.approval, targetYear, targetMonth))
+      .map(run => this.toSystemItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => (right.detectedDate?.toMillis() ?? 0) - (left.detectedDate?.toMillis() ?? 0));
+  }
+
+  /** 指定承認月の保険情報変更履歴（承認時作業月基準・全社員・全承認状況） */
+  async getInsuranceChangeHistoryForApprovalMonth(
+    targetYear: number,
+    targetMonth: number,
+  ): Promise<SystemCalculationRunItem[]> {
+    const runs = await this.getAllCalculationRuns();
+
+    return runs
+      .filter(run => this.matchesMonthlyInsuranceListCategory(run))
+      .filter(run => isApprovedInTargetWorkingMonth(run.approval, targetYear, targetMonth))
+      .map(run => this.toInsuranceChangeHistoryItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => (right.detectedDate?.toMillis() ?? 0) - (left.detectedDate?.toMillis() ?? 0));
+  }
+
   async allocateSequentialRunId(baseId: string): Promise<string> {
     const runs = await this.getAllCalculationRuns();
     const escapedBase = baseId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1149,6 +1185,7 @@ export class CalculationRunService {
         approvedDate: existing?.approval?.approvedDate ?? now,
         approvedBy: existing?.approval?.approvedBy ?? loginEmployeeId,
         appliedFromMonth: getCurrentAppliedFromMonth(),
+        approvedWorkingMonth: existing?.approval?.approvedWorkingMonth ?? getCurrentApprovedWorkingMonth(),
       },
       payload: {
         ...existing?.payload,
@@ -1169,6 +1206,7 @@ export class CalculationRunService {
         approvalStatus: '承認済み',
         approvedDate: Timestamp.now(),
         approvedBy: loginEmployeeId,
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
         ...(appliedFromMonth != null ? { appliedFromMonth } : {}),
       },
     };
@@ -1194,6 +1232,7 @@ export class CalculationRunService {
         approvalStatus: '却下',
         approvedDate: Timestamp.now(),
         approvedBy: loginEmployeeId,
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
       },
     };
 

@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { Timestamp } from '@angular/fire/firestore';
-import { AnnouncementReason, AnnouncementSubType, ChangeType } from '../../constants/model-constants';
+import { AnnouncementReason, AnnouncementSubType, AnnouncementType, ApprovalStatus, ChangeType, LeaveType } from '../../constants/model-constants';
 import { Employee, EmployeeInsurance } from '../../model/employee';
 import { Event } from '../../model/event';
 import { Announcement } from '../../model/announcement';
@@ -14,6 +14,11 @@ import { determineDependentChangeType } from './dependent-change-event.service';
 })
 export class AnnouncementLogicService {
   private announcementService = inject(AnnouncementService);
+
+  /** 申請中以外（承認済み・適用済み）のときのみアナウンスを作成する */
+  shouldCreateAnnouncementForStatus(status?: ApprovalStatus): boolean {
+    return status === '承認済み' || status === '適用済み';
+  }
 
   async createFromHireRun(run: SystemCalculationRunItem): Promise<void> {
     await this.createAnnouncement({
@@ -56,6 +61,21 @@ export class AnnouncementLogicService {
     });
   }
 
+  async createFromInsuranceChangeRun(run: SystemCalculationRunItem): Promise<void> {
+    if (run.payload?.['source'] !== '保険情報変更') return;
+    if (run.type !== '資格取得' && run.type !== '資格喪失') return;
+    const subType: AnnouncementSubType = run.type === '資格喪失' ? '喪失' : '取得';
+    await this.createAnnouncement({
+      announcementId: this.buildAnnouncementId('insurance_run', run.runId),
+      type: '保険変更',
+      subType,
+      occurredDate: this.resolveInsuranceRunOccurredDate(run, subType),
+      employeeId: run.employeeId,
+      sourceKind: 'calculationRun',
+      sourceId: run.runId,
+    });
+  }
+
   async createFromFixedSalaryRun(run: SystemCalculationRunItem): Promise<void> {
     await this.createAnnouncement({
       announcementId: this.buildAnnouncementId('fixed_salary_run', run.runId),
@@ -83,13 +103,18 @@ export class AnnouncementLogicService {
     });
   }
 
-  async createFromLeaveEvent(event: Pick<Event, 'eventId' | 'eventType' | 'payload' | 'occurredDate' | 'lifeEventType'>, employeeId: string): Promise<void> {
+  async createFromLeaveEvent(
+    event: Pick<Event, 'eventId' | 'eventType' | 'changeType' | 'payload' | 'occurredDate' | 'lifeEventType'>,
+    employeeId: string,
+  ): Promise<void> {
     if (!this.isMaternityOrParentalLeaveEvent(event)) return;
+    const leaveTypes = this.resolveLeaveTypes(event);
+    if (event.changeType === '休職終了' && leaveTypes === '産前産後') return;
     const reason = this.mapLeaveReason(event);
     await this.createAnnouncement({
       announcementId: this.buildAnnouncementId('leave_event', `${employeeId}_${event.eventId}`),
-      type: '産休育休',
-      subType: '変更',
+      type: this.mapLeaveAnnouncementType(event),
+      subType: this.mapLeaveSubType(event),
       reason,
       occurredDate: this.resolveLeaveOccurredDate(event),
       employeeId,
@@ -203,6 +228,32 @@ export class AnnouncementLogicService {
     if (after?.leaveTypes === '産前産後') return '出産';
     if (after?.leaveTypes === '育児') return '育児';
     return this.mapLifeEventReason(event.lifeEventType);
+  }
+
+  private mapLeaveSubType(event: Pick<Event, 'changeType'>): AnnouncementSubType {
+    if (event.changeType === '休職開始') return '開始';
+    if (event.changeType === '休職終了') return '終了';
+    return '変更';
+  }
+
+  private mapLeaveAnnouncementType(
+    event: Pick<Event, 'payload' | 'lifeEventType'>,
+  ): AnnouncementType {
+    return this.resolveLeaveTypes(event) === '育児' ? '育休' : '産休';
+  }
+
+  private resolveLeaveTypes(
+    event: Pick<Event, 'payload' | 'lifeEventType'>,
+  ): LeaveType | undefined {
+    const after = event.payload?.['after'] as Employee | Record<string, unknown> | undefined;
+    const before = event.payload?.['before'] as Employee | Record<string, unknown> | undefined;
+    const afterLeaveTypes = after?.['leaveTypes'] as LeaveType | undefined;
+    if (afterLeaveTypes === '産前産後' || afterLeaveTypes === '育児') return afterLeaveTypes;
+    const beforeLeaveTypes = before?.['leaveTypes'] as LeaveType | undefined;
+    if (beforeLeaveTypes === '産前産後' || beforeLeaveTypes === '育児') return beforeLeaveTypes;
+    if (event.lifeEventType === '育児') return '育児';
+    if (event.lifeEventType === '出産') return '産前産後';
+    return undefined;
   }
 
   private mapLifeEventReason(lifeEventType?: string): AnnouncementReason | undefined {

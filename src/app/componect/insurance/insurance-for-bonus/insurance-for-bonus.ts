@@ -659,7 +659,7 @@ export class InsuranceForBonus {
   async confirmInsurance() {
     if (this.editButtonDisabled) return;
     const confirmed = window.confirm(
-      '確定すると、賞与保険料の修正ができなくなります。\n' +
+      '確定すると、賞与保険料の遡及修正が必要になります。\n' +
       '賞与保険料を確定しますか？\n'
     );
     if (!confirmed) return;

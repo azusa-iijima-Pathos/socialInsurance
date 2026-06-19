@@ -16,6 +16,21 @@
   margin-bottom: var(--im-size-16);
 }
 
+/* retroactive-form の label { display:block } がラジオ・チェックボックスを崩すのを防ぐ */
+.lifeevent-layout .retroactive-form label.im-radio-option,
+.lifeevent-layout .retroactive-form label.im-checkbox-option {
+  display: inline-flex;
+  margin-bottom: 0;
+}
+
+.lifeevent-layout .retroactive-form .im-radio-group,
+.lifeevent-layout .retroactive-form .im-checkbox-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--im-size-8) var(--im-size-16);
+}
+
 .lifeevent-layout .employee-edit-field .im-radio-group,
 .lifeevent-layout .employee-edit-field .im-checkbox-option {
   align-items: center;

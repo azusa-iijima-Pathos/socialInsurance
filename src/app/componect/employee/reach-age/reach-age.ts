@@ -7,6 +7,7 @@ import { Event } from '../../../model/event';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { Timestamp } from '@angular/fire/firestore';
 import { Employee } from '../../../model/employee';
+import { getCurrentApprovedWorkingMonth } from '../../../service/logic/event-id-service';
 
 @Component({
   selector: 'app-reach-age',
@@ -102,6 +103,7 @@ export class ReachAge {
         approvalStatus: status,
         approvedDate: Timestamp.now(),
         approvedBy: this.loginEmployeeId!,
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
       };
       const eventResult = await this.eventService.updateEvent(employeeId, event.eventId, event);
       if (!eventResult) {

@@ -35,11 +35,9 @@ export class InsuranceRates {
   isRemunerationDataLoaded: Record<string, boolean> = {};
   async getRemunerationData(year: string) {
     const resolvedYear = await this.resolveRemunerationYear(year);
-    if (year !== resolvedYear) {
-      this.remunerationData[year] = this.remunerationData[resolvedYear] ?? [];
-      this.remunerationPeriod[year] = this.remunerationPeriod[resolvedYear] ?? {};
-      this.isRemunerationDataLoaded[year] = true;
-    }
+    this.remunerationData[year] = this.remunerationData[resolvedYear] ?? this.remunerationData[year] ?? [];
+    this.remunerationPeriod[year] = this.remunerationPeriod[resolvedYear] ?? this.remunerationPeriod[year] ?? {};
+    this.isRemunerationDataLoaded[year] = (this.remunerationData[year]?.length ?? 0) > 0;
   }
 
   /** 今年の保険料率 */

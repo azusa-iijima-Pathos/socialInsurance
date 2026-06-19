@@ -33,6 +33,7 @@ import { CalculationRunService } from '../../../service/Firestore/calculation-ru
 import { Event } from '../../../model/event';
 import {
   buildDependentChangeEventBaseId,
+  getCurrentApprovedWorkingMonth,
   getWorkMonthForDate,
   getWorkingYearMonth,
 } from '../../../service/logic/event-id-service';
@@ -635,6 +636,7 @@ export class HireEntry {
         approvalStatus: '承認済み',
         approvedDate: Timestamp.now(),
         approvedBy: this.loginEmployeeId,
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
       },
       payload: {
         employee: employeeWithoutInsurance,

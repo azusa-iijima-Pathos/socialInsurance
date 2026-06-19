@@ -29,6 +29,11 @@ export function getCurrentAppliedFromMonth(): number {
   return encodeAppliedFromMonth(year, month);
 }
 
+/** 承認・却下時に記録する作業月（YYYYMM）。月別イベント一覧の承認月表示で使用 */
+export function getCurrentApprovedWorkingMonth(): number {
+  return getCurrentAppliedFromMonth();
+}
+
 /** 前月以前の未処理申請（IDの作業月が現在作業月より前） */
 export function isPriorMonthUnprocessedId(itemId: string, workingYear: number, workingMonth: number): boolean {
   const parsed = parseEventYearMonth(itemId, workingYear, workingMonth);
@@ -304,6 +309,28 @@ function getAppliedDateYearMonth(
     return { year: date.getFullYear(), month: date.getMonth() + 1 };
   }
   return null;
+}
+
+/** 承認日が指定月と一致するか */
+export function isApprovedInTargetMonth(
+  approval: { approvedDate?: { toDate?: () => Date; seconds?: number } | null } | undefined,
+  targetYear: number,
+  targetMonth: number,
+): boolean {
+  const parsed = getAppliedDateYearMonth(approval?.approvedDate);
+  if (!parsed) return false;
+  return parsed.year === targetYear && parsed.month === targetMonth;
+}
+
+/** 承認時の作業月が指定月と一致するか（月別イベント一覧の承認月表示用） */
+export function isApprovedInTargetWorkingMonth(
+  approval: { approvedWorkingMonth?: number } | undefined,
+  targetYear: number,
+  targetMonth: number,
+): boolean {
+  if (approval?.approvedWorkingMonth == null) return false;
+  const decoded = decodeAppliedFromMonth(approval.approvedWorkingMonth);
+  return decoded.year === targetYear && decoded.month === targetMonth;
 }
 
 /** イベントID（または申請日）が指定作業月と一致するか */

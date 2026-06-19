@@ -2,8 +2,15 @@
   <h1 class="page-title">月別イベント一覧</h1>
 
   <div class="information-area">
-    <p>作業月を選択すると、その月に紐づくイベントを一覧表示します。</p>
+    <div *ngIf="groupingMode === 'occurred'">
+    <p>対象月を選択すると、その月に発生したイベントを一覧表示します。</p>
     <p>申請中・承認済み・却下を含むすべてのイベントを確認できます。</p>
+    </div>
+    <div *ngIf="groupingMode === 'approved'">
+      <p>対象月を選択すると、その月に承認されたイベントを一覧表示します。</p>
+      <p>チェックリストと照らし合わせて、行政へ届け出を提出を完了してください。</p>
+    </div>
+
   </div>
 
   <div class="im-correction-toolbar monthly-event-list-toolbar">
@@ -14,10 +21,18 @@
         </option>
       </select>
     </label>
+    <div class="monthly-event-list-grouping-toggle" role="group" aria-label="表示切替">
+      <button type="button" class="monthly-event-list-grouping-toggle__btn"
+        [class.monthly-event-list-grouping-toggle__btn--active]="groupingMode === 'occurred'"
+        (click)="setGroupingMode('occurred')">発生月ごと</button>
+      <button type="button" class="monthly-event-list-grouping-toggle__btn"
+        [class.monthly-event-list-grouping-toggle__btn--active]="groupingMode === 'approved'"
+        (click)="setGroupingMode('approved')">承認月ごと</button>
+    </div>
   </div>
 
   <!-- 入社 -->
-  <section class="employee-detail-section employee-detail-events">
+  <section class="employee-detail-section employee-detail-events" *ngIf="groupingMode !== 'approved'">
     <h2 class="section-title">入社</h2>
     <div *ngIf="hireEvents.length === 0" class="employee-detail-empty">データがありません</div>
     <div class="employee-detail-events-table-wrap" *ngIf="hireEvents.length > 0">
@@ -62,7 +77,7 @@
   </section>
 
   <!-- 退社 -->
-  <section class="employee-detail-section employee-detail-events">
+  <section class="employee-detail-section employee-detail-events" *ngIf="groupingMode !== 'approved'">
     <h2 class="section-title">退社</h2>
     <div *ngIf="retireEvents.length === 0 && retireRuns.length === 0" class="employee-detail-empty">データがありません</div>
     <div class="employee-detail-events-table-wrap" *ngIf="retireEvents.length > 0 || retireRuns.length > 0">
@@ -157,6 +172,7 @@
     </div>
     <div class="monthly-event-list-export" *ngIf="fixedSalaryRuns.length > 0">
       <button type="button" class="im-btn-soft" (click)="exportFixedSalaryCsv()">CSV出力（承認済み）</button>
+      <button type="button" class="im-btn-soft" (click)="exportAppliedFixedSalaryCsv()">CSV出力（適用済み）</button>
     </div>
   </section>
 
@@ -222,7 +238,8 @@
             <th></th>
             <th>社員ID</th>
             <th>氏名</th>
-            <th>理由</th>
+            <th>種別</th>
+            <th>変更</th>
             <th>事象発生日</th>
             <th>申請日</th>
             <th>承認状況</th>
@@ -243,7 +260,8 @@
                 {{ getEmployeeName(event.employeeId) }}
               </a>
             </td>
-            <td>{{ getReasonLabel(event) }}</td>
+            <td>{{ getWorkStatusLeaveTypeLabel(event) }}</td>
+            <td>{{ event.changeType }}</td>
             <td>{{ commonService.formatDate(event.occurredDate) }}</td>
             <td>{{ commonService.formatDateTime(event.appliedDate) }}</td>
             <td>{{ getApprovalStatus(event) }}</td>
@@ -307,11 +325,15 @@
     <div class="monthly-event-list-export" *ngIf="insuranceRuns.length > 0">
       <button type="button" class="im-btn-soft" (click)="exportInsuranceAcquisitionCsv()">CSV（取得）</button>
       <button type="button" class="im-btn-soft" (click)="exportInsuranceLossCsv()">CSV（喪失）</button>
+      <ng-container *ngIf="groupingMode === 'approved'">
+        <button type="button" class="im-btn-soft" (click)="exportInsuranceAcquisitionExcludingReachAgeCsv()">CSV（一定年齢到達時除外・取得）</button>
+        <button type="button" class="im-btn-soft" (click)="exportInsuranceLossExcludingReachAgeCsv()">CSV（一定年齢到達時除外・喪失）</button>
+      </ng-container>
     </div>
   </section>
 
   <!-- 従業員からの申請 -->
-  <section class="employee-detail-section employee-detail-events">
+  <section class="employee-detail-section employee-detail-events" *ngIf="groupingMode !== 'approved'">
     <h2 class="section-title">従業員からの申請</h2>
     <div *ngIf="employeeApplicationEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
     <div class="employee-detail-events-table-wrap" *ngIf="employeeApplicationEvents.length > 0">
