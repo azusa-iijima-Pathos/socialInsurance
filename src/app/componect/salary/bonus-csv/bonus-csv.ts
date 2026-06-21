@@ -1,4 +1,4 @@
-import { Component, Input, inject } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Timestamp } from '@angular/fire/firestore';
 import Papa from 'papaparse';
@@ -31,6 +31,7 @@ export class BonusCsv {
 
   @Input() payrollId = '';
   @Input() disabled = false;
+  @Output() payrollRegistered = new EventEmitter<void>();
 
   private payrollService = inject(PayrollService);
   private commonService = inject(CommonService);
@@ -134,6 +135,9 @@ export class BonusCsv {
     await this.payrollService.getAllPayrollListForMonth(this.payrollId, true);
     this.csvPreviewModalOpen = false;
     this.setCsvImportStatus(`CSV取り込みが完了しました：${successCount} 件`);
+    if (successCount > 0) {
+      this.payrollRegistered.emit();
+    }
   }
 
   // プレビュー行のチェック状態を更新する

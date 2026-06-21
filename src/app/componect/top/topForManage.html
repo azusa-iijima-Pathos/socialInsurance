@@ -8,7 +8,7 @@
 
         <p>今月の作業をすべて完了すると保険料を算出することができます。</p>
 
-        <p>今月の保険料を確定すると、作業月が変更されるので、今月請求を行いたい差額調整がある場合、先に遡及修正を行ってください。</p>
+        <p>保険料を確定したあと、次の月の作業へ進めます。今月請求を行いたい差額調整がある場合、先に遡及修正を行ってください。</p>
 
         <p>差額調整一覧から今月の調整費を含む請求額を確認することができます。</p>
 
@@ -48,25 +48,30 @@
 
             <section class="top-page-card">
 
-                <h3 class="top-page-card__title">今月の作業</h3>
+                <div class="top-page-card__title-row">
+                    <h3 class="top-page-card__title">今月の作業</h3>
+                    <button type="button" class="im-btn-primary top-page-advance-month-btn"
+                        [disabled]="!canAdvanceWorkingMonth"
+                        (click)="advanceToNextWorkingMonth()">{{ nextWorkingMonthLabel }}の作業へ</button>
+                </div>
 
                 <nav class="top-page-card__links">
 
                     <a *ngIf="workingMonth === '7' || workingMonth === '9'"
 
-                        [routerLink]="['/calculation-base-pending-list']">算定基礎</a>
+                        [routerLink]="['/calculation-base-pending-list']"><span class="top-page-task-icon">{{ calculationBaseTaskComplete ? '✅' : '🟩' }}</span>算定基礎</a>
 
-                    <a [routerLink]="['/monthly-salary', `${workingYear}`, `${workingMonth}`]">{{ workingMonth
+                    <a [routerLink]="['/monthly-salary', `${workingYear}`, `${workingMonth}`]"><span class="top-page-task-icon">{{ salaryTaskComplete ? '✅' : '🟩' }}</span>{{ workingMonth
 
                         }}月の給与入力</a>
 
-                    <a [routerLink]="['/system-application-list']">{{ workingMonth }}月の申請一覧</a>
+                    <a [routerLink]="['/system-application-list']"><span class="top-page-task-icon">{{ applicationTaskComplete ? '✅' : '🟩' }}</span>{{ workingMonth }}月の申請一覧</a>
 
-                    <a [routerLink]="['/insurance-confirm', `${workingYear}`, `${workingMonth}`]">{{ workingMonth
+                    <a [routerLink]="['/insurance-confirm', `${workingYear}`, `${workingMonth}`]"><span class="top-page-task-icon">{{ insuranceTaskComplete ? '✅' : '🟩' }}</span>{{ workingMonth
 
                         }}月保険料算出</a>
 
-                    <a [routerLink]="['/submission-checklist']">チェックリスト</a>
+                    <a [routerLink]="['/submission-checklist']"><span class="top-page-task-icon">{{ checklistTaskComplete ? '✅' : '🟩' }}</span>チェックリスト</a>
 
                 </nav>
 
@@ -142,9 +147,9 @@
 
                     <a [routerLink]="['/correction-list']">月給用保険料の差額調整一覧</a>
 
-                    <a [routerLink]="['/salary-correction']">月額給与修正</a>
+                    <a [routerLink]="['/salary-correction']">月額給与修正・過去給与入力</a>
 
-                    <a *ngIf="hasBonusPayrollLock" [routerLink]="['/bonus-correction']">賞与確定後修正</a>
+                    <a [routerLink]="['/bonus-correction']">賞与修正・過去賞与入力</a>
 
                     <a *ngIf="hasBonusPayrollLock" [routerLink]="['/correction-list']"
 

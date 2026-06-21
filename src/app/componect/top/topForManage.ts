@@ -11,6 +11,13 @@ import { PREFECTURE_INSURANCE_RATES_2026, PREFECTURE_INSURANCE_RATES_2025, PREFE
 import { INSURANCE_RATE_PERIOD_2026, INSURANCE_RATE_PERIOD_2025, INSURANCE_RATE_PERIOD_2024, INSURANCE_RATE_PERIOD_2023 } from '../../insuranceData/forEmployee';
 import { Firestore, doc, writeBatch } from '@angular/fire/firestore';
 import { consumeGuardMessage } from '../../service/common/guard-message.util';
+import { EmployeeService } from '../../service/Firestore/employee-service';
+import { PayrollService } from '../../service/Firestore/payroll-service';
+import { EventService } from '../../service/Firestore/event-service';
+import { CalculationRunService } from '../../service/Firestore/calculation-run-service';
+import { AnnouncementService } from '../../service/Firestore/announcement-service';
+import { ReachAgeService } from '../../service/logic/reach-age';
+import { CommonService } from '../../service/common/common-service';
 
 
 @Component({
@@ -24,6 +31,13 @@ export class TopForManage {
   private companyService = inject(CompanyService);
   private payrollLockService = inject(PayrollLockService);
   private insuranceSnapshotService = inject(InsuranceSnapshotService);
+  private employeeService = inject(EmployeeService);
+  private payrollService = inject(PayrollService);
+  private eventService = inject(EventService);
+  private calculationRunService = inject(CalculationRunService);
+  private announcementService = inject(AnnouncementService);
+  private reachAgeService = inject(ReachAgeService);
+  private commonService = inject(CommonService);
 
   loginUser = sessionStorage.getItem('loginEmployeeId');
   permission = sessionStorage.getItem('permission');
@@ -32,12 +46,10 @@ export class TopForManage {
 
   workingYear = sessionStorage.getItem('workingYear');
 
-  //作業月
   workingMonth = sessionStorage.getItem('workingMonth');
   workingYearInput: string | null = null;
   workingMonthInput: string | null = null;
 
-  //最新の賞与支給月のペイロールID
   latestLockedBonusPayrollId = '';
   lockedBonusPayrollIds: string[] = [];
   hasBonusPayrollLock = false;
@@ -46,6 +58,14 @@ export class TopForManage {
 
   guardMessage = '';
   showExistingEmployeeLink = false;
+
+  salaryTaskComplete = false;
+  applicationTaskComplete = false;
+  insuranceTaskComplete = false;
+  checklistTaskComplete = false;
+  calculationBaseTaskComplete = false;
+  canAdvanceWorkingMonth = false;
+  nextWorkingMonthLabel = '';
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -65,6 +85,101 @@ export class TopForManage {
 
     const hasSnapshot = await this.insuranceSnapshotService.hasAnyInsuranceSnapshotForCompany();
     this.showExistingEmployeeLink = !hasSnapshot;
+
+    await this.loadMonthlyTaskStatus();
+  }
+
+  private async loadMonthlyTaskStatus() {
+    if (!this.workingYear || !this.workingMonth) return;
+
+    const year = Number(this.workingYear);
+    const month = Number(this.workingMonth);
+    const payrollId = `${year}-${String(month).padStart(2, '0')}`;
+
+    await this.employeeService.getAllEmployees();
+    await this.payrollService.getAllPayrollListForMonth(payrollId, true);
+    const registeredIds = new Set(
+      this.payrollService.allPayrollListForMonth()
+        .find(item => item.payrollId === payrollId)?.payrollList
+        .map(payroll => payroll.employeeId ?? '') ?? [],
+    );
+    const eligibleEmployees = this.employeeService.employeesEligibleForPayrollPeriod(payrollId);
+    this.salaryTaskComplete = eligibleEmployees.length > 0
+      && eligibleEmployees.every(employee => registeredIds.has(employee.employeeId));
+
+    const [pendingEvents, pendingRuns, pendingEmployeeApps, approvedEmployeeApps, applicableAdHocRevisions] = await Promise.all([
+      this.eventService.getAllPendingEventsUpToWorkingMonth(),
+      this.calculationRunService.getPendingSystemRunsUpToWorkingMonth(),
+      this.eventService.getAllPendingEmployeeApplicationEvents(),
+      this.eventService.getApprovedEmployeeApplicationEventsForCurrentWorkMonth(),
+      this.calculationRunService.getApplicableApprovedAdHocRevisionRuns(),
+    ]);
+    const hasPendingApplications = pendingEvents.length > 0
+      || pendingRuns.length > 0
+      || pendingEmployeeApps.length > 0;
+    const hasPendingApplies = applicableAdHocRevisions.length > 0 || approvedEmployeeApps.length > 0;
+    this.applicationTaskComplete = !hasPendingApplications && !hasPendingApplies;
+
+    this.insuranceTaskComplete = await this.payrollLockService.isPayrollLocked(payrollId);
+    this.canAdvanceWorkingMonth = this.insuranceTaskComplete;
+
+    const announcements = await this.announcementService.getAllAnnouncements();
+    this.checklistTaskComplete = announcements.every(item => item.checked);
+
+    await this.loadCalculationBaseTaskStatus(year, month);
+
+    this.nextWorkingMonthLabel = this.getNextWorkingMonthLabel(year, month);
+  }
+
+  private async loadCalculationBaseTaskStatus(year: number, month: number) {
+    this.calculationBaseTaskComplete = false;
+    if (month !== 7 && month !== 9) return;
+
+    const calculationBaseRun = await this.calculationRunService.getCalculationBaseRun(year);
+    if (month === 7) {
+      this.calculationBaseTaskComplete = calculationBaseRun?.approval?.approvalStatus === '承認済み';
+      return;
+    }
+    this.calculationBaseTaskComplete = String(calculationBaseRun?.payload?.['status'] ?? '') === '反映済み';
+  }
+
+  private getNextWorkingMonthLabel(year: number, month: number): string {
+    let nextMonth = month + 1;
+    let nextYear = year;
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear += 1;
+    }
+    return `${nextMonth}月`;
+  }
+
+  async advanceToNextWorkingMonth() {
+    if (!this.canAdvanceWorkingMonth || !this.companyId || !this.workingYear || !this.workingMonth) return;
+    if (!window.confirm(`${this.workingMonth}月分保険料と同時に請求を行いたい差額調整の入力がある場合、先に遡及修正を行ってください。\n完了している場合、${this.nextWorkingMonthLabel}の作業へ移動します。`)) return;
+
+    let newWorkingMonth = Number(this.workingMonth) + 1;
+    let newWorkingYear = Number(this.workingYear);
+    if (newWorkingMonth > 12) {
+      newWorkingMonth = 1;
+      newWorkingYear += 1;
+    }
+
+    const result = await this.companyService.updateCompanySettings(this.companyId, {
+      workingMonth: newWorkingMonth,
+      workingYear: newWorkingYear,
+    });
+    if (!result) {
+      window.alert('作業月の更新に失敗しました');
+      return;
+    }
+
+    sessionStorage.setItem('workingMonth', newWorkingMonth.toString());
+    sessionStorage.setItem('workingYear', newWorkingYear.toString());
+    this.workingMonth = newWorkingMonth.toString();
+    this.workingYear = newWorkingYear.toString();
+    await this.reachAgeService.createEvent();
+    await this.commonService.refreshTargetPeriod();
+    await this.loadMonthlyTaskStatus();
   }
 
   setWorkingMonth() {
@@ -72,10 +187,8 @@ export class TopForManage {
 
     const workingYear = Number(this.workingYearInput);
     const workingMonth = Number(this.workingMonthInput);
-    //作業月をセッションストレージに保存
     sessionStorage.setItem('workingMonth', workingMonth.toString());
     sessionStorage.setItem('workingYear', workingYear.toString());
-    //会社情報を更新
     this.companyService.updateCompanySettings(this.companyId!, {
       workingMonth,
       workingYear,
@@ -84,34 +197,26 @@ export class TopForManage {
     this.workingMonth = workingMonth.toString();
   }
 
-  //賞与支給月の年を取得
   getBonusPaymentYear(month: number): number {
     const workingYear = Number(this.workingYear);
     const workingMonth = Number(this.workingMonth);
-    // 1〜3月の作業月は常に当年
     if (workingMonth >= 1 && workingMonth <= 3) {
       return workingYear;
     }
-    // 4〜12月の作業月
     if (month >= 4 && month <= 12) {
       return workingYear;
     }
-    // 1〜3月のボーナス月
     return workingYear + 1;
   }
 
-
-  //前月の年を取得
   getPreviousInsuranceOutputYear(): number {
     return Number(this.getPreviousWorkingYearMonth().split('-')[0]);
   }
 
-  //前月の月を取得
   getPreviousInsuranceOutputMonth(): number {
     return Number(this.getPreviousWorkingYearMonth().split('-')[1]);
   }
 
-  //前月の年月を取得
   getPreviousWorkingYearMonth(): string {
     if (!this.workingYear || !this.workingMonth) return '';
 
@@ -131,7 +236,6 @@ export class TopForManage {
     this.router.navigate(['/company-setting'], { queryParams: { mode: 'initial' } });
   }
 
-  //けんぽデータをFirestoreに保存
   async seedGrades() {
     console.log('seedGrades');
     await this.seedGradesForYear('2026', STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2026);
@@ -147,7 +251,6 @@ export class TopForManage {
     await this.seedGradesForYear('2023', STANDARD_MONTHLY_REMUNERATION_2023, STANDARD_MONTHLY_REMUNERATION_PERIOD_2023);
   }
 
-  //保険料率をFirestoreに保存
   async seedInsuranceRates() {
     await this.seedInsuranceRatesForYear('2026', PREFECTURE_INSURANCE_RATES_2026, INSURANCE_RATE_PERIOD_2026);
   }
@@ -161,7 +264,6 @@ export class TopForManage {
     await this.seedInsuranceRatesForYear('2023', PREFECTURE_INSURANCE_RATES_2023, INSURANCE_RATE_PERIOD_2023);
   }
 
-  //保険料率をFirestoreに保存
   private async seedInsuranceRatesForYear(
     year: string,
     rates: { id: string;[key: string]: string | number }[],
@@ -185,7 +287,6 @@ export class TopForManage {
     await batch.commit();
   }
 
-//等級マスタをFirestoreに保存
   private async seedGradesForYear(
     year: string,
     grades: { grade: number;[key: string]: string | number }[],
@@ -209,4 +310,4 @@ export class TopForManage {
     await batch.commit();
   }
 
-} 
+}

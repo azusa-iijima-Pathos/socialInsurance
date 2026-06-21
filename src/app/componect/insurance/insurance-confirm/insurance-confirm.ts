@@ -661,8 +661,7 @@ export class InsuranceConfirm {
 
     //Windows標準確認ポップを表示
     const confirmed = window.confirm(
-      '確定すると、現在の作業対象期間の作業がすべて確定されます。（給与・勤務実績、保険料、差額調整）\n' +
-      '作業対象期間は次の月に移行し、現在の作業対象期間の保険料修正は差額調整になります。\n' +
+      '確定すると、現在の作業対象期間の保険料修正は差額調整になります。\n' +
       '確定しますか？'
     );
     if (!confirmed) {
@@ -682,28 +681,9 @@ export class InsuranceConfirm {
       return;
     }
 
-    //作業月を移動
-    let newWorkingMonth = this.workingMonth + 1;
-    let newWorkingYear = this.workingYear;
-    if (newWorkingMonth > 12) {
-      newWorkingMonth = 1;
-      newWorkingYear = this.workingYear + 1;
-    }
-    //Firestoreを更新
-    const result = await this.companyService.updateCompanySettings(this.companyId!, {
-      workingMonth: newWorkingMonth,
-      workingYear: newWorkingYear,
-    });
-    if (!result) {
-      console.error('作業月を更新できませんでした');
-      return;
-    }
-    sessionStorage.setItem('workingMonth', newWorkingMonth.toString());
-    sessionStorage.setItem('workingYear', newWorkingYear.toString());
     await this.reachAgeService.createEvent();
     await this.commonService.refreshTargetPeriod();
 
-    //編集・移動ボタンを押せなくする
     this.isDone = true;
   }
 

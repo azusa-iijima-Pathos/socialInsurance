@@ -278,11 +278,37 @@ export class MonthlySalary {
 
   /** 今月の申請一覧へ遷移 */
   toApplicationList() {
-    this.router.navigate(['/system-application-list']);
+    void this.confirmNavigateWithUnregisteredSalary(() => {
+      this.router.navigate(['/system-application-list']);
+    });
   }
 
   /** 保険料確認へ遷移 */
   toInsuranceConfirm() {
-    this.router.navigate(['/insurance-confirm', this.workingYear, this.workingMonth]);
+    void this.confirmNavigateWithUnregisteredSalary(() => {
+      this.router.navigate(['/insurance-confirm', this.workingYear, this.workingMonth]);
+    });
+  }
+
+  private async confirmNavigateWithUnregisteredSalary(onConfirm: () => void) {
+    if (!await this.hasUnregisteredSalary()) {
+      onConfirm();
+      return;
+    }
+    if (window.confirm('給与が未登録の人がいますが、次の作業に移動しますか？')) {
+      onConfirm();
+    }
+  }
+
+  private async hasUnregisteredSalary(): Promise<boolean> {
+    await this.payrollService.getAllPayrollListForMonth(this.payrollId, true);
+    await this.employeeService.getAllEmployees();
+    const registeredIds = new Set(
+      this.payrollService.allPayrollListForMonth()
+        .find(item => item.payrollId === this.payrollId)?.payrollList
+        .map(payroll => payroll.employeeId ?? '') ?? [],
+    );
+    return this.employeeService.employeesEligibleForPayrollPeriod(this.payrollId)
+      .some(employee => !registeredIds.has(employee.employeeId));
   }
 }

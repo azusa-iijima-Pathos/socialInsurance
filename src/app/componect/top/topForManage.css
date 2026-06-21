@@ -1,1 +1,20 @@
-/* トップページ共通スタイルは app-page-shells.css の .top-page-* を参照 */
+.top-page-card__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--im-size-12);
+  margin-bottom: var(--im-size-12);
+}
+
+.top-page-card__title-row .top-page-card__title {
+  margin: 0;
+}
+
+.top-page-advance-month-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.top-page-task-icon {
+  margin-right: 0.35em;
+}

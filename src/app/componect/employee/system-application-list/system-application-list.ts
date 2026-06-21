@@ -16,7 +16,9 @@ import {
   RetireInsuranceDetailView,
 } from '../../../service/logic/employee-event-approval.service';
 import { EmployeeEventDisplayService } from '../../../service/logic/employee-event-display.service';
-import { isEmploymentChangeSystemRun, isPriorMonthUnprocessedId } from '../../../service/logic/event-id-service';
+import { isEmploymentChangeSystemRun, isPriorMonthUnprocessedId, getWorkMonthForDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { TempEmployeeService } from '../../../service/Firestore/temp-employee-service';
+import { CompanyService } from '../../../service/Firestore/company-service';
 import {
   DISABILITY_STATUSES,
   DISABILITY_TYPES,
@@ -44,6 +46,8 @@ export class SystemApplicationList {
   private employeeEventDisplayService = inject(EmployeeEventDisplayService);
   commonService = inject(CommonService);
   private router = inject(Router);
+  private tempEmployeeService = inject(TempEmployeeService);
+  private companyService = inject(CompanyService);
 
   loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? '';
   workingYear = Number(sessionStorage.getItem('workingYear'));
@@ -65,6 +69,8 @@ export class SystemApplicationList {
   scheduledEvents: EmployeeEventItem[] = [];
   employeeApplicationEvents: EmployeeEventItem[] = [];
   approvedEmployeeApplicationEvents: EmployeeEventItem[] = [];
+  hasScheduledHireApprovalRemaining = false;
+  hasScheduledRetireApprovalRemaining = false;
 
   selectedReachAge = new Set<string>();
   selectedRetire = new Set<string>();
@@ -139,6 +145,36 @@ export class SystemApplicationList {
     this.selectedApprovedEmployeeApps.clear();
     this.applicableAdHocRevisions = await this.calculationRunService.getApplicableApprovedAdHocRevisionRuns();
     this.canBulkApplyFixedSalary = this.applicableAdHocRevisions.length > 0;
+    await this.loadScheduledHireRetireStatus();
+  }
+
+  private async loadScheduledHireRetireStatus() {
+    await this.companyService.getCompany();
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const current = getWorkingYearMonth();
+    const temps = await this.tempEmployeeService.getAllTempEmployees();
+    this.hasScheduledHireApprovalRemaining = temps.some(temp => {
+      if (!temp.hireDate) return false;
+      const hireMonth = getWorkMonthForDate(temp.hireDate.toDate(), targetPeriodStart);
+      return hireMonth.year === current.year && hireMonth.month === current.month;
+    });
+    await this.employeeService.getAllEmployees(true);
+    this.hasScheduledRetireApprovalRemaining = this.employeeService.allEmployees().some(employee => {
+      if (employee.workStatus !== '退社予定' || !employee.resignationDate) return false;
+      const resignMonth = getWorkMonthForDate(employee.resignationDate.toDate(), targetPeriodStart);
+      return resignMonth.year === current.year && resignMonth.month === current.month;
+    });
+  }
+
+  hasPendingApplications(): boolean {
+    return this.reachAgeEvents.length > 0
+      || this.fixedSalaryRuns.length > 0
+      || this.hireRuns.length > 0
+      || this.retireRuns.length > 0
+      || this.qualificationRuns.length > 0
+      || this.scheduledSystemRuns.length > 0
+      || this.scheduledEvents.length > 0
+      || this.employeeApplicationEvents.length > 0;
   }
 
   isPriorMonthUnprocessed(id: string): boolean {
@@ -847,7 +883,11 @@ export class SystemApplicationList {
 
   /** 保険料確認へ遷移 */
   toInsuranceConfirm() {
-    if (this.hasPendingApprovedApplies()) {
+    if (this.hasPendingApplications()) {
+      if (!window.confirm('申請中のものが残っていますが、次の作業に移動しますか？')) {
+        return;
+      }
+    } else if (this.hasPendingApprovedApplies()) {
       window.alert('承認済みのイベントの適用が実施されていません。実施後に保険料の確認をおこなってください。');
       return;
     }

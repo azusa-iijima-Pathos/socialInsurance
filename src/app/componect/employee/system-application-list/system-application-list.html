@@ -11,15 +11,169 @@
     <div style="display: flex; gap: 10px; margin-bottom: 10px;">
         <button class="im-btn-soft" (click)="toMonthlySalary()">◀給与入力へ</button>
         <div style="display: flex; gap: 10px ;margin-left: auto;">
-            <button class="im-btn-soft" (click)="toCorrection()">遡及修正へ▶</button>
             <button class="im-btn-primary" (click)="toInsuranceConfirm()">保険料確認へ▶</button>
         </div>
     </div>
 
     <p *ngIf="message" class="im-action-message">{{ message }}</p>
 
-    <!-- 一定年齢到達 -->
+    <!-- 随時改定（固定給変更） -->
     <section class="employee-detail-section employee-detail-events">
+        <div class="system-application-section-header">
+            <h2>随時改定</h2>
+            <button type="button" class="im-btn-primary" (click)="bulkApplyFixedSalary()"
+                [disabled]="!canBulkApplyFixedSalary" style="margin-left: auto;">承認済み随時改定の適用</button>
+        </div>
+        <p>固定給を変更した月を含む3か月分の給与をもとに随時改定の結果を算出します。</p>
+        <p>承認では計算結果の確認のみ行い、等級の反映は翌月の「承認済み随時改定の適用」から行ってください。</p>
+        <div *ngIf="fixedSalaryRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
+        <div *ngIf="fixedSalaryRuns.length > 0" class="employee-detail-events-table-wrap">
+            <table class="employee-detail-events-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>操作</th>
+                        <th>社員ID</th>
+                        <th>氏名</th>
+                        <th>固定給変更日</th>
+                        <th>申請日</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let run of fixedSalaryRuns">
+                        <td>
+                            <span *ngIf="isPriorMonthUnprocessed(run.runId)"
+                                class="system-application-priority-mark">！</span>
+                        </td>
+                        <td class="employee-detail-events-table__actions">
+                            <button type="button" class="im-btn-primary im-btn-sm"
+                                (click)="onApproveSystemRun(run)">確認</button>
+                            <button type="button" class="im-btn-soft im-btn-sm"
+                                (click)="onRejectSystemRun(run)">却下</button>
+                        </td>
+                        <td>{{ run.employeeId }}</td>
+                        <td>
+                            <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                                {{ getEmployeeName(run.employeeId) }}
+                            </a>
+                        </td>
+                        <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
+                        <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 入社処理 -->
+    <section class="employee-detail-section employee-detail-events">
+        <div class="system-application-section-header">
+            <h2>入社時保険情報登録</h2>
+            <div class="system-application-section-header__actions">
+                <span *ngIf="hasScheduledHireApprovalRemaining" class="system-application-scheduled-label">入社予定者あり</span>
+                <a [class]="hasScheduledHireApprovalRemaining ? 'im-btn-primary' : 'im-btn-soft'"
+                    routerLink="/employee-hire-entry">入社予定者の承認へ▶</a>
+            </div>
+        </div>
+        <p>入社登録時の保険・扶養情報の申請です。入社を承認後に表示されます。</p>
+        <p>内容を確認の上、承認すると従業員情報に反映されます。</p>
+        <div *ngIf="hireRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
+        <div *ngIf="hireRuns.length > 0" class="employee-detail-events-table-wrap">
+            <table class="employee-detail-events-table">
+                <thead>
+                    <tr>
+                        <th>社員ID</th>
+                        <th>氏名</th>
+                        <th>入社日</th>
+                        <th>申請日</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let run of hireRuns">
+                        <td>{{ run.employeeId }}</td>
+                        <td>
+                            <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                                {{ getEmployeeName(run.employeeId) }}
+                            </a>
+                        </td>
+                        <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
+                        <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
+                        <td class="employee-detail-events-table__actions">
+                            <button type="button" class="im-btn-primary im-btn-sm"
+                                (click)="openHireDetail(run)">確認</button>
+                            <button type="button" class="im-btn-soft im-btn-sm" (click)="rejectHireRun(run)">却下</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 退社処理 -->
+    <section class="employee-detail-section employee-detail-events">
+        <div class="system-application-section-header">
+            <h2>退社時保険喪失登録</h2>
+            <div class="system-application-section-header__actions">
+                <span *ngIf="hasScheduledRetireApprovalRemaining" class="system-application-scheduled-label">退職予定者あり</span>
+                <a [class]="hasScheduledRetireApprovalRemaining ? 'im-btn-primary' : 'im-btn-soft'"
+                    routerLink="/employee-retire-entry">退職予定者の承認へ▶</a>
+            </div>
+        </div>
+        <p>退社登録時の保険・扶養情報の申請です。退社を承認後に表示されます。
+        <p>承認すると従業員情報に反映されます。</p>
+        <div *ngIf="retireRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
+        <ng-container *ngIf="retireRuns.length > 0">
+            <div class="employee-detail-events-table-wrap">
+                <table class="employee-detail-events-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>社員ID</th>
+                            <th>氏名</th>
+                            <th>退職日</th>
+                            <th>申請日</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let run of retireRuns">
+                            <td>
+                                <input type="checkbox" [checked]="selectedRetire.has(getSystemRunKey(run))"
+                                    (change)="toggleRetire(run, $any($event.target).checked)">
+                            </td>
+                            <td>{{ run.employeeId }}</td>
+                            <td>
+                                <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
+                                    {{ getEmployeeName(run.employeeId) }}
+                                </a>
+                            </td>
+                            <td>{{ commonService.formatDate(run.payload?.['resignationDate'] ??
+                                run.payload?.['occurredDate']) }}</td>
+                            <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
+                            <td class="employee-detail-events-table__actions">
+                                <button type="button" class="im-btn-soft im-btn-sm"
+                                    (click)="openRetireDetail(run)">詳細</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="system-application-bulk-actions">
+                <div class="system-application-bulk-actions__left">
+                    <button type="button" class="im-btn-soft" (click)="toggleAllRetireClear()">全選択解除</button>
+                    <button type="button" class="im-btn-soft" (click)="toggleAllRetire()">全選択</button>
+                </div>
+                <div class="system-application-bulk-actions__right">
+                    <button type="button" class="im-btn-primary" (click)="bulkApproveRetire()">選択済みを一括承認</button>
+                    <button type="button" class="im-btn-soft" (click)="bulkRejectRetire()">選択済みを一括却下</button>
+                </div>
+            </div>
+        </ng-container>
+    </section>
+
+       <!-- 一定年齢到達 -->
+       <section class="employee-detail-section employee-detail-events">
         <div class="system-application-section-header">
             <h2>一定年齢到達</h2>
             <button type="button" class="im-btn-soft" (click)="openReachAgeInfoModal()"
@@ -80,155 +234,6 @@
         </ng-container>
     </section>
 
-    <!-- 随時改定（固定給変更） -->
-    <section class="employee-detail-section employee-detail-events">
-        <div class="system-application-section-header">
-            <h2>随時改定</h2>
-            <button type="button" class="im-btn-primary" (click)="bulkApplyFixedSalary()"
-                [disabled]="!canBulkApplyFixedSalary" style="margin-left: auto;">承認済み随時改定の適用</button>
-        </div>
-        <p>固定給を変更した月を含む3か月分の給与をもとに随時改定の結果を算出します。</p>
-        <p>承認では計算結果の確認のみ行い、等級の反映は翌月の「承認済み随時改定の適用」から行ってください。</p>
-        <div *ngIf="fixedSalaryRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
-        <div *ngIf="fixedSalaryRuns.length > 0" class="employee-detail-events-table-wrap">
-            <table class="employee-detail-events-table">
-                <thead>
-                    <tr>
-                        <th></th>
-                        <th>操作</th>
-                        <th>社員ID</th>
-                        <th>氏名</th>
-                        <th>固定給変更日</th>
-                        <th>申請日</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr *ngFor="let run of fixedSalaryRuns">
-                        <td>
-                            <span *ngIf="isPriorMonthUnprocessed(run.runId)"
-                                class="system-application-priority-mark">！</span>
-                        </td>
-                        <td class="employee-detail-events-table__actions">
-                            <button type="button" class="im-btn-primary im-btn-sm"
-                                (click)="onApproveSystemRun(run)">確認</button>
-                            <button type="button" class="im-btn-soft im-btn-sm"
-                                (click)="onRejectSystemRun(run)">却下</button>
-                        </td>
-                        <td>{{ run.employeeId }}</td>
-                        <td>
-                            <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
-                                {{ getEmployeeName(run.employeeId) }}
-                            </a>
-                        </td>
-                        <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
-                        <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <!-- 入社処理 -->
-
-
-    <section class="employee-detail-section employee-detail-events">
-        <div class="system-application-section-header">
-            <h2>入社時保険情報登録</h2>
-            <a class="im-btn-primary" routerLink="/employee-hire-entry" style="margin-left: auto;">入社予定者の承認へ▶</a>
-        </div>
-        <p>入社登録時の保険・扶養情報の申請です。入社を承認後に表示されます。</p>
-        <p>内容を確認の上、承認すると従業員情報に反映されます。</p>
-        <div *ngIf="hireRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
-        <div *ngIf="hireRuns.length > 0" class="employee-detail-events-table-wrap">
-            <table class="employee-detail-events-table">
-                <thead>
-                    <tr>
-                        <th>社員ID</th>
-                        <th>氏名</th>
-                        <th>入社日</th>
-                        <th>申請日</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr *ngFor="let run of hireRuns">
-                        <td>{{ run.employeeId }}</td>
-                        <td>
-                            <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
-                                {{ getEmployeeName(run.employeeId) }}
-                            </a>
-                        </td>
-                        <td>{{ commonService.formatDate(run.payload?.['occurredDate']) }}</td>
-                        <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
-                        <td class="employee-detail-events-table__actions">
-                            <button type="button" class="im-btn-primary im-btn-sm"
-                                (click)="openHireDetail(run)">確認</button>
-                            <button type="button" class="im-btn-soft im-btn-sm" (click)="rejectHireRun(run)">却下</button>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <!-- 退社処理 -->
-    <section class="employee-detail-section employee-detail-events">
-        <div class="system-application-section-header">
-            <h2>退社時保険喪失登録</h2>
-            <a class="im-btn-primary" routerLink="/employee-retire-entry" style="margin-left: auto;">退職予定者の承認へ▶</a>
-        </div>
-        <p>退社登録時の保険・扶養情報の申請です。退社を承認後に表示されます。
-        <p>承認すると従業員情報に反映されます。</p>
-        <div *ngIf="retireRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
-        <ng-container *ngIf="retireRuns.length > 0">
-            <div class="employee-detail-events-table-wrap">
-                <table class="employee-detail-events-table">
-                    <thead>
-                        <tr>
-                            <th></th>
-                            <th>社員ID</th>
-                            <th>氏名</th>
-                            <th>退職日</th>
-                            <th>申請日</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr *ngFor="let run of retireRuns">
-                            <td>
-                                <input type="checkbox" [checked]="selectedRetire.has(getSystemRunKey(run))"
-                                    (change)="toggleRetire(run, $any($event.target).checked)">
-                            </td>
-                            <td>{{ run.employeeId }}</td>
-                            <td>
-                                <a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: run.employeeId }">
-                                    {{ getEmployeeName(run.employeeId) }}
-                                </a>
-                            </td>
-                            <td>{{ commonService.formatDate(run.payload?.['resignationDate'] ??
-                                run.payload?.['occurredDate']) }}</td>
-                            <td>{{ commonService.formatDateTime(run.detectedDate) }}</td>
-                            <td class="employee-detail-events-table__actions">
-                                <button type="button" class="im-btn-soft im-btn-sm"
-                                    (click)="openRetireDetail(run)">詳細</button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="system-application-bulk-actions">
-                <div class="system-application-bulk-actions__left">
-                    <button type="button" class="im-btn-soft" (click)="toggleAllRetireClear()">全選択解除</button>
-                    <button type="button" class="im-btn-soft" (click)="toggleAllRetire()">全選択</button>
-                </div>
-                <div class="system-application-bulk-actions__right">
-                    <button type="button" class="im-btn-primary" (click)="bulkApproveRetire()">選択済みを一括承認</button>
-                    <button type="button" class="im-btn-soft" (click)="bulkRejectRetire()">選択済みを一括却下</button>
-                </div>
-            </div>
-        </ng-container>
-    </section>
-
     <!-- 従業員からの申請 -->
     <section class="employee-detail-section employee-detail-events">
         <div class="system-application-section-header">
@@ -237,6 +242,8 @@
                 [disabled]="approvedEmployeeApplicationEvents.length === 0"
                 style="margin-left: auto;">承認済みのイベントの適用</button>
         </div>
+        <p>従業員からの申請です。承認してもすぐに従業員情報には反映されません。</p>
+        <p>承認済みのイベントの適用を押すと、承認済みのイベントを一括で適用できます。</p>
         <div *ngIf="employeeApplicationEvents.length === 0" class="employee-detail-empty">申請中のイベントはありません</div>
         <div *ngIf="employeeApplicationEvents.length > 0" class="employee-detail-events-table-wrap">
             <table class="employee-detail-events-table">
@@ -342,8 +349,8 @@
 
     <!-- 資格取得/喪失（保険情報変更） -->
     <section class="employee-detail-section employee-detail-events">
-        <h2>資格取得/喪失（システム計算）</h2>
-        <p>保険情報変更に伴う資格取得・喪失の申請です。承認すると従業員情報に反映されます。</p>
+        <h2>資格取得/喪失</h2>
+        <p>雇用契約情報の変更に伴う資格取得・喪失の申請です。承認すると従業員情報に反映されます。</p>
         <div *ngIf="qualificationRuns.length === 0" class="employee-detail-empty">申請中の計算結果はありません</div>
         <div *ngIf="qualificationRuns.length > 0" class="employee-detail-events-table-wrap">
             <table class="employee-detail-events-table">
@@ -383,7 +390,7 @@
         </div>
     </section>
 
-    <div class="form-footer-actions">
+    <div class="form-footer-actions" style="display: flex; justify-content: space-between;">
         <button class="im-btn-soft" (click)="toMonthlySalary()">◀給与入力へ</button>
         <button class="im-btn-primary" (click)="toInsuranceConfirm()">保険料確認へ▶</button>
     </div>
