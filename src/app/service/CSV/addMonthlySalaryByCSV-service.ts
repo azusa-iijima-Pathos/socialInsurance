@@ -201,10 +201,10 @@ export class AddMonthlySalaryByCSVService {
         // row.payrollはプレビュー作成時点でCSVの値・companyId・payrollIdを入れた登録用データ。
         // employeeIdはPayrollService.registerPayroll側で付与される。
         const result = await this.payrollService.registerPayroll(row.employeeId, row.payroll!);
-        if (result) {
+        if (result.ok) {
           successCount++;
         } else {
-          errors.push(`${row.rowNumber}行目：社員ID ${row.employeeId} の登録に失敗しました`);
+          errors.push(`${row.rowNumber}行目：社員ID ${row.employeeId} ${this.payrollService.getRegisterErrorMessage(result)}`);
         }
       } catch (error) {
         console.error(error);
@@ -371,8 +371,8 @@ export class AddMonthlySalaryByCSVService {
     }
 
     if (!employeeId) missingFields.push('社員ID');
-    if (!actualWorkingDaysText) missingFields.push('勤務日数');
-    if (!actualWorkingHoursText) missingFields.push('勤務時間');
+    if (actualWorkingDaysText.trim() === '') missingFields.push('勤務日数');
+    if (actualWorkingHoursText.trim() === '') missingFields.push('勤務時間');
 
     if (missingFields.length) {
       errors.push(`${rowNumber}行目：${missingFields.join('、')}が未入力です`);
@@ -389,16 +389,6 @@ export class AddMonthlySalaryByCSVService {
       return null;
     }
 
-    if (actualWorkingHours > 0 && actualWorkingDays === 0) {
-      errors.push(`${rowNumber}行目：勤務時間がある場合、勤務日数は1日以上で入力してください`);
-      return null;
-    }
-
-    if (actualWorkingDays > 0 && actualWorkingHours === 0) {
-      errors.push(`${rowNumber}行目：勤務日数がある場合、勤務時間は1時間以上で入力してください`);
-      return null;
-    }
-
     if (!paymentDate || !targetPeriodStart || !targetPeriodEnd) {
       errors.push(`${rowNumber}行目：支給日または対象期間の日付形式が正しくありません`);
       return null;
@@ -411,11 +401,6 @@ export class AddMonthlySalaryByCSVService {
 
     const salary = this.getSalaryAmounts(row, rowNumber, errors, inputFormat);
     if (!salary) return null;
-
-    if (actualWorkingDays > 0 && salary.actualPaymentAmount === 0) {
-      errors.push(`${rowNumber}行目：勤務実績がある場合、総支給額は1円以上で入力してください`);
-      return null;
-    }
 
     if (salary.actualPaymentAmount < salary.fixedSalary) {
       errors.push(`${rowNumber}行目：総支給額は固定給以上で入力してください`);
@@ -453,7 +438,7 @@ export class AddMonthlySalaryByCSVService {
       const transportAllowance = this.toNumber(transportAllowanceText) ?? 0;
       const variableAllowance = this.toNumber(variableAllowanceText) ?? 0;
 
-      if (!basicSalaryText) {
+      if (basicSalaryText.trim() === '') {
         errors.push(`${rowNumber}行目：基本給が未入力です`);
         return null;
       }
@@ -480,7 +465,7 @@ export class AddMonthlySalaryByCSVService {
     const fixedSalary = this.toNumber(fixedSalaryText);
     const actualPaymentAmount = this.toNumber(actualPaymentAmountText);
 
-    if (!fixedSalaryText || !actualPaymentAmountText) {
+    if (fixedSalaryText.trim() === '' || actualPaymentAmountText.trim() === '') {
       errors.push(`${rowNumber}行目：固定給または総支給額が未入力です`);
       return null;
     }
@@ -548,7 +533,7 @@ export class AddMonthlySalaryByCSVService {
   }
 
   private toNumber(value: string): number | null {
-    if (!value) return null;
+    if (value.trim() === '') return null;
 
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : null;

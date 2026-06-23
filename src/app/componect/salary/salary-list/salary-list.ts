@@ -58,7 +58,9 @@ export class SalaryList implements OnChanges {
 
   allPayrollListForMonth = computed(() => {
     const payrollId = this.payrollIdState();
-    const eligibleIds = this.employeeService.getPayrollEligibleEmployeeIdSet(payrollId);
+    const eligibleIds = this.isBonus
+      ? this.employeeService.getBonusEligibleEmployeeIdSet(payrollId)
+      : this.employeeService.getPayrollEligibleEmployeeIdSet(payrollId);
     return this.payrollService.allPayrollListForMonth()
       .find(item => item.payrollId === payrollId)?.payrollList
       .filter(payroll => eligibleIds.has(payroll.employeeId ?? '')) ?? [];
@@ -95,7 +97,8 @@ export class SalaryList implements OnChanges {
   });
 
   registrationEmployeeRows = computed((): CorrectionEmployeeRow[] => {
-    if (this.correctionMode || this.isBonus || !this.showAllEnrolledEmployees) return [];
+    if (!this.showAllEnrolledEmployees) return [];
+    if (this.correctionMode && !this.isBonus) return [];
 
     const payrollId = this.payrollIdState();
     if (!payrollId) return [];
@@ -104,7 +107,7 @@ export class SalaryList implements OnChanges {
       this.allPayrollListForMonth().map(payroll => [payroll.employeeId ?? '', payroll]),
     );
 
-    return this.employeeService.employeesEligibleForPayrollPeriod(payrollId)
+    return this.getRegistrationEligibleEmployees(payrollId)
       .sort((left, right) => left.employeeId.localeCompare(right.employeeId))
       .map(employee => ({
         employeeId: employee.employeeId,
@@ -112,8 +115,16 @@ export class SalaryList implements OnChanges {
       }));
   });
 
+  private getRegistrationEligibleEmployees(payrollId: string) {
+    if (this.useBonusEligibility || this.isBonus) {
+      return this.employeeService.employeesEligibleForBonusPeriod(payrollId);
+    }
+    return this.employeeService.employeesEligibleForPayrollPeriod(payrollId);
+  }
+
   @Input() payrollId: string = '';
   @Input() isBonus: boolean = false;
+  @Input() useBonusEligibility = false;
   @Input() disabled: boolean = false;
   @Input() correctionMode = false;
   @Input() showAllEnrolledEmployees = false;
@@ -134,8 +145,8 @@ export class SalaryList implements OnChanges {
 
   registerForm = this.fb.nonNullable.group({
     employeeId: ['', [Validators.required, Validators.pattern('^[a-zA-Z0-9]+$')], [this.validationService.correctEmployeeId]],
-    actualWorkingDays: [null as number | null, [Validators.required, Validators.min(0)]],
-    actualWorkingHours: [null as number | null, [Validators.required, Validators.min(0)]],
+    actualWorkingDays: [0, [Validators.required, Validators.min(0)]],
+    actualWorkingHours: [0, [Validators.required, Validators.min(0)]],
     paymentDate: ['', [Validators.required]],
     targetPeriodStart: ['', [Validators.required]],
     targetPeriodEnd: ['', [Validators.required]],
@@ -143,12 +154,10 @@ export class SalaryList implements OnChanges {
     fixedAllowance: [0],
     transportAllowance: [0],
     variableAllowance: [0],
-    fixedSalary: [null as number | null, [Validators.required, Validators.min(0)]],
-    actualPaymentAmount: [null as number | null, [Validators.required, Validators.min(0)]],
+    fixedSalary: [0, [Validators.required, Validators.min(0)]],
+    actualPaymentAmount: [0, [Validators.required, Validators.min(0)]],
   }, {
     validators: [
-      this.validationService.validateSalaryNumber,
-      this.validationService.validateWorkingHoursAndDays,
       this.validationService.validatePaymentAmount,
       control => this.validateCorrectionTargetPeriodStartMonth(control),
     ],
@@ -381,7 +390,10 @@ export class SalaryList implements OnChanges {
     }
 
     if (this.isAddMode) {
-      const registered = await this.registerPayrollRecord(payroll, this.correctionMode);
+      const registered = await this.registerPayrollRecord(
+        payroll,
+        this.correctionMode || (this.isBonus && this.showAllEnrolledEmployees),
+      );
       if (!registered) return;
       this.commonService.showTimedMessage(
         `従業員ID：${payroll.employeeId}の給与・勤務実績を${CREATE_MESSAGES.SUCCESS}`,
@@ -475,7 +487,7 @@ export class SalaryList implements OnChanges {
     const payroll: Partial<Payroll> = {
       payrollId: value.payrollId,
       employeeId: value.employeeId,
-      type: '毎月',
+      type: this.isBonus ? '賞与' : '毎月',
       companyId: this.companyId,
       targetPeriod: [
         timestampFromDateInput(value.targetPeriodStart),
@@ -528,7 +540,9 @@ export class SalaryList implements OnChanges {
 
     const employeeId = payroll.employeeId!;
     const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
-    const enrollmentError = await this.correctionLogicService.validatePayrollEnrollment(employee, this.payrollId);
+    const enrollmentError = this.isBonus
+      ? this.correctionLogicService.validateBonusEnrollment(employee!, this.payrollId)
+      : await this.correctionLogicService.validatePayrollEnrollment(employee, this.payrollId);
     if (enrollmentError) {
       showError(enrollmentError);
       return false;
@@ -543,8 +557,8 @@ export class SalaryList implements OnChanges {
     const result = forCorrection
       ? await this.payrollService.registerPayrollForCorrection(employeeId, payroll)
       : await this.payrollService.registerPayroll(employeeId, payroll);
-    if (!result) {
-      showError(CREATE_MESSAGES.FAILED);
+    if (!result.ok) {
+      showError(this.payrollService.getRegisterErrorMessage(result));
       return false;
     }
     return true;

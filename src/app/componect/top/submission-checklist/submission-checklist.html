@@ -29,6 +29,7 @@
               <th>発生日</th>
               <th>社員ID</th>
               <th>氏名</th>
+              <th>作成日</th>
             </tr>
           </thead>
           <tbody>
@@ -47,6 +48,7 @@
                 </a>
                 <span *ngIf="!item.employeeId">—</span>
               </td>
+              <td>{{ commonService.formatDateTime(item.createdAt) }}</td>
             </tr>
           </tbody>
         </table>

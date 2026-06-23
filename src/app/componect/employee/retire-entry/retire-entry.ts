@@ -4,7 +4,8 @@ import { ValidationService } from '../../../service/common/validation-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { Employee } from '../../../model/employee';
-import { formatTimestampForDateInput, timestampFromDateInput } from '../../../service/common/date-input.util';
+import { Event } from '../../../model/event';
+import { formatTimestampForDateInput, parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
 import { WorkStatus } from '../../../constants/model-constants';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
@@ -15,6 +16,7 @@ import { EventService } from '../../../service/Firestore/event-service';
 import { EmployeeEventApprovalService } from '../../../service/logic/employee-event-approval.service';
 import { Timestamp } from '@angular/fire/firestore';
 import { getWorkMonthForDate, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { wasEmployedOnDate } from '../../../service/logic/employee-enrollment.util';
 
 @Component({
   selector: 'app-retire-entry',
@@ -59,6 +61,10 @@ export class RetireEntry {
     await this.companyService.getCompany();
     await this.loadScheduledRetires();
     this.form.setValidators([this.retireDateValidator]);
+
+    this.form.get('employeeId')?.valueChanges.subscribe(() => {
+      this.form.updateValueAndValidity({ emitEvent: false });
+    });
 
     this.form.get('occurredDate')?.valueChanges.subscribe(date => {
       if (!date) {
@@ -195,11 +201,7 @@ export class RetireEntry {
   }
 
   needsScheduledRetireAttention(resignationDate?: Timestamp): boolean {
-    if (!resignationDate) return false;
-    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
-    const resignMonth = getWorkMonthForDate(resignationDate.toDate(), targetPeriodStart);
-    const current = getWorkingYearMonth();
-    return resignMonth.year * 12 + resignMonth.month <= current.year * 12 + current.month;
+    return this.employeeEventApprovalService.canApproveByOccurrenceDateOrInWorkingPeriod(resignationDate);
   }
 
   isResignationDateBeforeCurrentWorkPeriod(resignationDate?: Timestamp): boolean {
@@ -210,28 +212,65 @@ export class RetireEntry {
     return resignMonth.year * 12 + resignMonth.month < current.year * 12 + current.month;
   }
 
+  private isResignationDateOnOrAfterHireDate(employee: Employee, targetDate: Date): boolean {
+    const hire = employee.hireDate?.toDate();
+    if (!hire) return false;
+    const hireDate = new Date(hire);
+    hireDate.setHours(0, 0, 0, 0);
+    const target = new Date(targetDate);
+    target.setHours(0, 0, 0, 0);
+    return target.getTime() >= hireDate.getTime();
+  }
+
   async saveScheduledRetireDate(employee: Employee) {
     const newDate = this.scheduledRetireDateEdits[employee.employeeId];
     if (!newDate) return;
 
+    const targetDate = parseDateInputValue(newDate);
+    if (!this.isResignationDateOnOrAfterHireDate(employee, targetDate)) {
+      this.showScheduledListMessage('退職予定日は入社日以降で指定してください');
+      return;
+    }
+
+    const resignationDate = timestampFromDateInput(newDate);
     const updated = await this.employeeService.updateEmployee({
       employeeId: employee.employeeId,
-      resignationDate: timestampFromDateInput(newDate),
+      resignationDate,
     });
-    if (updated) {
-      this.scheduledRetireDateEditingIds.delete(employee.employeeId);
-      this.showScheduledListMessage(`社員ID：${employee.employeeId} の退職予定日を更新しました`);
-      await this.loadScheduledRetires();
-    } else {
+    if (!updated) {
       this.showScheduledListMessage('退職予定日の更新に失敗しました');
+      return;
     }
+
+    const synced = await this.syncPendingRetireEventResignationDate(employee.employeeId, resignationDate);
+    if (!synced) {
+      this.showScheduledListMessage('退職予定日の更新に失敗しました（退社イベント）');
+      return;
+    }
+
+    this.scheduledRetireDateEditingIds.delete(employee.employeeId);
+    this.showScheduledListMessage(`社員ID：${employee.employeeId} の退職予定日を更新しました`);
+    await this.loadScheduledRetires();
   }
 
   async approveScheduledRetire(employee: Employee) {
-    const retireEvent = await this.findPendingRetireEvent(employee.employeeId);
+    let retireEvent = await this.findPendingRetireEvent(employee.employeeId);
     if (!retireEvent) {
       this.showScheduledListMessage('申請中の退社イベントが見つかりません');
       return;
+    }
+
+    const freshEmployee = await this.employeeService.getEmployeeByEmployeeId(employee.employeeId);
+    if (freshEmployee?.resignationDate) {
+      const synced = await this.syncPendingRetireEventResignationDate(
+        employee.employeeId,
+        freshEmployee.resignationDate,
+      );
+      if (!synced) {
+        this.showScheduledListMessage('退社イベントの退職日同期に失敗しました');
+        return;
+      }
+      retireEvent = synced;
     }
 
     const name = this.getScheduledEmployeeName(employee);
@@ -247,13 +286,47 @@ export class RetireEntry {
       return;
     }
 
-    const beforePeriod = this.isResignationDateBeforeCurrentWorkPeriod(employee.resignationDate);
+    const resignationDate = freshEmployee?.resignationDate ?? employee.resignationDate;
+    const beforePeriod = this.isResignationDateBeforeCurrentWorkPeriod(resignationDate);
+    const approvedEvent: Event = {
+      ...retireEvent,
+      approval: {
+        ...retireEvent.approval,
+        approvalStatus: '承認済み',
+      },
+    };
+
+    if (this.employeeEventApprovalService.canApplyEventInWorkingPeriod(approvedEvent)) {
+      const applied = await this.employeeEventApprovalService.applyRetireEvent(
+        employee.employeeId,
+        approvedEvent,
+        this.loginEmployeeId,
+      );
+      if (!applied) {
+        this.showScheduledListMessage('退社承認しましたが、従業員情報への反映に失敗しました');
+        await this.loadScheduledRetires();
+        return;
+      }
+
+      if (beforePeriod) {
+        this.showScheduledListRetroactiveMessage(
+          '退社を承認し、従業員情報に反映しました。<br>現在の作業対象期間より前の退社になります。<br>遡及修正より保険情報の喪失登録をおこなってください。',
+        );
+      } else {
+        this.showScheduledListMessage(
+          `社員ID：${employee.employeeId} ${name}さんの退社を承認し、従業員情報に反映しました`,
+        );
+      }
+      await this.loadScheduledRetires();
+      return;
+    }
+
     if (beforePeriod) {
       this.showScheduledListRetroactiveMessage(
         '退社を承認しました。<br>現在の作業対象期間より前の退社になります。<br>遡及修正より保険情報の喪失登録をおこなってください。',
       );
     } else {
-      this.showScheduledListMessage(`社員ID：${employee.employeeId} ${name}さんの退社を承認しました`);
+      this.showScheduledListMessage(`社員ID：${employee.employeeId} ${name}さんの退社を承認しました（反映は作業期間内に行ってください）`);
     }
     await this.loadScheduledRetires();
   }
@@ -296,16 +369,59 @@ export class RetireEntry {
     ) ?? null;
   }
 
+  /** 退社予定日変更時、申請中退社イベントの発生日・payload を社員マスタと揃える */
+  private async syncPendingRetireEventResignationDate(
+    employeeId: string,
+    resignationDate: Timestamp,
+  ): Promise<Event | null> {
+    const retireEvent = await this.findPendingRetireEvent(employeeId);
+    if (!retireEvent?.eventId) return null;
+
+    const currentDateInput = formatTimestampForDateInput(retireEvent.occurredDate);
+    const newDateInput = formatTimestampForDateInput(resignationDate);
+    const after = retireEvent.payload?.['after'] as Employee | undefined;
+    const updatedAfter = after ? { ...after, resignationDate } : undefined;
+
+    if (currentDateInput === newDateInput && formatTimestampForDateInput(after?.resignationDate) === newDateInput) {
+      return retireEvent;
+    }
+
+    const eventUpdated = await this.eventService.updateEvent(employeeId, retireEvent.eventId, {
+      occurredDate: resignationDate,
+      payload: {
+        ...retireEvent.payload,
+        ...(updatedAfter ? { after: updatedAfter } : {}),
+      },
+    });
+    if (!eventUpdated) return null;
+
+    return {
+      ...retireEvent,
+      occurredDate: resignationDate,
+      payload: {
+        ...retireEvent.payload,
+        ...(updatedAfter ? { after: updatedAfter } : {}),
+      },
+    };
+  }
+
   private retireDateValidator: ValidatorFn = (group: AbstractControl): ValidationErrors | null => {
     const workStatus = group.get('workStatus')?.value;
     const occurredDate = group.get('occurredDate')?.value;
+    const employeeId = group.get('employeeId')?.value;
 
     if (!workStatus || !occurredDate) return null;
 
     const today = new Date();
-    const targetDate = new Date(occurredDate);
+    const targetDate = parseDateInputValue(occurredDate);
     today.setHours(0, 0, 0, 0);
-    targetDate.setHours(0, 0, 0, 0);
+
+    if (employeeId) {
+      const employee = this.employeeService.allEmployees().find(item => item.employeeId === employeeId);
+      if (employee && !wasEmployedOnDate(employee, targetDate)) {
+        return { notEmployedOnDate: true };
+      }
+    }
 
     if (workStatus === '退社予定' && targetDate <= today) {
       return { retireDateInvalid: true };

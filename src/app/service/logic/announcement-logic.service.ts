@@ -103,13 +103,52 @@ export class AnnouncementLogicService {
     });
   }
 
+  async createFromNameChangeEvent(event: Event, employeeId: string): Promise<void> {
+    await this.createAnnouncement({
+      announcementId: this.buildAnnouncementId('name_change_event', `${employeeId}_${event.eventId}`),
+      type: '氏名変更',
+      subType: '変更',
+      occurredDate: event.appliedDate ?? event.occurredDate ?? Timestamp.now(),
+      employeeId,
+      sourceKind: 'event',
+      sourceId: event.eventId,
+    });
+  }
+
   async createFromLeaveEvent(
     event: Pick<Event, 'eventId' | 'eventType' | 'changeType' | 'payload' | 'occurredDate' | 'lifeEventType'>,
     employeeId: string,
   ): Promise<void> {
+    if (event.eventType !== '勤務状況変更') return;
+
+    if (this.isMaternityLeaveEndEvent(event)) {
+      await this.createAnnouncement({
+        announcementId: this.buildAnnouncementId('leave_event', `${employeeId}_${event.eventId}`),
+        type: '出産手当金',
+        reason: '出産',
+        occurredDate: this.resolveMaternityLeaveEndOccurredDate(event),
+        employeeId,
+        sourceKind: 'event',
+        sourceId: event.eventId,
+      });
+      return;
+    }
+
+    if (this.isMedicalLeaveStartEvent(event)) {
+      await this.createAnnouncement({
+        announcementId: this.buildAnnouncementId('leave_event', `${employeeId}_${event.eventId}`),
+        type: '傷病手当金',
+        subType: '開始',
+        reason: '療養',
+        occurredDate: this.resolveLeaveOccurredDate(event),
+        employeeId,
+        sourceKind: 'event',
+        sourceId: event.eventId,
+      });
+      return;
+    }
+
     if (!this.isMaternityOrParentalLeaveEvent(event)) return;
-    const leaveTypes = this.resolveLeaveTypes(event);
-    if (event.changeType === '休職終了' && leaveTypes === '産前産後') return;
     const reason = this.mapLeaveReason(event);
     await this.createAnnouncement({
       announcementId: this.buildAnnouncementId('leave_event', `${employeeId}_${event.eventId}`),
@@ -266,6 +305,24 @@ export class AnnouncementLogicService {
     }
   }
 
+  isMaternityLeaveEndEvent(
+    event: Pick<Event, 'eventType' | 'changeType' | 'payload'>,
+  ): boolean {
+    if (event.eventType !== '勤務状況変更' || event.changeType !== '休職終了') return false;
+    const before = event.payload?.['before'] as Employee | Record<string, unknown> | undefined;
+    const leaveTypes = before?.['leaveTypes'] ?? (before as Employee | undefined)?.leaveTypes;
+    return leaveTypes === '産前産後';
+  }
+
+  isMedicalLeaveStartEvent(
+    event: Pick<Event, 'eventType' | 'changeType' | 'payload'>,
+  ): boolean {
+    if (event.eventType !== '勤務状況変更' || event.changeType !== '休職開始') return false;
+    const after = event.payload?.['after'] as Employee | Record<string, unknown> | undefined;
+    const leaveTypes = after?.['leaveTypes'] ?? (after as Employee | undefined)?.leaveTypes;
+    return leaveTypes === '療養';
+  }
+
   isMaternityOrParentalLeaveEvent(event: Pick<Event, 'eventType' | 'payload'>): boolean {
     if (event.eventType !== '勤務状況変更') return false;
     const after = event.payload?.['after'] as Employee | Record<string, unknown> | undefined;
@@ -275,6 +332,14 @@ export class AnnouncementLogicService {
       ?? before?.['leaveTypes']
       ?? (before as Employee | undefined)?.leaveTypes;
     return leaveTypes === '産前産後' || leaveTypes === '育児';
+  }
+
+  private resolveMaternityLeaveEndOccurredDate(
+    event: Pick<Event, 'payload' | 'occurredDate'>,
+  ): Timestamp {
+    const after = event.payload?.['after'] as Employee | Record<string, unknown> | undefined;
+    const leaveEndDate = after?.['leaveEndDate'] as Timestamp | undefined;
+    return leaveEndDate ?? event.occurredDate ?? Timestamp.now();
   }
 
   private extractInsurancePayload(payload: unknown): EmployeeInsurance | undefined {

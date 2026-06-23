@@ -63,7 +63,11 @@ export class MyApplication {
     const after = payload['after'];
 
     if (event.eventType === '氏名変更') {
-      return [`姓：${before ?? '—'} → ${after ?? '—'}`];
+      const lines = [`姓：${before ?? '—'} → ${after ?? '—'}`];
+      if (event.appliedDate) {
+        lines.push(`適用日：${this.commonService.formatDate(event.appliedDate)}`);
+      }
+      return lines;
     }
 
     if (event.eventType === '扶養情報変更') {

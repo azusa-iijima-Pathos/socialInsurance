@@ -124,18 +124,22 @@
             </div>
             <div class="im-field-row__control">
                 <div class="im-radio-group">
-                    <label class="im-radio-option" for="bonus">
-                        <input type="radio" id="bonus" formControlName="bonus" [value]="true">
-                        <span>あり(年1～3回の支給)</span>
+                    <label class="im-radio-option" for="bonusNone">
+                        <input type="radio" id="bonusNone" formControlName="bonusType" value="none">
+                        <span>なし</span>
                     </label>
-                    <label class="im-radio-option" for="bonus2">
-                        <input type="radio" id="bonus2" formControlName="bonus" [value]="false">
-                        <span>なし(もしくは年4回以上の支給)</span>
+                    <label class="im-radio-option" for="bonusOneToThree">
+                        <input type="radio" id="bonusOneToThree" formControlName="bonusType" value="oneToThree">
+                        <span>あり（年1～3回の支給）</span>
+                    </label>
+                    <label class="im-radio-option" for="bonusFourOrMore">
+                        <input type="radio" id="bonusFourOrMore" formControlName="bonusType" value="fourOrMore">
+                        <span>あり（年4回以上の支給）</span>
                     </label>
                 </div>
             </div>
         </div>
-        <div class="im-field-block im-field-row setting-field" [class.setting-field--disabled]="!form.value.bonus">
+        <div class="im-field-block im-field-row setting-field" [class.setting-field--disabled]="form.value.bonusType !== 'oneToThree'">
             <div class="im-field-row__label">
                 <label>ボーナス支払い月</label>
             </div>

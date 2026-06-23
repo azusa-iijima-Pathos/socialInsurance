@@ -14,6 +14,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
+import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
 
 @Component({
   selector: 'app-monthly-salary',
@@ -33,6 +34,7 @@ export class MonthlySalary {
   private route = inject(ActivatedRoute);
   private employeeService = inject(EmployeeService);
   private correctionLogicService = inject(CorrectionLogicService);
+  private payrollLockService = inject(PayrollLockService);
 
   companyId = sessionStorage.getItem('companyId');
   workingYear = Number(sessionStorage.getItem('workingYear'));
@@ -46,6 +48,9 @@ export class MonthlySalary {
 
   message: string = '';
   messageTimer: MessageTimer = null;
+  confirmLockMessage = '';
+  confirmLockMessageTimer: MessageTimer = null;
+  isPayrollLocked = false;
 
   async ngOnInit() {
     //パラムとセッションの作業年・作業月が一致しているか
@@ -91,10 +96,40 @@ export class MonthlySalary {
     this.applySalaryInputValidators();
     this.setAutoSalaryCalculation();
     this.updateCalculatedSalaryAmounts();
+    await this.loadPayrollLockState();
+  }
 
-    //権限問題ないか
+  private async loadPayrollLockState() {
+    if (!this.payrollId) return;
+    this.isPayrollLocked = await this.payrollLockService.isPayrollLocked(this.payrollId);
+  }
 
+  async confirmPayrollMonth() {
+    if (!this.payrollId || this.isPayrollLocked) return;
 
+    if (await this.hasUnregisteredSalary()) {
+      window.alert('給与が未登録の人がいます。全従業員分の登録後に確定してください。');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      '給与を確定すると給与修正からの修正が必要になります。よろしいでしょうか？',
+    );
+    if (!confirmed) return;
+
+    const lockResult = await this.payrollLockService.lockPayroll(this.payrollId, '毎月');
+    if (!lockResult) {
+      this.confirmLockMessageTimer = this.commonService.showTimedMessage(
+        '確定に失敗しました',
+        value => this.confirmLockMessage = value,
+        this.confirmLockMessageTimer,
+      );
+      return;
+    }
+
+    this.confirmLockMessage = '';
+    this.isPayrollLocked = true;
+    await this.payrollService.getAllPayrollListForMonth(this.payrollId, true);
   }
 
   //支払月
@@ -123,8 +158,8 @@ export class MonthlySalary {
   // 給与・勤務実績1件分の入力フォーム
   form = this.fb.nonNullable.group({
     employeeId: ['', [Validators.required, Validators.pattern('^[a-zA-Z0-9]+$')], [this.validationService.correctEmployeeId]],
-    actualWorkingDays: [, [Validators.required, Validators.min(0)]],
-    actualWorkingHours: [, [Validators.required, Validators.min(0)]],
+    actualWorkingDays: [0, [Validators.required, Validators.min(0)]],
+    actualWorkingHours: [0, [Validators.required, Validators.min(0)]],
     paymentDate: ['', [Validators.required]],
     targetPeriodStart: ['', [Validators.required]],
     targetPeriodEnd: ['', [Validators.required]],
@@ -132,12 +167,10 @@ export class MonthlySalary {
     fixedAllowance: [0],
     transportAllowance: [0],
     variableAllowance: [0],
-    fixedSalary: [null as number | null, [Validators.required, Validators.min(0)]],
-    actualPaymentAmount: [null as number | null, [Validators.required, Validators.min(0)]],
+    fixedSalary: [0, [Validators.required, Validators.min(0)]],
+    actualPaymentAmount: [0, [Validators.required, Validators.min(0)]],
   }, {
     validators: [
-      this.validationService.validateSalaryNumber,
-      this.validationService.validateWorkingHoursAndDays,
       this.validationService.validatePaymentAmount,
       control => this.validateTargetPeriodStartMonth(control),
     ],
@@ -230,7 +263,7 @@ export class MonthlySalary {
     const salary: Partial<Payroll> = {
       payrollId: this.payrollId,
       type: '毎月',
-      companyId: this.companyId!,
+      companyId: sessionStorage.getItem('companyId') ?? undefined,
       actualWorkingDays: this.form.value.actualWorkingDays!,
       //入力値は月単位、DBには週単位で登録する
       actualWorkingHours: Math.round(this.form.value.actualWorkingHours! * 12 / 52),
@@ -258,9 +291,8 @@ export class MonthlySalary {
     }
 
     const result = await this.payrollService.registerPayroll(employeeId, salary);
-    if (!result) {
-      this.message = CREATE_MESSAGES.FAILED;
-      this.form.reset();
+    if (!result.ok) {
+      this.message = this.payrollService.getRegisterErrorMessage(result);
       return;
     }
     this.message = CREATE_MESSAGES.SUCCESS;

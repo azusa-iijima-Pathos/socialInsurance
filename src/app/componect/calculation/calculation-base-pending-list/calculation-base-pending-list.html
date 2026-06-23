@@ -34,6 +34,32 @@
 <div *ngIf="runs.length === 0" style="text-align: center;">
     <p>算定基礎データはありません。</p>
     <p>対象年の6月支払い給与をすべて入力済みであれば、下記ボタンより自動計算を行ってください。</p>
+
+    <div *ngIf="showFourOrMoreBonusInput" class="calculation-base-bonus-section">
+        <p class="calculation-base-bonus-notice">
+            4回以上の賞与が支払われている場合は、こちらの{{ bonusPeriodLabel }}までに支払われた賞与の総額を入力してください。
+        </p>
+        <table class="calculation-base-bonus-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>名前</th>
+                    <th>賞与額（過去1年間総額）</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let employee of targetEmployees">
+                    <td>{{ employee.employeeId }}</td>
+                    <td>{{ getEmployeeDisplayName(employee) }}</td>
+                    <td>
+                        <input type="number" min="0" class="calculation-base-edit-input"
+                            [(ngModel)]="bonusAmountMap[employee.employeeId]"> 円
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
     <button (click)="calculateBase()" [disabled]="calculating"
     class="im-btn-primary">
     算定基礎を自動計算する
@@ -60,6 +86,9 @@
                 <th>計算後等級</th>
                 <th>反映等級</th>
                 <th>平均報酬月額</th>
+                <th *ngIf="showFourOrMoreBonusResultColumns">給与のみ平均</th>
+                <th *ngIf="showFourOrMoreBonusResultColumns">賞与総額</th>
+                <th *ngIf="showFourOrMoreBonusResultColumns">賞与合算額</th>
                 <th>計算対象月</th>
                 <th>状態</th>
                 <th>理由</th>
@@ -84,6 +113,16 @@
                         displayGrade(approvedGradeMap[getEmployeeId(run)]) }}</span>
                 </td>
                 <td>{{ getPayload(run)['averageSalary'] ? ((getPayload(run)['averageSalary'] | number) + '円') : '-' }}
+                </td>
+                <td *ngIf="showFourOrMoreBonusResultColumns">
+                    {{ getBaseAverageSalary(run) !== null ? ((getBaseAverageSalary(run) | number) + '円') : '-' }}
+                </td>
+                <td *ngIf="showFourOrMoreBonusResultColumns">
+                    {{ getBonusAnnualTotal(run) !== null ? ((getBonusAnnualTotal(run) | number) + '円') : '-' }}
+                </td>
+                <td *ngIf="showFourOrMoreBonusResultColumns">
+                    {{ getPayload(run)['bonusMonthlyAmount'] !== null && getPayload(run)['bonusMonthlyAmount'] !== undefined
+                      ? ((getPayload(run)['bonusMonthlyAmount'] | number) + '円') : '-' }}
                 </td>
                 <td>{{ getTargetPayrollText(run) }}</td>
                 <td>{{ getPayload(run)['status'] }}</td>

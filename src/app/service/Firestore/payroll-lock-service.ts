@@ -51,4 +51,12 @@ export class PayrollLockService {
       }
     );
   }
+
+  /** 未確定なら給与・賞与をロックする（確定済みなら true を返す） */
+  async ensurePayrollLocked(payrollId: string, type: PayrollType): Promise<boolean> {
+    if (await this.isPayrollLocked(payrollId)) {
+      return true;
+    }
+    return await this.lockPayroll(payrollId, type);
+  }
 }

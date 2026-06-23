@@ -71,3 +71,33 @@
 .calculation-base-edit-errors p {
     margin: 0.25rem 0;
 }
+
+.calculation-base-bonus-section {
+    margin: 24px 0;
+    text-align: left;
+}
+
+.calculation-base-bonus-section--readonly {
+    margin-top: 0;
+    margin-bottom: 16px;
+}
+
+.calculation-base-bonus-notice {
+    margin-bottom: 12px;
+}
+
+.calculation-base-bonus-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+}
+
+.calculation-base-bonus-table th,
+.calculation-base-bonus-table td {
+    border: 1px solid var(--im-border-color, #d8dee9);
+    padding: 8px 12px;
+}
+
+.calculation-base-bonus-table thead th {
+    background: var(--im-table-header-bg, #f5f7fb);
+}

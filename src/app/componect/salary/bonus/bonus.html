@@ -1,113 +1,126 @@
 <div class="bonus-container">
     <h1 class="im-title">賞与登録</h1>
-    <h3> {{ bonusMonth }}月支払い分</h3>
 
-    <div class="bonus-container__content">
-        <div class="information-area" *ngIf="!isPayrollLocked">
-            <p>
-                従業員の賞与を登録してください。<br>
-                今期のボーナスのみ登録できます。<br>
-                ※支払い月が会社のボーナス設定月と異なる場合、登録できません。
-            </p>
-        </div>
-
-        <div *ngIf="isPayrollLocked" style="text-align: center; ">
-            <p>
-                保険料確定済みのため、賞与情報は編集できません。<br>
-                支払い済み賞与に変更がある場合は差額調整を行ってください。
-            </p>
-        </div>
-
-        <button type="button" class="im-btn-primary" style="width: 150px; margin-left: auto;" (click)="toBonusInsuranceConfirm()">賞与保険料確認へ▶</button>
-
-        <div class="bonus-registration-layout" *ngIf="!isPayrollLocked">
-            <section class="bonus-registration-card bonus-registration-card--csv">
-                <app-bonus-csv [payrollId]="payrollId" [disabled]="isPayrollLocked"></app-bonus-csv>
-            </section>
-
-            <section class="bonus-registration-card bonus-registration-card--individual">
-                <form [formGroup]="form" (ngSubmit)="registerBonus()">
-                    <section class="bonus-container__content__form__section im-fields-grid bonus-basic-section">
-                        <h2 class="section-title">個別登録</h2>
-                        <div class="bonus-container__content__message">
-                            <p *ngIf="message" class="im-action-message">{{ message }}</p>
-                        </div>
-
-                        <div class="im-field-block im-field-row bonus-basic-field">
-                            <div class="im-field-row__label">
-                                <label for="employeeId">社員ID</label>
-                            </div>
-                            <div class="im-field-row__control">
-                                <input type="text" id="employeeId" formControlName="employeeId">
-                                <div class="error">
-                                    <p *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">社員IDは必須です</p>
-                                    <p *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">半角で入力してください</p>
-                                    <p *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">社員IDが存在しません</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="im-field-block im-field-row bonus-basic-field">
-                            <div class="im-field-row__label">
-                                <label for="targetPeriodStart">対象期間</label>
-                            </div>
-                            <div class="im-field-row__control bonus-period-control">
-                                <input type="date" id="targetPeriodStart" formControlName="targetPeriodStart">
-                                <span class="bonus-separator">～</span>
-                                <input type="date" id="targetPeriodEnd" formControlName="targetPeriodEnd">
-                                <div class="error bonus-period-error">
-                                    <p *ngIf="form.get('targetPeriodStart')?.errors?.['required'] && form.get('targetPeriodStart')?.touched">対象期間開始日は必須です</p>
-                                    <p *ngIf="form.get('targetPeriodEnd')?.errors?.['required'] && form.get('targetPeriodEnd')?.touched">対象期間終了日は必須です</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bonus-basic-pair">
-                            <div class="im-field-block im-field-row bonus-basic-field">
-                                <div class="im-field-row__label">
-                                    <label for="paymentDate">支給日</label>
-                                </div>
-                                <div class="im-field-row__control">
-                                    <input type="date" id="paymentDate" formControlName="paymentDate">
-                                    <div class="error">
-                                        <p *ngIf="form.get('paymentDate')?.errors?.['required'] && form.get('paymentDate')?.touched">支給日は必須です</p>
-                                        <p *ngIf="form.get('paymentDate')?.errors?.['paymentMonthMismatch'] && form.get('paymentDate')?.touched">支給日は {{ payrollId.replace('_bonus', '') }} の月で入力してください</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="im-field-block im-field-row bonus-basic-field">
-                                <div class="im-field-row__label">
-                                    <label for="actualPaymentAmount">賞与支給額</label>
-                                </div>
-                                <div class="im-field-row__control">
-                                    <div class="bonus-inline-control">
-                                        <input type="number" id="actualPaymentAmount" formControlName="actualPaymentAmount">
-                                        <span class="bonus-unit">円</span>
-                                    </div>
-                                    <div class="error">
-                                        <p *ngIf="form.get('actualPaymentAmount')?.errors?.['required'] && form.get('actualPaymentAmount')?.touched">賞与支給額は必須です</p>
-                                        <p *ngIf="form.get('actualPaymentAmount')?.errors?.['min'] && form.get('actualPaymentAmount')?.touched">賞与支給額は1円以上で入力してください</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <div class="bonus-form-actions">
-                        <button type="submit" class="im-btn-primary" [disabled]="isPayrollLocked">登録</button>
-                        <button type="button" class="im-btn-soft" (click)="resetForm()" [disabled]="isPayrollLocked">リセット</button>
-                    </div>
-                </form>
-            </section>
-        </div>
-
-        <section class="bonus-list-area">
-            <div class="bonus-list-header">
-                <h3>賞与一覧</h3>
-
-            </div>
-            <app-salary-list *ngIf="payrollId" [payrollId]="payrollId" [isBonus]="true" [disabled]="isPayrollLocked"></app-salary-list>
-        </section>
+    <div *ngIf="priorBonusBlock" class="bonus-prior-block">
+        <p>
+            {{ priorBonusBlock.month }}月の賞与が未登録です。<br>
+            {{ priorBonusBlock.month }}月分の賞与から入力をお願いします。
+        </p>
+        <button type="button" class="im-btn-primary" (click)="navigateToPriorBonus()">
+            {{ priorBonusBlock.month }}月の賞与入力へ
+        </button>
     </div>
+
+    <ng-container *ngIf="!priorBonusBlock">
+        <h3> {{ bonusMonth }}月支払い分</h3>
+
+        <div class="bonus-container__content">
+            <div class="information-area" *ngIf="!isPayrollLocked">
+                <p>
+                    従業員の賞与を登録してください。<br>
+                    今期のボーナスのみ登録できます。<br>
+                    ※支払い月が会社のボーナス設定月と異なる場合、登録できません。
+                </p>
+            </div>
+
+            <div *ngIf="isPayrollLocked" style="text-align: center; ">
+                <p>
+                    保険料確定済みのため、賞与情報は編集できません。<br>
+                    支払い済み賞与に変更がある場合は差額調整を行ってください。
+                </p>
+            </div>
+
+            <button type="button" class="im-btn-primary" style="width: 150px; margin-left: auto;" (click)="toBonusInsuranceConfirm()">賞与保険料確認へ▶</button>
+
+            <div class="bonus-registration-layout" *ngIf="!isPayrollLocked">
+                <section class="bonus-registration-card bonus-registration-card--csv">
+                    <app-bonus-csv [payrollId]="payrollId" [disabled]="isPayrollLocked"></app-bonus-csv>
+                </section>
+
+                <section class="bonus-registration-card bonus-registration-card--individual">
+                    <form [formGroup]="form" (ngSubmit)="registerBonus()">
+                        <section class="bonus-container__content__form__section im-fields-grid bonus-basic-section">
+                            <h2 class="section-title">個別登録</h2>
+                            <div class="bonus-container__content__message">
+                                <p *ngIf="message" class="im-action-message">{{ message }}</p>
+                            </div>
+
+                            <div class="im-field-block im-field-row bonus-basic-field">
+                                <div class="im-field-row__label">
+                                    <label for="employeeId">社員ID</label>
+                                </div>
+                                <div class="im-field-row__control">
+                                    <input type="text" id="employeeId" formControlName="employeeId">
+                                    <div class="error">
+                                        <p *ngIf="form.get('employeeId')?.errors?.['required'] && form.get('employeeId')?.touched">社員IDは必須です</p>
+                                        <p *ngIf="form.get('employeeId')?.errors?.['pattern'] && form.get('employeeId')?.touched">半角で入力してください</p>
+                                        <p *ngIf="form.get('employeeId')?.errors?.['employeeIdIncorrect'] && form.get('employeeId')?.touched">社員IDが存在しません</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="im-field-block im-field-row bonus-basic-field">
+                                <div class="im-field-row__label">
+                                    <label for="targetPeriodStart">対象期間</label>
+                                </div>
+                                <div class="im-field-row__control bonus-period-control">
+                                    <input type="date" id="targetPeriodStart" formControlName="targetPeriodStart">
+                                    <span class="bonus-separator">～</span>
+                                    <input type="date" id="targetPeriodEnd" formControlName="targetPeriodEnd">
+                                    <div class="error bonus-period-error">
+                                        <p *ngIf="form.get('targetPeriodStart')?.errors?.['required'] && form.get('targetPeriodStart')?.touched">対象期間開始日は必須です</p>
+                                        <p *ngIf="form.get('targetPeriodEnd')?.errors?.['required'] && form.get('targetPeriodEnd')?.touched">対象期間終了日は必須です</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bonus-basic-pair">
+                                <div class="im-field-block im-field-row bonus-basic-field">
+                                    <div class="im-field-row__label">
+                                        <label for="paymentDate">支給日</label>
+                                    </div>
+                                    <div class="im-field-row__control">
+                                        <input type="date" id="paymentDate" formControlName="paymentDate">
+                                        <div class="error">
+                                            <p *ngIf="form.get('paymentDate')?.errors?.['required'] && form.get('paymentDate')?.touched">支給日は必須です</p>
+                                            <p *ngIf="form.get('paymentDate')?.errors?.['paymentMonthMismatch'] && form.get('paymentDate')?.touched">支給日は {{ payrollId.replace('_bonus', '') }} の月で入力してください</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="im-field-block im-field-row bonus-basic-field">
+                                    <div class="im-field-row__label">
+                                        <label for="actualPaymentAmount">賞与支給額</label>
+                                    </div>
+                                    <div class="im-field-row__control">
+                                        <div class="bonus-inline-control">
+                                            <input type="number" id="actualPaymentAmount" formControlName="actualPaymentAmount">
+                                            <span class="bonus-unit">円</span>
+                                        </div>
+                                        <div class="error">
+                                            <p *ngIf="form.get('actualPaymentAmount')?.errors?.['required'] && form.get('actualPaymentAmount')?.touched">賞与支給額は必須です</p>
+                                            <p *ngIf="form.get('actualPaymentAmount')?.errors?.['min'] && form.get('actualPaymentAmount')?.touched">賞与支給額は1円以上で入力してください</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div class="bonus-form-actions">
+                            <button type="submit" class="im-btn-primary" [disabled]="isPayrollLocked">登録</button>
+                            <button type="button" class="im-btn-soft" (click)="resetForm()" [disabled]="isPayrollLocked">リセット</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
+
+            <section class="bonus-list-area">
+                <div class="bonus-list-header">
+                    <h3>賞与一覧</h3>
+
+                </div>
+                <app-salary-list *ngIf="payrollId" [payrollId]="payrollId" [isBonus]="true" [disabled]="isPayrollLocked"></app-salary-list>
+            </section>
+        </div>
+    </ng-container>
 </div>

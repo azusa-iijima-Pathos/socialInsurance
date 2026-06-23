@@ -56,7 +56,6 @@
                                     <div class="error">
                                         <p *ngIf="registerForm.get('actualWorkingDays')?.errors?.['required'] && registerForm.get('actualWorkingDays')?.touched">勤務日数は必須です</p>
                                         <p *ngIf="registerForm.get('actualWorkingDays')?.errors?.['min'] && registerForm.get('actualWorkingDays')?.touched">勤務日数は0日以上で入力してください</p>
-                                        <p *ngIf="registerForm.hasError('invalidWorkingDays')">勤務時間がある場合、勤務日数は1日以上で入力してください</p>
                                     </div>
                                 </div>
                             </div>
@@ -72,7 +71,6 @@
                                     <div class="error">
                                         <p *ngIf="registerForm.get('actualWorkingHours')?.errors?.['required'] && registerForm.get('actualWorkingHours')?.touched">勤務時間は必須です</p>
                                         <p *ngIf="registerForm.get('actualWorkingHours')?.errors?.['min'] && registerForm.get('actualWorkingHours')?.touched">勤務時間は0時間以上で入力してください</p>
-                                        <p *ngIf="registerForm.hasError('invalidWorkingHours')">勤務日数がある場合、勤務時間は1時間以上で入力してください</p>
                                     </div>
                                 </div>
                             </div>
@@ -146,7 +144,6 @@
                             </div>
                         </div>
                         <div class="monthly-salary-form-error">
-                            <p *ngIf="registerForm.hasError('invalidSalary')">勤務実績がある場合、総支給額は1円以上で入力してください</p>
                             <p *ngIf="registerForm.hasError('invalidActualPaymentAmount')">総支給額は固定給以上で入力してください</p>
                         </div>
                     </section>
@@ -206,7 +203,7 @@
     </ng-container>
 
     <ng-container *ngIf="!correctionMode || isBonus">
-        <ng-container *ngIf="showAllEnrolledEmployees && !isBonus">
+        <ng-container *ngIf="showAllEnrolledEmployees">
             <div *ngIf="registrationEmployeeRows().length === 0" style="text-align: center; margin-top: 16px; color: var(--im-color-black);">
                 <p>対象期間に在籍している社員がいません</p>
             </div>
@@ -217,12 +214,12 @@
                         <tr>
                             <th>社員ID</th>
                             <th>社員名</th>
-                            <th>勤務日数</th>
-                            <th>勤務時間</th>
+                            <th *ngIf="!isBonus">勤務日数</th>
+                            <th *ngIf="!isBonus">勤務時間</th>
                             <th>対象期間</th>
                             <th>支給日</th>
-                            <th>固定給</th>
-                            <th>総支給額</th>
+                            <th *ngIf="!isBonus">固定給</th>
+                            <th>{{ isBonus ? '賞与支給額' : '総支給額' }}</th>
                             <th>登録日</th>
                             <th *ngIf="!disabled"></th>
                         </tr>
@@ -231,8 +228,8 @@
                         <tr *ngFor="let row of registrationEmployeeRows()">
                             <td>{{ row.employeeId }}</td>
                             <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: row.employeeId }">{{ commonService.getEmployeeName(row.employeeId) }}</a></td>
-                            <td>{{ row.payroll ? (row.payroll.actualWorkingDays + '日') : '未登録' }}</td>
-                            <td>{{ row.payroll ? (row.payroll.actualWorkingHours + '時間') : '未登録' }}</td>
+                            <td *ngIf="!isBonus">{{ row.payroll ? (row.payroll.actualWorkingDays + '日') : '未登録' }}</td>
+                            <td *ngIf="!isBonus">{{ row.payroll ? (row.payroll.actualWorkingHours + '時間') : '未登録' }}</td>
                             <td>
                                 <ng-container *ngIf="row.payroll; else unregisteredPeriod">
                                     {{ commonService.formatDate(row.payroll.targetPeriod?.[0]) }} ～ {{ commonService.formatDate(row.payroll.targetPeriod?.[1]) }}
@@ -240,12 +237,12 @@
                                 <ng-template #unregisteredPeriod>未登録</ng-template>
                             </td>
                             <td>{{ row.payroll ? commonService.formatDate(row.payroll.paymentDate) : '未登録' }}</td>
-                            <td>{{ row.payroll ? ((row.payroll.fixedSalary | number) + '円') : '未登録' }}</td>
+                            <td *ngIf="!isBonus">{{ row.payroll ? ((row.payroll.fixedSalary | number) + '円') : '未登録' }}</td>
                             <td>{{ row.payroll ? ((row.payroll.actualPaymentAmount | number) + '円') : '未登録' }}</td>
                             <td>{{ row.payroll ? commonService.formatDate(row.payroll.createdAt) : '未登録' }}</td>
                             <td *ngIf="!disabled">
                                 <button class="im-btn-soft" (click)="row.payroll ? editPayroll(row.payroll) : openAddPayroll(row.employeeId)" [disabled]="disabled">{{ getRowActionLabel(row.payroll) }}</button>
-                                <ng-container *ngIf="row.payroll">
+                                <ng-container *ngIf="row.payroll && !isBonus">
                                     <span>&nbsp;</span>
                                     <button class="im-btn-soft im-btn-soft--danger" (click)="deletePayroll(row.payroll!)" [disabled]="disabled">削除</button>
                                 </ng-container>
@@ -256,9 +253,9 @@
             </div>
         </ng-container>
 
-        <ng-container *ngIf="!showAllEnrolledEmployees || isBonus">
+        <ng-container *ngIf="!showAllEnrolledEmployees">
         <div *ngIf="allPayrollListForMonth().length === 0" style="text-align: center; margin-top: 16px; color: var(--im-color-black);">
-            <p>給与・勤務実績が登録されていません</p>
+            <p>{{ isBonus ? '賞与が登録されていません' : '給与・勤務実績が登録されていません' }}</p>
         </div>
 
         <div class="monthly-salary-list-container__content">
@@ -273,7 +270,7 @@
                             <th>対象期間</th>
                             <th>支給日</th>
                             <th *ngIf="!isBonus">固定給</th>
-                            <th>総支給額</th>
+                            <th>{{ isBonus ? '賞与支給額' : '総支給額' }}</th>
                             <th>登録日</th>
                             <th *ngIf="correctionMode">更新日</th>
                             <th *ngIf="!disabled"></th>
@@ -392,7 +389,7 @@
                     </div>
                     <div class="im-field-block im-field-row salary-edit-field">
                         <div class="im-field-row__label">
-                            <label for="editActualPaymentAmount">総支給額</label>
+                            <label for="editActualPaymentAmount">{{ isBonus ? '賞与支給額' : '総支給額' }}</label>
                         </div>
                         <div class="im-field-row__control">
                             <input type="number" id="editActualPaymentAmount" formControlName="actualPaymentAmount">

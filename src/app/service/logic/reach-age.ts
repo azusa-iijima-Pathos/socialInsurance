@@ -1,11 +1,12 @@
-import { computed, inject, Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { CompanyService } from '../Firestore/company-service';
 import { Employee } from '../../model/employee';
 import { EmployeeService } from '../Firestore/employee-service';
-import { CommonService } from '../common/common-service';
 import { Event } from '../../model/event';
 import { Timestamp } from '@angular/fire/firestore';
 import { EventService } from '../Firestore/event-service';
+import { ReachAgeType } from '../../constants/model-constants';
+import { getDayBefore, getReachAgeInsuranceChangeDate, parseReachAgeFromType } from './event-id-service';
 
 
 @Injectable({
@@ -15,7 +16,6 @@ export class ReachAgeService {
 
   private companyService = inject(CompanyService);
   private employeeService = inject(EmployeeService);
-  private commonService = inject(CommonService);
   private eventService = inject(EventService);
 
   foutyYearOldEmployees: Employee[] = [];
@@ -51,7 +51,7 @@ export class ReachAgeService {
       this.targetStartMonth = this.workingMonth;
       this.targetStartDate = 1;
       this.targetEndMonth = this.workingMonth;
-      this.targetEndDate = 31;
+      this.targetEndDate = new Date(this.workingYear, this.workingMonth, 0).getDate();
       this.targetStartYear = this.workingYear;
       this.targetEndYear = this.workingYear;
     } else {
@@ -74,6 +74,62 @@ export class ReachAgeService {
     }
   }
 
+  private getPeriodBounds(): { periodStart: Date; periodEnd: Date } {
+    const periodStart = new Date(
+      this.targetStartYear,
+      this.targetStartMonth - 1,
+      this.targetStartDate,
+      0,
+      0,
+      0,
+      0,
+    );
+    const periodEnd = new Date(
+      this.targetEndYear,
+      this.targetEndMonth - 1,
+      this.targetEndDate,
+      23,
+      59,
+      59,
+      999,
+    );
+    return { periodStart, periodEnd };
+  }
+
+  /** 年齢到達日（誕生日の1日前）が作業対象期間に含まれるか */
+  private isAnniversaryInPeriod(
+    anniversaryMonth: number,
+    anniversaryDay: number,
+    periodStart: Date,
+    periodEnd: Date,
+  ): boolean {
+    const years = new Set([periodStart.getFullYear(), periodEnd.getFullYear()]);
+    for (const year of years) {
+      const candidate = new Date(year, anniversaryMonth, anniversaryDay, 12, 0, 0, 0);
+      if (candidate >= periodStart && candidate <= periodEnd) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private calculateAgeAtDate(birthDateOneDayBefore: Date, referenceDate: Date): number {
+    let age = referenceDate.getFullYear() - birthDateOneDayBefore.getFullYear();
+    const monthDiff = referenceDate.getMonth() - birthDateOneDayBefore.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && referenceDate.getDate() < birthDateOneDayBefore.getDate())) {
+      age -= 1;
+    }
+    return age;
+  }
+
+  private hasActiveReachAgeEvent(events: Event[], reachAgeType: ReachAgeType): boolean {
+    return events.some(event =>
+      event.eventType === '一定年齢到達'
+      && event.reachAgeType === reachAgeType
+      && event.approval?.approvalStatus !== '却下',
+    );
+  }
+
   //対象者を配列に格納
   private async searchTargetEmployees() {
     this.foutyYearOldEmployees = [];
@@ -86,44 +142,25 @@ export class ReachAgeService {
 
     /** 対象期間を設定 */
     await this.setTargetPeriod();
-
-    console.log(this.targetStartYear, this.targetStartMonth, this.targetStartDate);
-    console.log(this.targetEndYear, this.targetEndMonth, this.targetEndDate);
+    const { periodStart, periodEnd } = this.getPeriodBounds();
 
     for (const employee of allEmployees) {
-
-      //誕生日を取得（１日前の日付）
       const birthDate = employee.birthDate?.toDate();
       if (!birthDate) continue;
 
-      // コピーして1日前を作る（元データ壊さない）
-      const birthDateOneDayBefore = new Date(birthDate);
-      birthDateOneDayBefore.setDate(birthDateOneDayBefore.getDate() - 1);
-      const birthDateOneDayBeforeForCompare = new Date(
-        birthDate.getMonth(),
-        birthDate.getDate()
-      );
+      const birthDateOneDayBefore = getDayBefore(birthDate);
 
-      // 対象期間の開始・終了
-      const start = new Date(this.targetStartMonth - 1, this.targetStartDate, 0, 0, 0);
-      const endWithoutYear = new Date(this.targetEndMonth - 1, this.targetEndDate, 23, 59, 59);
-
-      const end = new Date(this.targetEndYear, this.targetEndMonth - 1, this.targetEndDate, 23, 59, 59);
-
-      //この誕生日が対象期間に入っているか確認
-      const isInTargetPeriod: boolean = birthDateOneDayBeforeForCompare >= start && birthDateOneDayBeforeForCompare <= endWithoutYear;
-      if (!isInTargetPeriod) continue;
-
-      //該当期間に何歳になるか確認
-      let age = end.getFullYear() - birthDateOneDayBefore.getFullYear();
-      const monthDiff = end.getMonth() - birthDateOneDayBefore.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && end.getDate() < birthDateOneDayBefore.getDate())) {
-        age -= 1;
+      if (!this.isAnniversaryInPeriod(
+        birthDateOneDayBefore.getMonth(),
+        birthDateOneDayBefore.getDate(),
+        periodStart,
+        periodEnd,
+      )) {
+        continue;
       }
 
-      console.log(`${employee.employeeId}：${age}歳`);
+      const age = this.calculateAgeAtDate(birthDateOneDayBefore, periodEnd);
 
-      //該当の年齢に到達したタイミングの場合、対象者を配列に格納
       if (age === 40) {
         this.foutyYearOldEmployees.push(employee);
       } else if (age === 65) {
@@ -133,113 +170,60 @@ export class ReachAgeService {
       } else if (age === 75) {
         this.seventyFiveYearOldEmployees.push(employee);
       }
-
     }
   }
 
   /** イベントを作成 */
   async createEvent() {
-
-    /** 対象者の配列を作成 */
     await this.searchTargetEmployees();
 
-    const now = new Date();
+    const employeeEventsCache = new Map<string, Event[]>();
     let count = 0;
-    for (const employee of this.foutyYearOldEmployees) {
-      const birthDate = employee.birthDate!.toDate();
-      const occurredDate = new Date(now.getFullYear(), birthDate.getMonth(), birthDate.getDate(), 0, 0, 0);
-      const event: Partial<Event> = {
-        occurredDate: Timestamp.fromDate(occurredDate),
-        eventType: '一定年齢到達',
-        reachAgeType: '40歳',
-        appliedDate: Timestamp.now(),
-        applicantType: 'システム',
-        approval: {
-          approvalStatus: '申請中',
-        },
-        payload: {
-          employee: employee,
-        }
-      };
-      const result = await this.eventService.createEvent(employee.employeeId, event);
-      if (result) {
-        count++;
-      } else {
-        console.log(`${employee.employeeId}のイベント作成に失敗しました`);
-      }
-    }
 
-    for (const employee of this.sixtyFiveYearOldEmployees) {
-      const birthDate = employee.birthDate!.toDate();
-      const occurredDate = new Date(now.getFullYear(), birthDate.getMonth(), birthDate.getDate(), 0, 0, 0);
+    const loadEvents = async (employeeId: string): Promise<Event[]> => {
+      const cached = employeeEventsCache.get(employeeId);
+      if (cached) return cached;
+      const events = await this.eventService.getEmployeeEvents(employeeId);
+      employeeEventsCache.set(employeeId, events);
+      return events;
+    };
 
-      const event: Partial<Event> = {
-        occurredDate: Timestamp.fromDate(occurredDate),
-        eventType: '一定年齢到達',
-        reachAgeType: '65歳',
-        appliedDate: Timestamp.now(),
-        applicantType: 'システム',
-        approval: {
-          approvalStatus: '申請中',
-        },
-        payload: {
-          employee: employee,
+    const createForEmployees = async (employees: Employee[], reachAgeType: ReachAgeType) => {
+      for (const employee of employees) {
+        const events = await loadEvents(employee.employeeId);
+        if (this.hasActiveReachAgeEvent(events, reachAgeType)) {
+          continue;
         }
-      };
-      const result = await this.eventService.createEvent(employee.employeeId, event);
-      if (result) {
-        count++;
-      } else {
-        console.log(`${employee.employeeId}のイベント作成に失敗しました`);
-      }
-    }
-    for (const employee of this.seventyYearOldEmployees) {
-      const birthDate = employee.birthDate!.toDate();
-      const occurredDate = new Date(now.getFullYear(), birthDate.getMonth(), birthDate.getDate(), 0, 0, 0);
-      const event: Partial<Event> = {
-        occurredDate: Timestamp.fromDate(occurredDate),
-        eventType: '一定年齢到達',
-        reachAgeType: '70歳',
-        appliedDate: Timestamp.now(),
-        applicantType: 'システム',
-        approval: {
-          approvalStatus: '申請中',
-        },
-        payload: {
-          employee: employee,
-        }
-      };
-      const result = await this.eventService.createEvent(employee.employeeId, event);
-      if (result) {
-        count++;
-      } else {
-        console.log(`${employee.employeeId}のイベント作成に失敗しました`);
-      }
-    }
 
-    for (const employee of this.seventyFiveYearOldEmployees) {
-      const birthDate = employee.birthDate!.toDate();
-      const occurredDate = new Date(now.getFullYear(), birthDate.getMonth(), birthDate.getDate(), 0, 0, 0);
-      const event: Partial<Event> = {
-        occurredDate: Timestamp.fromDate(occurredDate),
-        eventType: '一定年齢到達',
-        reachAgeType: '75歳',
-        appliedDate: Timestamp.now(),
-        applicantType: 'システム',
-        approval: {
-          approvalStatus: '申請中',
-        },
-        payload: {
-          employee: employee,
+        const birthDate = employee.birthDate!.toDate();
+        const reachAge = parseReachAgeFromType(reachAgeType);
+        if (reachAge === null) continue;
+        const occurredDate = getReachAgeInsuranceChangeDate(birthDate, reachAge);
+        const event: Partial<Event> = {
+          occurredDate: Timestamp.fromDate(occurredDate),
+          eventType: '一定年齢到達',
+          reachAgeType,
+          appliedDate: Timestamp.now(),
+          applicantType: 'システム',
+          approval: {
+            approvalStatus: '申請中',
+          },
+          payload: {
+            employee,
+          },
+        };
+        const result = await this.eventService.createEvent(employee.employeeId, event);
+        if (result) {
+          count++;
+          events.push({ ...event, eventId: result } as Event);
         }
-      };
-      const result = await this.eventService.createEvent(employee.employeeId, event);
-      if (result) {
-        count++;
-      } else {
-        console.log(`${employee.employeeId}のイベント作成に失敗しました`);
       }
-    }
+    };
+
+    await createForEmployees(this.foutyYearOldEmployees, '40歳');
+    await createForEmployees(this.sixtyFiveYearOldEmployees, '65歳');
+    await createForEmployees(this.seventyYearOldEmployees, '70歳');
+    await createForEmployees(this.seventyFiveYearOldEmployees, '75歳');
 
     return count;
   }

@@ -77,6 +77,9 @@ export type CompanySettings = {
 
     /** ボーナス月（年1～3回の支給） */
     bonusMonths?: number[];
+
+    /** 算定基礎向け：賞与年4回以上（bonus=false かつ本フラグ true のとき） */
+    bonusFourOrMore?: boolean;
 };
 
 /**

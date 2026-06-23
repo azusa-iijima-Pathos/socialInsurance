@@ -28,6 +28,7 @@ import { EventService } from '../../../service/Firestore/event-service';
 import { OfficeService } from '../../../service/Firestore/office-service';
 import { EmployeeLogicService } from '../../../service/logic/employee-logic-service';
 import { InsuranceFormService } from '../../../service/logic/insurance-form.service';
+import { EmployeeEventApprovalService } from '../../../service/logic/employee-event-approval.service';
 import { ActivatedRoute } from '@angular/router';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { Event } from '../../../model/event';
@@ -69,6 +70,7 @@ export class HireEntry {
   private insuranceFormService = inject(InsuranceFormService);
   private calculationRunService = inject(CalculationRunService);
   private tempEmployeeService = inject(TempEmployeeService);
+  private employeeEventApprovalService = inject(EmployeeEventApprovalService);
 
   WORK_STATUSES = WORK_STATUSES;
   LEAVE_TYPES = LEAVE_TYPES;
@@ -189,12 +191,11 @@ export class HireEntry {
     this.setupInsuranceDetailControls('employeePensionInsurance');
     this.setupInsuranceDependencyRules();
 
-    // フォーム変更時に自動判定表示を更新する（入社済み時は入社日変更でフォームへ反映）
+    // フォーム変更時に自動判定表示とフォーム反映を更新する
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        this.updateAutoInsuranceJudgement();
-        void this.updateAutoGradeJudgement();
+        void this.refreshAutoInsuranceState();
       });
     this.form.controls.hireDate.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -209,9 +210,9 @@ export class HireEntry {
       });
     if (this.form.controls.hireDate.value) {
       void this.updateHireDateDerivedState(this.form.controls.hireDate.value);
+    } else {
+      await this.refreshAutoInsuranceState();
     }
-    this.updateAutoInsuranceJudgement();
-    await this.updateAutoGradeJudgement();
   }
 
   async onSubmit() {
@@ -335,11 +336,7 @@ export class HireEntry {
   }
 
   needsScheduledHireAttention(hireDate?: Timestamp): boolean {
-    if (!hireDate) return false;
-    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
-    const hireMonth = getWorkMonthForDate(hireDate.toDate(), targetPeriodStart);
-    const current = getWorkingYearMonth();
-    return hireMonth.year * 12 + hireMonth.month <= current.year * 12 + current.month;
+    return this.employeeEventApprovalService.canApproveByOccurrenceDateOrInWorkingPeriod(hireDate);
   }
 
   isHireDateBeforeCurrentWorkPeriod(hireDate: Timestamp): boolean {
@@ -712,15 +709,12 @@ export class HireEntry {
     const beforePeriod = hireMonth.year * 12 + hireMonth.month < current.year * 12 + current.month;
     this.isHireBeforeCurrentWorkPeriod = beforePeriod;
 
-    this.updateAutoInsuranceJudgement();
-    await this.updateAutoGradeJudgement();
+    await this.refreshAutoInsuranceState();
 
     if (beforePeriod) {
       this.form.controls.insurance.disable({ emitEvent: false });
       return;
     }
-
-    this.applyAutoJudgementToForm();
 
     if (this.isScheduledHireMode()) {
       this.form.controls.insurance.disable({ emitEvent: false });
@@ -753,10 +747,13 @@ export class HireEntry {
     const healthRequired = this.autoInsuranceJudgement?.isHealthInsuranceRequired ?? false;
     const nursingRequired = this.autoInsuranceJudgement?.isNursingCareInsuranceRequired ?? false;
     const pensionRequired = this.autoInsuranceJudgement?.isPensionInsuranceRequired ?? false;
-    const grade = healthRequired ? (this.autoGradeJudgement ?? 0) : 0;
+    const currentGradeControl = this.form.controls.insurance.controls.currentGrade;
+    const currentGrade = !healthRequired
+      ? 0
+      : (this.autoGradeJudgement ?? currentGradeControl.value);
 
     this.form.controls.insurance.patchValue({
-      currentGrade: grade,
+      currentGrade,
       healthInsurance: {
         joined: healthRequired ? 'joined' : 'notJoined',
         acquiredDate: healthRequired ? hireDate : '',
@@ -1150,6 +1147,18 @@ export class HireEntry {
     const employee = this.buildEmployeeSnapshot();
     const grade = await this.employeeLogicService.getInsuranceGradeAtNewEntry(employee as Employee);
     this.autoGradeJudgement = grade ?? null;
+  }
+
+  private async refreshAutoInsuranceState() {
+    if (this.isExistingMode || this.isHireBeforeCurrentWorkPeriod) {
+      this.updateAutoInsuranceJudgement();
+      await this.updateAutoGradeJudgement();
+      return;
+    }
+
+    this.updateAutoInsuranceJudgement();
+    await this.updateAutoGradeJudgement();
+    this.applyAutoJudgementToForm();
   }
 
   // 雇用契約情報を作る

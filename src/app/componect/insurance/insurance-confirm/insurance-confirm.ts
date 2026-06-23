@@ -24,6 +24,7 @@ import {
   isMaternityOrChildcareLeaveOverlappingPeriod,
   resolvePayrollTargetPeriodBounds,
 } from '../../../service/logic/leave-insurance.util';
+import { InsuranceLockService } from '../../../service/Firestore/insurance-lock-service';
 import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
 import { ReachAgeService } from '../../../service/logic/reach-age';
 import {
@@ -101,6 +102,7 @@ export class InsuranceConfirm {
   private calculationRunService = inject(CalculationRunService);
   private insuranceDisplayService = inject(InsuranceDisplayService);
   private correctionLogicService = inject(CorrectionLogicService);
+  private insuranceLockService = inject(InsuranceLockService);
   private payrollLockService = inject(PayrollLockService);
   private reachAgeService = inject(ReachAgeService);
   private insuranceFormService = inject(InsuranceFormService);
@@ -132,6 +134,7 @@ export class InsuranceConfirm {
   officeSummaries: OfficeInsuranceSummary[] = [];
   insuranceEditErrors: string[] = [];
   insuranceSummary: InsuranceSummary = this.createEmptySummary();
+  isInsuranceLocked = false;
 
   async ngOnInit() {
     // //標準月額報酬を取得
@@ -174,6 +177,10 @@ export class InsuranceConfirm {
       map[draft.employeeId] = draft;
       return map;
     }, {});
+
+    if (!this.isOutputMode) {
+      this.isInsuranceLocked = await this.insuranceLockService.isInsuranceLocked(this.payrollId);
+    }
 
     this.differenceAdjustmentRuns = (await this.calculationRunService.getAllCalculationRuns())
       .filter(run => run.type === '差額調整');
@@ -646,22 +653,19 @@ export class InsuranceConfirm {
     );
   }
 
-  isDone:boolean = false;
   //保険料をFirestoreに保存する。作業月を移動・編集ボタンを押せなくする
   async confirmInsurance() {
-    // if (this.editButtonDisabled) return;
+    if (this.isInsuranceLocked) return;
+
     if (this.hasUndeterminedInsuranceEmployees()) {
-      const proceedDespiteUndetermined = window.confirm(
-        '保険料未定の社員がいますが、保険料を確定してもよろしいでしょうか。'
-      );
-      if (!proceedDespiteUndetermined) {
-        return;
-      }
+      window.alert('給与が未登録の社員がいます。全従業員分の登録後に確定してください。');
+      return;
     }
 
     //Windows標準確認ポップを表示
     const confirmed = window.confirm(
       '確定すると、現在の作業対象期間の保険料修正は差額調整になります。\n' +
+      'また、作業対象期間の従業情報の編集や入社退社処理も差額調整が必要になるため、すべての作業確認後に確定してください。\n' +
       '確定しますか？'
     );
     if (!confirmed) {
@@ -675,16 +679,22 @@ export class InsuranceConfirm {
       return;
     }
 
-    const lockResult = await this.payrollLockService.lockPayroll(this.payrollId, '毎月');
-    if (!lockResult) {
+    const payrollLockResult = await this.payrollLockService.ensurePayrollLocked(this.payrollId, '毎月');
+    if (!payrollLockResult) {
       console.error('給与の編集ロックを保存できませんでした');
+      return;
+    }
+
+    const insuranceLockResult = await this.insuranceLockService.ensureInsuranceLocked(this.payrollId, '毎月');
+    if (!insuranceLockResult) {
+      console.error('保険料の確定ロックを保存できませんでした');
       return;
     }
 
     await this.reachAgeService.createEvent();
     await this.commonService.refreshTargetPeriod();
 
-    this.isDone = true;
+    this.isInsuranceLocked = true;
   }
 
   private hasUndeterminedInsuranceEmployees(): boolean {

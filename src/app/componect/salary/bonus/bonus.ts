@@ -1,4 +1,5 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { SalaryList } from '../salary-list/salary-list';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
@@ -33,6 +34,7 @@ export class Bonus {
   private employeeService = inject(EmployeeService);
   private correctionLogicService = inject(CorrectionLogicService);
   private companyService = inject(CompanyService);
+  private destroyRef = inject(DestroyRef);
 
   companyId = sessionStorage.getItem('companyId');
   payrollId = '';
@@ -42,17 +44,91 @@ export class Bonus {
   messageTimer: MessageTimer = null;
 
   bonusMonth = '';
+  priorBonusBlock: { month: number; payrollId: string } | null = null;
 
   async ngOnInit() {
-    this.payrollId = this.route.snapshot.params['payrollId'];
-    this.bonusMonth = this.payrollId.replace('_bonus', '');
     await this.companyService.getCompany();
     await this.employeeService.getAllEmployees();
+
+    this.route.paramMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(params => {
+        void this.loadBonusPage(params.get('payrollId') ?? '');
+      });
+  }
+
+  navigateToPriorBonus() {
+    if (!this.priorBonusBlock) return;
+    void this.router.navigate(['/bonus', this.priorBonusBlock.payrollId]);
+  }
+
+  private async loadBonusPage(payrollId: string) {
+    this.payrollId = payrollId;
+    this.bonusMonth = payrollId.replace('_bonus', '');
+    this.priorBonusBlock = null;
+    this.isPayrollLocked = false;
+    this.message = '';
+    this.form.enable();
+    this.resetForm();
+
+    this.priorBonusBlock = await this.resolvePriorBonusBlock();
+    if (this.priorBonusBlock) {
+      return;
+    }
+
     this.isPayrollLocked = await this.payrollLockService.isPayrollLocked(this.payrollId);
     if (this.isPayrollLocked) {
       this.form.disable();
     }
     this.form.controls.paymentDate.updateValueAndValidity();
+  }
+
+  private async resolvePriorBonusBlock(): Promise<{ month: number; payrollId: string } | null> {
+    const bonusMonths = this.companyService.company()?.settings?.bonusMonths ?? [];
+    if (bonusMonths.length !== 2) return null;
+
+    const bonusPayrollIds = bonusMonths
+      .map(month => this.buildBonusPayrollId(month))
+      .sort((left, right) => left.localeCompare(right));
+
+    const currentIndex = bonusPayrollIds.indexOf(this.payrollId);
+    if (currentIndex <= 0) return null;
+
+    for (let index = 0; index < currentIndex; index++) {
+      const priorPayrollId = bonusPayrollIds[index];
+      const isLocked = await this.payrollLockService.isPayrollLocked(priorPayrollId);
+      if (isLocked) continue;
+
+      return {
+        month: this.parseBonusMonth(priorPayrollId),
+        payrollId: priorPayrollId,
+      };
+    }
+
+    return null;
+  }
+
+  private buildBonusPayrollId(month: number): string {
+    const year = this.getBonusPaymentYear(month);
+    return `${year}-${String(month).padStart(2, '0')}_bonus`;
+  }
+
+  private getBonusPaymentYear(month: number): number {
+    const settings = this.companyService.company()?.settings;
+    const workingYear = settings?.workingYear ?? Number(sessionStorage.getItem('workingYear'));
+    const workingMonth = settings?.workingMonth ?? Number(sessionStorage.getItem('workingMonth'));
+    if (workingMonth >= 1 && workingMonth <= 3) {
+      return workingYear;
+    }
+    if (month >= 4 && month <= 12) {
+      return workingYear;
+    }
+    return workingYear + 1;
+  }
+
+  private parseBonusMonth(payrollId: string): number {
+    const match = payrollId.match(/^\d{4}-(\d{2})_bonus$/);
+    return match ? Number(match[1]) : 0;
   }
 
   // 支給日の年月が、トップから渡された賞与IDの年月と一致するか確認する
@@ -110,8 +186,8 @@ export class Bonus {
     }
 
     const result = await this.payrollService.registerPayroll(employeeId, bonus);
-    if (!result) {
-      this.message = CREATE_MESSAGES.FAILED;
+    if (!result.ok) {
+      this.message = this.payrollService.getRegisterErrorMessage(result);
       return;
     }
 

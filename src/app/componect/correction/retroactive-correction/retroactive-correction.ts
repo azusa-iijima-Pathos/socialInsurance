@@ -11,7 +11,7 @@ import { CalculationRunService } from '../../../service/Firestore/calculation-ru
 import { EventService } from '../../../service/Firestore/event-service';
 import { Employee, EmployeeInsurance, InsuranceDetail } from '../../../model/employee';
 import { LeaveType, WorkStatus } from '../../../constants/model-constants';
-import { addMonths, buildWorkMonthEventId, getCurrentAppliedFromMonth, getCurrentApprovedWorkingMonth, getWorkingYearMonth } from '../../../service/logic/event-id-service';
+import { addMonths, buildWorkMonthEventId, getAdHocRevisionWorkMonth, getCurrentAppliedFromMonth, getCurrentApprovedWorkingMonth, getWorkingYearMonth } from '../../../service/logic/event-id-service';
 import { InsuranceFormService, InsuranceName, InsuranceStatus } from '../../../service/logic/insurance-form.service';
 import { parseDateInputValue, timestampFromDateInput } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
@@ -490,9 +490,9 @@ export class RetroactiveCorrection {
     const employeeId = selectedEmployee.employeeId;
     const loginEmployeeId = sessionStorage.getItem('loginEmployeeId') ?? sessionStorage.getItem('employeeId') ?? '';
     const applyDate = parseDateInputValue(this.form.value.applyDate!);
-    const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(applyDate);
-    const revisionMonth = addMonths(applyMonth.year, applyMonth.month, 3);
+    await this.companyService.getCompany();
     const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const revisionMonth = getAdHocRevisionWorkMonth(applyDate, targetPeriodStart);
     const before = { ...selectedEmployee };
     const after: Employee = {
       ...before,

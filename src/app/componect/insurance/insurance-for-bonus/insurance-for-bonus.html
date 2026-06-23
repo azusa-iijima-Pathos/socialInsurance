@@ -148,8 +148,7 @@
                             class="insurance-bonus-calculated-amount">自動計算：{{ employee.calculatedValues.pensionInsurance
                             | number }}円</small>
                     </td>
-                    <td class="insurance-bonus-merged-top">{{ canCalculateInsurance(employee) ?
-                        ((employee.totalInsurance | number) + '円') : '未定' }}</td>
+                    <td class="insurance-bonus-merged-top">{{ canCalculateInsurance(employee) ? ((employee.totalInsurance | number) + '円') : '未定' }}</td>
                 </tr>
                 <tr>
                     <td class="insurance-bonus-target-amount">{{ employee.hasBonusData ?

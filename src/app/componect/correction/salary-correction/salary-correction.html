@@ -2,7 +2,7 @@
   <h1 class="page-title">{{ isInitialMode ? '過去給与情報登録' : '月額給与修正' }}</h1>
   <div class="information-area">
     <p *ngIf="isInitialMode">作業月以前の給与・勤務実績を登録します。</p>
-    <p *ngIf="!isInitialMode">作業月以前の確定済み給与・勤務実績を修正します。</p>
+    <p *ngIf="!isInitialMode">作業月以前の確定済み給与・勤務実績を修正します。作業月の給与が確定済みの場合は、作業月も選択できます。</p>
     <p>対象月を下のプルダウンから選択してください。</p>
     <p *ngIf="isInitialMode">※選択した作業月の前、最大6か月分が登録可能です。</p>
     <p *ngIf="isInitialMode">※登録しなくてもシステムは使用できますが、算定基礎などに影響がある場合があります。</p>

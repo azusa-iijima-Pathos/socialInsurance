@@ -4,6 +4,7 @@ import { CompanyService } from '../../service/Firestore/company-service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PayrollLockService } from '../../service/Firestore/payroll-lock-service';
+import { InsuranceLockService } from '../../service/Firestore/insurance-lock-service';
 import { InsuranceSnapshotService } from '../../service/Firestore/insurance-snapshot-service';
 import { STANDARD_MONTHLY_REMUNERATION_2026, STANDARD_MONTHLY_REMUNERATION_2025, STANDARD_MONTHLY_REMUNERATION_2024, STANDARD_MONTHLY_REMUNERATION_2023 } from '../../insuranceData/forEmployee';
 import { STANDARD_MONTHLY_REMUNERATION_PERIOD_2026, STANDARD_MONTHLY_REMUNERATION_PERIOD_2025, STANDARD_MONTHLY_REMUNERATION_PERIOD_2024, STANDARD_MONTHLY_REMUNERATION_PERIOD_2023 } from '../../insuranceData/forEmployee';
@@ -11,13 +12,12 @@ import { PREFECTURE_INSURANCE_RATES_2026, PREFECTURE_INSURANCE_RATES_2025, PREFE
 import { INSURANCE_RATE_PERIOD_2026, INSURANCE_RATE_PERIOD_2025, INSURANCE_RATE_PERIOD_2024, INSURANCE_RATE_PERIOD_2023 } from '../../insuranceData/forEmployee';
 import { Firestore, doc, writeBatch } from '@angular/fire/firestore';
 import { consumeGuardMessage } from '../../service/common/guard-message.util';
-import { EmployeeService } from '../../service/Firestore/employee-service';
-import { PayrollService } from '../../service/Firestore/payroll-service';
-import { EventService } from '../../service/Firestore/event-service';
-import { CalculationRunService } from '../../service/Firestore/calculation-run-service';
 import { AnnouncementService } from '../../service/Firestore/announcement-service';
 import { ReachAgeService } from '../../service/logic/reach-age';
 import { CommonService } from '../../service/common/common-service';
+import { CalculationRunService } from '../../service/Firestore/calculation-run-service';
+import { ApplicationTaskStatusService } from '../../service/logic/application-task-status.service';
+import { CorrectionLogicService } from '../../service/logic/correction-logic.service';
 
 
 @Component({
@@ -30,14 +30,14 @@ export class TopForManage {
 
   private companyService = inject(CompanyService);
   private payrollLockService = inject(PayrollLockService);
+  private insuranceLockService = inject(InsuranceLockService);
   private insuranceSnapshotService = inject(InsuranceSnapshotService);
-  private employeeService = inject(EmployeeService);
-  private payrollService = inject(PayrollService);
-  private eventService = inject(EventService);
-  private calculationRunService = inject(CalculationRunService);
   private announcementService = inject(AnnouncementService);
   private reachAgeService = inject(ReachAgeService);
   private commonService = inject(CommonService);
+  private calculationRunService = inject(CalculationRunService);
+  private applicationTaskStatusService = inject(ApplicationTaskStatusService);
+  private correctionLogicService = inject(CorrectionLogicService);
 
   loginUser = sessionStorage.getItem('loginEmployeeId');
   permission = sessionStorage.getItem('permission');
@@ -55,6 +55,7 @@ export class TopForManage {
   hasBonusPayrollLock = false;
 
   bonusMonths = computed<number[]>(() => this.companyService.company()?.settings?.bonusMonths ?? []);
+  currentBonusPayrollOptions: { label: string; year: number; month: number; payrollId: string }[] = [];
 
   guardMessage = '';
   showExistingEmployeeLink = false;
@@ -73,6 +74,7 @@ export class TopForManage {
   async ngOnInit() {
     this.guardMessage = consumeGuardMessage(this.route, this.router);
     await this.companyService.getCompany();
+    this.refreshCurrentBonusPayrollOptions();
     if (this.workingMonth && !this.workingYear) {
       this.workingYear = new Date().getFullYear().toString();
       sessionStorage.setItem('workingYear', this.workingYear);
@@ -96,31 +98,11 @@ export class TopForManage {
     const month = Number(this.workingMonth);
     const payrollId = `${year}-${String(month).padStart(2, '0')}`;
 
-    await this.employeeService.getAllEmployees();
-    await this.payrollService.getAllPayrollListForMonth(payrollId, true);
-    const registeredIds = new Set(
-      this.payrollService.allPayrollListForMonth()
-        .find(item => item.payrollId === payrollId)?.payrollList
-        .map(payroll => payroll.employeeId ?? '') ?? [],
-    );
-    const eligibleEmployees = this.employeeService.employeesEligibleForPayrollPeriod(payrollId);
-    this.salaryTaskComplete = eligibleEmployees.length > 0
-      && eligibleEmployees.every(employee => registeredIds.has(employee.employeeId));
+    this.salaryTaskComplete = await this.payrollLockService.isPayrollLocked(payrollId);
 
-    const [pendingEvents, pendingRuns, pendingEmployeeApps, approvedEmployeeApps, applicableAdHocRevisions] = await Promise.all([
-      this.eventService.getAllPendingEventsUpToWorkingMonth(),
-      this.calculationRunService.getPendingSystemRunsUpToWorkingMonth(),
-      this.eventService.getAllPendingEmployeeApplicationEvents(),
-      this.eventService.getApprovedEmployeeApplicationEventsForCurrentWorkMonth(),
-      this.calculationRunService.getApplicableApprovedAdHocRevisionRuns(),
-    ]);
-    const hasPendingApplications = pendingEvents.length > 0
-      || pendingRuns.length > 0
-      || pendingEmployeeApps.length > 0;
-    const hasPendingApplies = applicableAdHocRevisions.length > 0 || approvedEmployeeApps.length > 0;
-    this.applicationTaskComplete = !hasPendingApplications && !hasPendingApplies;
+    this.applicationTaskComplete = await this.applicationTaskStatusService.isApplicationTaskComplete();
 
-    this.insuranceTaskComplete = await this.payrollLockService.isPayrollLocked(payrollId);
+    this.insuranceTaskComplete = await this.insuranceLockService.isInsuranceLocked(payrollId);
     this.canAdvanceWorkingMonth = this.insuranceTaskComplete;
 
     const announcements = await this.announcementService.getAllAnnouncements();
@@ -180,6 +162,7 @@ export class TopForManage {
     await this.reachAgeService.createEvent();
     await this.commonService.refreshTargetPeriod();
     await this.loadMonthlyTaskStatus();
+    this.refreshCurrentBonusPayrollOptions();
   }
 
   setWorkingMonth() {
@@ -195,6 +178,11 @@ export class TopForManage {
     });
     this.workingYear = workingYear.toString();
     this.workingMonth = workingMonth.toString();
+    this.refreshCurrentBonusPayrollOptions();
+  }
+
+  private refreshCurrentBonusPayrollOptions() {
+    this.currentBonusPayrollOptions = this.correctionLogicService.getCurrentFiscalYearBonusMonthOptions();
   }
 
   getBonusPaymentYear(month: number): number {

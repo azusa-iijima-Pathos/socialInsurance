@@ -469,9 +469,13 @@
                         <tr *ngFor="let item of eventListItems"
                             [class.employee-detail-events-table__row--rejected]="isRejectedListItem(item)">
                             <td class="employee-detail-events-table__actions">
+                                <ng-container *ngIf="canShowApply(item)">
+                                    <button type="button" class="im-btn-primary im-btn-sm"
+                                        (click)="onApplyListItem(item)">反映</button>
+                                </ng-container>
                                 <ng-container *ngIf="canShowApproveReject(item)">
                                     <button type="button" class="im-btn-primary im-btn-sm"
-                                        (click)="onApproveListItem(item)">確認</button>
+                                        (click)="onApproveListItem(item)">承認</button>
                                     <button type="button" class="im-btn-soft im-btn-sm"
                                         *ngIf="canShowReject(item)"
                                         (click)="onRejectListItem(item)">却下</button>
@@ -614,7 +618,8 @@
                         <label for="detailLeaveStartDate">休職開始日</label>
                     </div>
                     <div class="im-field-row__control">
-                        <input id="detailLeaveStartDate" type="date" formControlName="leaveStartDate">
+                        <input id="detailLeaveStartDate" type="date" formControlName="leaveStartDate"
+                            [readOnly]="isWorkStatusLeaveStartReadOnly()">
                         <div class="error">
                             <p
                                 *ngIf="workStatusForm.get('leaveStartDate')?.errors?.['required'] && workStatusForm.get('leaveStartDate')?.touched">
@@ -670,12 +675,13 @@
                     </div>
                 </div>
                 <div class="im-field-block im-field-row employee-edit-field"
-                    *ngIf="showWorkStatusLeaveStartField() && !showWorkStatusLeaveEndField()">
+                    *ngIf="(showWorkStatusLeaveStartField() || showWorkStatusLeaveEndModifyField()) && !showWorkStatusLeaveEndField()">
                     <div class="im-field-row__label">
                         <label for="detailLeaveEndDateOptional">終了予定日</label>
                     </div>
                     <div class="im-field-row__control">
-                        <input id="detailLeaveEndDateOptional" type="date" formControlName="leaveEndDate">
+                        <input id="detailLeaveEndDateOptional" type="date" formControlName="leaveEndDate"
+                            [readOnly]="isWorkStatusLeaveEndReadOnly()">
                         <div class="error">
                             <p
                                 *ngIf="workStatusForm.get('leaveEndDate')?.errors?.['required'] && workStatusForm.get('leaveEndDate')?.touched">
@@ -691,7 +697,8 @@
                         <label for="detailLeaveEndDate">休職終了日</label>
                     </div>
                     <div class="im-field-row__control">
-                        <input id="detailLeaveEndDate" type="date" formControlName="leaveEndDate">
+                        <input id="detailLeaveEndDate" type="date" formControlName="leaveEndDate"
+                            [readOnly]="isWorkStatusLeaveEndReadOnly()">
                         <div class="error">
                             <p
                                 *ngIf="workStatusForm.get('leaveEndDate')?.errors?.['required'] && workStatusForm.get('leaveEndDate')?.touched">
@@ -1359,6 +1366,8 @@
             <button type="button" class="im-btn-soft employee-detail-add-dependent"
                 (click)="addNewDependentRow()">扶養情報を追加</button>
 
+            <p class="employee-edit-modal__form-message" *ngIf="dependentModalError">{{ dependentModalError }}</p>
+
             <div class="employee-edit-actions">
                 <button type="submit" class="im-btn-primary">保存</button>
                 <button type="button" class="im-btn-soft" (click)="closeDependentModal()">キャンセル</button>
@@ -1623,7 +1632,9 @@
         </div>
         <div class="employee-edit-actions">
             <button type="button" class="im-btn-primary" (click)="approveRetireFromDetail()"
-                *ngIf="reviewingRetireRun.approval?.approvalStatus === '申請中'">承認して反映</button>
+                *ngIf="reviewingRetireRun.approval?.approvalStatus === '申請中'">承認</button>
+            <button type="button" class="im-btn-primary" (click)="onApplySystemRun(reviewingRetireRun!)"
+                *ngIf="reviewingRetireRun.approval?.approvalStatus === '承認済み'">反映</button>
             <button type="button" class="im-btn-soft" (click)="rejectRetireFromDetail()"
                 *ngIf="reviewingRetireRun.approval?.approvalStatus === '申請中'">却下</button>
             <button type="button" class="im-btn-soft" (click)="closeRetireDetail()">閉じる</button>
@@ -1720,7 +1731,7 @@
             <p *ngIf="hireApprovalValidationError" class="error">{{ hireApprovalValidationError }}</p>
         </div>
         <div class="employee-edit-actions">
-            <button type="button" class="im-btn-primary" (click)="approveHireFromDetail()">承認して反映</button>
+            <button type="button" class="im-btn-primary" (click)="approveHireFromDetail()">承認</button>
             <button type="button" class="im-btn-soft" (click)="rejectHireFromDetail()">却下</button>
             <button type="button" class="im-btn-soft" (click)="closeHireDetail()">閉じる</button>
         </div>
@@ -1813,7 +1824,7 @@
             </div>
         </div>
         <div class="employee-edit-actions">
-            <button type="button" class="im-btn-soft" *ngIf="isInsuranceHistoryDetailReadOnly() && reviewingInsuranceHistoryRun.approval?.approvalStatus === '申請中'"
+            <button type="button" class="im-btn-soft" *ngIf="isInsuranceHistoryDetailReadOnly() && reviewingInsuranceHistoryRun.approval?.approvalStatus === '申請中' && !isHireQualificationRun(reviewingInsuranceHistoryRun) && !isRetireQualificationRun(reviewingInsuranceHistoryRun)"
                 (click)="rejectInsuranceHistoryDetail()">却下</button>
             <button type="button" class="im-btn-soft" (click)="closeInsuranceHistoryDetail()">閉じる</button>
         </div>

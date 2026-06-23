@@ -173,6 +173,14 @@
   margin-top: var(--im-size-32);
 }
 
+.monthly-salary-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--im-size-12);
+  margin-bottom: var(--im-size-16);
+}
+
 @media (max-width: 960px) {
   .monthly-salary-registration-layout {
     grid-template-columns: 1fr;

@@ -6,13 +6,15 @@ import { Event } from '../../model/event';
 import { CompanyService } from '../Firestore/company-service';
 import { DependentService } from '../Firestore/dependent-service';
 import { EventService } from '../Firestore/event-service';
+import { AnnouncementLogicService } from './announcement-logic.service';
 import {
   buildDependentChangeEventBaseId,
   getCurrentAppliedFromMonth,
   getCurrentApprovedWorkingMonth,
-  isWorkMonthAfterCurrent,
+  resolveAdminEffectiveDateTiming,
 } from './event-id-service';
 import { parseDateInputValue, timestampFromDateInput } from '../common/date-input.util';
+import { EmployeeService } from '../Firestore/employee-service';
 
 export type DependentChangeInput = {
   before: Dependent | null;
@@ -76,16 +78,12 @@ export class DependentChangeEventService {
   private eventService = inject(EventService);
   private dependentService = inject(DependentService);
   private companyService = inject(CompanyService);
+  private announcementLogicService = inject(AnnouncementLogicService);
+  private employeeService = inject(EmployeeService);
 
   async validateDependentChangeDate(dateInput: string): Promise<string | null> {
     if (!dateInput) {
       return '日付は必須です';
-    }
-    await this.companyService.getCompany();
-    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
-    const date = parseDateInputValue(dateInput);
-    if (isWorkMonthAfterCurrent(date, targetPeriodStart)) {
-      return '作業対象期間より後の予定登録はできません。';
     }
     return null;
   }
@@ -110,6 +108,7 @@ export class DependentChangeEventService {
     return null;
   }
 
+  /** 管理者・システムの扶養変更：適用日が今日以前なら適用済み＋即反映、今日より後なら申請中 */
   async createAppliedDependentChangeEvents(
     employeeId: string,
     changes: DependentChangeInput[],
@@ -119,6 +118,7 @@ export class DependentChangeEventService {
     const createdIds: string[] = [];
     await this.companyService.getCompany();
     const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const applicantType = options?.applicantType ?? '管理者';
 
     for (const change of changes) {
       const dateInput = getDependentChangeEffectiveDateInput(
@@ -131,14 +131,77 @@ export class DependentChangeEventService {
         return createdIds;
       }
 
+      const effectiveDate = parseDateInputValue(dateInput);
       const effectiveTimestamp = timestampFromDateInput(dateInput);
-      const baseId = buildDependentChangeEventBaseId(parseDateInputValue(dateInput), targetPeriodStart);
+      const bounds = this.employeeService.currentWorkPeriodBounds();
+      const timing = resolveAdminEffectiveDateTiming(effectiveDate, bounds);
+      const baseId = buildDependentChangeEventBaseId(effectiveDate, targetPeriodStart);
+      const eventPayload = {
+        before: change.before,
+        after: change.after,
+        appliedDate: effectiveTimestamp,
+      };
+
+      if (timing === 'future') {
+        const eventId = await this.eventService.createEventWithBaseId(employeeId, baseId, {
+          occurredDate: effectiveTimestamp,
+          eventType: '扶養情報変更',
+          changeType: change.changeType,
+          appliedDate: Timestamp.now(),
+          applicantType,
+          approval: { approvalStatus: '申請中' },
+          payload: eventPayload,
+        });
+        if (!eventId) {
+          return createdIds;
+        }
+        createdIds.push(eventId);
+        continue;
+      }
+
+      if (timing === 'after_period_past') {
+        const eventId = await this.eventService.createEventWithBaseId(employeeId, baseId, {
+          occurredDate: effectiveTimestamp,
+          eventType: '扶養情報変更',
+          changeType: change.changeType,
+          appliedDate: Timestamp.now(),
+          applicantType,
+          approval: {
+            approvalStatus: '承認済み',
+            approvedDate: Timestamp.now(),
+            approvedBy: loginEmployeeId,
+            approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
+          },
+          payload: eventPayload,
+        });
+        if (!eventId) {
+          return createdIds;
+        }
+        createdIds.push(eventId);
+        await this.createDependentAnnouncementIfNeeded(employeeId, {
+          eventId,
+          eventType: '扶養情報変更',
+          changeType: change.changeType,
+          occurredDate: effectiveTimestamp,
+          appliedDate: Timestamp.now(),
+          applicantType,
+          approval: {
+            approvalStatus: '承認済み',
+            approvedDate: Timestamp.now(),
+            approvedBy: loginEmployeeId,
+            approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
+          },
+          payload: eventPayload,
+        } as Pick<Event, 'eventId' | 'eventType' | 'changeType' | 'lifeEventType' | 'occurredDate' | 'payload' | 'approval'>);
+        continue;
+      }
+
       const eventId = await this.eventService.createEventWithBaseId(employeeId, baseId, {
         occurredDate: effectiveTimestamp,
         eventType: '扶養情報変更',
         changeType: change.changeType,
         appliedDate: Timestamp.now(),
-        applicantType: options?.applicantType ?? '管理者',
+        applicantType,
         approval: {
           approvalStatus: '適用済み',
           approvedDate: Timestamp.now(),
@@ -146,11 +209,7 @@ export class DependentChangeEventService {
           appliedFromMonth: getCurrentAppliedFromMonth(),
           approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
         },
-        payload: {
-          before: change.before,
-          after: change.after,
-          appliedDate: effectiveTimestamp,
-        },
+        payload: eventPayload,
       });
       if (!eventId) {
         return createdIds;
@@ -162,9 +221,39 @@ export class DependentChangeEventService {
       }
 
       createdIds.push(eventId);
+      await this.createDependentAnnouncementIfNeeded(employeeId, {
+        eventId,
+        eventType: '扶養情報変更',
+        changeType: change.changeType,
+        occurredDate: effectiveTimestamp,
+        appliedDate: Timestamp.now(),
+        applicantType,
+        approval: {
+          approvalStatus: '適用済み',
+          approvedDate: Timestamp.now(),
+          approvedBy: loginEmployeeId,
+          appliedFromMonth: getCurrentAppliedFromMonth(),
+          approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
+        },
+        payload: eventPayload,
+      } as Pick<Event, 'eventId' | 'eventType' | 'changeType' | 'lifeEventType' | 'occurredDate' | 'payload' | 'approval'>);
     }
 
     return createdIds;
+  }
+
+  private async createDependentAnnouncementIfNeeded(
+    employeeId: string,
+    event: Pick<Event, 'eventId' | 'eventType' | 'changeType' | 'lifeEventType' | 'occurredDate' | 'payload' | 'approval'>,
+  ): Promise<void> {
+    if (!this.announcementLogicService.shouldCreateAnnouncementForStatus(event.approval?.approvalStatus)) {
+      return;
+    }
+    try {
+      await this.announcementLogicService.createFromDependentEvent(event as Event, employeeId);
+    } catch (error) {
+      console.error('届け出チェックリストの作成に失敗しました', error);
+    }
   }
 
   async createPendingDependentChangeEvents(
@@ -226,6 +315,28 @@ export class DependentChangeEventService {
       appliedDateInput: item.appliedDateInput,
       changeType: determineDependentChangeType(item.before, item.after),
     }));
+  }
+
+  async getPendingAdminDependentChangeEventsForDependentIds(
+    employeeId: string,
+    dependentIds: string[],
+  ): Promise<Event[]> {
+    if (dependentIds.length === 0) return [];
+    const targetIds = new Set(dependentIds.map(id => String(id)));
+    const events = await this.eventService.getPendingEmployeeEvents(employeeId);
+    return events.filter(event => {
+      if (event.eventType !== '扶養情報変更' || event.applicantType !== '管理者') return false;
+      const dependentId = this.resolveDependentIdFromChangeEvent(event);
+      return dependentId != null && targetIds.has(dependentId);
+    });
+  }
+
+  private resolveDependentIdFromChangeEvent(event: Event): string | null {
+    const after = event.payload?.['after'] as Partial<Dependent> | undefined;
+    if (after?.dependentId) return String(after.dependentId);
+    const before = event.payload?.['before'] as Dependent | null | undefined;
+    if (before?.dependentId) return String(before.dependentId);
+    return null;
   }
 
   private async applyDependentChange(employeeId: string, change: DependentChangeInput): Promise<boolean> {

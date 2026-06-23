@@ -8,7 +8,9 @@
 
         <p>今月の作業をすべて完了すると保険料を算出することができます。</p>
 
-        <p>保険料を確定したあと、次の月の作業へ進めます。今月請求を行いたい差額調整がある場合、先に遡及修正を行ってください。</p>
+        <p>入社・退社がある場合、まず入社・退社の処理をおこなってください。</p>
+
+        <p>保険料を確定したあと、次の月の作業へ進めます。今月請求を行いたい差額調整がある場合、作業月を移動する前に遡及修正を行ってください。</p>
 
         <p>差額調整一覧から今月の調整費を含む請求額を確認することができます。</p>
 
@@ -167,15 +169,15 @@
 
                 <nav class="top-page-card__links">
 
-                    <a *ngFor="let month of bonusMonths()"
+                    <a *ngFor="let option of currentBonusPayrollOptions"
 
-                        [routerLink]="['/bonus', `${getBonusPaymentYear(month)}-${month.toString().padStart(2, '0')}_bonus`]">
+                        [routerLink]="['/bonus', option.payrollId]">
 
-                        {{ month }}月支給の賞与
+                        {{ option.month }}月支給の賞与
 
                     </a>
 
-                    <span *ngIf="bonusMonths().length === 0" class="top-page-card__empty">対象月がありません</span>
+                    <span *ngIf="currentBonusPayrollOptions.length === 0" class="top-page-card__empty">対象月がありません</span>
 
                 </nav>
 

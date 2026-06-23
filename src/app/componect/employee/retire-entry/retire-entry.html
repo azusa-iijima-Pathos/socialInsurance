@@ -59,6 +59,9 @@
                     <div class="error">
                         <p *ngIf="form.get('occurredDate')?.errors?.['required'] && form.get('occurredDate')?.touched">退職日は必須です
                         </p>
+                        <p *ngIf="form.errors?.['notEmployedOnDate'] && form.get('occurredDate')?.touched">
+                            指定した日に在籍していません
+                        </p>
                         <p
                             *ngIf="form.errors?.['retireDateInvalid'] && form.get('occurredDate')?.touched && form.get('workStatus')?.value === '退社予定'">
                             退職予定日は今日以降の日付にしてください
@@ -121,7 +124,7 @@
                     <tr *ngFor="let employee of scheduledRetires">
                         <td>
                             <span class="retire-entry-attention" *ngIf="needsScheduledRetireAttention(employee.resignationDate)"
-                                title="作業対象期間以前の退職予定日です">!</span>
+                                title="退職予定日が本日以前です">!</span>
                         </td>
                         <td>{{ employee.employeeId }}</td>
                         <td>{{ getScheduledEmployeeName(employee) }}</td>

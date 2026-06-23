@@ -595,7 +595,7 @@
                     <tr *ngFor="let temp of scheduledHires">
                         <td>
                             <span class="hire-entry-attention" *ngIf="needsScheduledHireAttention(temp.hireDate)"
-                                title="作業対象期間以前の入社予定日です">!</span>
+                                title="入社日が本日以前です">!</span>
                         </td>
                         <td>{{ temp.employeeId }}</td>
                         <td>{{ getScheduledEmployeeName(temp) }}</td>

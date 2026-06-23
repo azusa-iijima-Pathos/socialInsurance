@@ -119,6 +119,11 @@ export class CompanyService {
   }
 
 
+  /** 算定基礎向け：賞与年4回以上の会社か */
+  isCalculationBaseFourOrMoreBonusCompany(company: Company | null = this.company()): boolean {
+    return company?.settings?.bonusFourOrMore === true;
+  }
+
   /** 会社が特定適用または任意特定適用か（保険加入判定用） */
   async isSpecificApplicableOffice(): Promise<boolean> {
     await this.getCompany();

@@ -4,6 +4,19 @@
     justify-content: space-between;
     gap: 1rem;
 }
+
+.bonus-prior-block {
+  margin-top: var(--im-size-32);
+  text-align: center;
+}
+
+.bonus-prior-block p {
+  margin-bottom: var(--im-size-16);
+}
+
+.bonus-prior-block button {
+  width: 180px;
+}
 .bonus-container {
   max-width: 1440px;
   margin: 0 auto;

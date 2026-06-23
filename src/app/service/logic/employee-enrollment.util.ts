@@ -51,6 +51,22 @@ export function buildPayrollPeriodBounds(
   return { periodStart, periodEnd };
 }
 
+/** 賞与支給月の在籍判定用期間（支給月およびその3か月前まで） */
+export function buildBonusEligibilityPeriodBounds(
+  paymentYear: number,
+  paymentMonth: number,
+): { periodStart: Date; periodEnd: Date } {
+  let startYear = paymentYear;
+  let startMonth = paymentMonth - 3;
+  while (startMonth <= 0) {
+    startMonth += 12;
+    startYear -= 1;
+  }
+  const periodStart = new Date(startYear, startMonth - 1, 1, 0, 0, 0, 0);
+  const periodEnd = new Date(paymentYear, paymentMonth, 0, 23, 59, 59, 999);
+  return { periodStart, periodEnd };
+}
+
 export function parseMonthlyPayrollId(payrollId: string): { year: number; month: number } | null {
   const normalized = payrollId.replace(/_bonus$/, '');
   const match = normalized.match(/^(\d{4})-(\d{2})$/);

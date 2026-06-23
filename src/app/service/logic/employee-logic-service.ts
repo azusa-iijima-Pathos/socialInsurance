@@ -10,6 +10,14 @@ import { CompanyService } from '../Firestore/company-service';
 import { addMonths, parseEventYearMonth, YearMonth } from './event-id-service';
 import { CrudService } from '../common/crud-service';
 import { CalculationRun } from '../../model/calculation-run';
+import { calculateCalculationBaseBonusMonthlyAmount } from './calculation-base-bonus.util';
+
+export type CalculationBaseOptions = {
+  /** 年4回以上賞与会社向け：対象期間の賞与総額 */
+  annualBonusTotal?: number;
+  /** 年4回以上賞与の月割加算を適用するか */
+  applyFourOrMoreBonus?: boolean;
+};
 
 export type AdHocRevisionResult = {
   status: '改定あり' | '変更なし' | '判定不可';
@@ -29,6 +37,12 @@ export type CalculationBaseResult = {
   currentGrade?: number;
   calculatedGrade?: number;
   averageSalary?: number;
+  /** 賞与加算前の平均報酬月額（年4回以上賞与時のみ） */
+  baseAverageSalary?: number;
+  /** 入力された賞与総額（年4回以上賞与時のみ） */
+  bonusAnnualTotal?: number;
+  /** 賞与月割額（年4回以上賞与時のみ） */
+  bonusMonthlyAmount?: number;
   targetPayrolls: {
     payrollId: string;
     paymentYearMonth: string;
@@ -129,20 +143,54 @@ export class EmployeeLogicService {
   /** 保険等級の判定 */
   /** 新規加入時 （等級を返し、判定不能のみundefinedを返す） */
   async getInsuranceGradeAtNewEntry(employee: Employee): Promise<number | undefined> {
-    const year = this.year;
-    await this.insuranceRates.getRemunerationData(year);
-    const fixedSalary = employee.employmentContract?.fixedSalary;
-    if (!fixedSalary) {
-      console.log('固定給が入っていない');
+    const monthlyAmount = this.resolveRemunerationMonthlyAmount(employee);
+    if (monthlyAmount === undefined) {
       return undefined;
     }
-    const remunerationData = this.StandardMonthlyRemuneration[year] ?? [];
+
+    const targetYearMonth = this.resolveNewEntryTargetYearMonth(employee);
+    const masterYear = await this.insuranceRates.resolveRemunerationMasterYearForMonth(targetYearMonth);
+    await this.insuranceRates.getRemunerationData(masterYear);
+    const remunerationData = this.insuranceRates.getRemunerationDataForCalculation(masterYear, targetYearMonth);
+    if (remunerationData.length === 0) {
+      return undefined;
+    }
+
     for (const remuneration of remunerationData) {
-      if (fixedSalary >= remuneration.monthlyMin && fixedSalary <= remuneration.monthlyMax) {
+      if (monthlyAmount >= remuneration.monthlyMin && monthlyAmount <= remuneration.monthlyMax) {
         return remuneration.grade;
       }
     }
     return undefined;
+  }
+
+  /** 等級判定に使う報酬月額（通勤手当は除く） */
+  private resolveRemunerationMonthlyAmount(employee: Employee): number | undefined {
+    const fixedSalary = employee.employmentContract?.fixedSalary;
+    if (fixedSalary === undefined || fixedSalary === null) {
+      return undefined;
+    }
+    const transportationExpenses = employee.employmentContract?.transportationExpenses;
+    if (transportationExpenses !== undefined && transportationExpenses !== null) {
+      return fixedSalary - transportationExpenses;
+    }
+    return fixedSalary;
+  }
+
+  private resolveNewEntryTargetYearMonth(employee: Employee): string {
+    const hireDate = employee.hireDate?.toDate();
+    if (hireDate) {
+      return `${hireDate.getFullYear()}-${String(hireDate.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    const workingYear = sessionStorage.getItem('workingYear');
+    const workingMonth = sessionStorage.getItem('workingMonth');
+    if (workingYear && workingMonth) {
+      return `${workingYear}-${String(workingMonth).padStart(2, '0')}`;
+    }
+
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }
 
   /** 算定基礎  (対象の場合等級を返し、対象外の場合のみundefinedを返す)*/
@@ -152,14 +200,21 @@ export class EmployeeLogicService {
   }
 
   /** 算定基礎の計算結果一覧に出すための明細つき計算 */
-  async getCalculationBaseResult(employee: Employee, targetYear: number = Number(this.year)): Promise<CalculationBaseResult> {
-    const result = await this.computeCalculationBaseResult(employee, targetYear);
+  async getCalculationBaseResult(
+    employee: Employee,
+    targetYear: number = Number(this.year),
+    options?: CalculationBaseOptions,
+  ): Promise<CalculationBaseResult> {
+    const result = await this.computeCalculationBaseResult(employee, targetYear, options);
     return this.applyCalculationBaseAdHocRevisionNote(result, employee.employeeId, targetYear);
   }
 
-  private async computeCalculationBaseResult(employee: Employee, targetYear: number): Promise<CalculationBaseResult> {
+  private async computeCalculationBaseResult(
+    employee: Employee,
+    targetYear: number,
+    options?: CalculationBaseOptions,
+  ): Promise<CalculationBaseResult> {
     const year = targetYear.toString();
-    await this.insuranceRates.getRemunerationData(year);
 
     const employeeId = employee.employeeId;
     const currentGrade = employee.insurance?.currentGrade;
@@ -210,17 +265,27 @@ export class EmployeeLogicService {
       };
     }
 
-    const averageSalary = targetSalaries.reduce((total, payroll) => total + payroll.actualPaymentAmount!, 0) / targetSalaries.length;
+    const averageSalary = this.applyCalculationBaseBonusIfNeeded(
+      targetSalaries.reduce((total, payroll) => total + payroll.actualPaymentAmount!, 0) / targetSalaries.length,
+      options,
+    );
 
-    //平均した報酬月額が、どの標準報酬等級の範囲に入るかをマスタから探す。
-    const remunerationData = this.StandardMonthlyRemuneration[year] ?? [];
+    //平均した報酬月額が、どの標準報酬等級の範囲に入るかをマスタから探す（9月適用の等級表）。
+    const calculationBaseTargetYearMonth = `${targetYear}-09`;
+    const masterYear = await this.insuranceRates.resolveRemunerationMasterYearForMonth(calculationBaseTargetYearMonth);
+    await this.insuranceRates.getRemunerationData(masterYear);
+    const remunerationData = this.insuranceRates.getRemunerationDataForCalculation(masterYear, calculationBaseTargetYearMonth);
+    const adjustedAverage = Math.round(averageSalary.adjustedAverage);
     for (const remuneration of remunerationData) {
-      if (averageSalary >= remuneration.monthlyMin && averageSalary <= remuneration.monthlyMax) {
+      if (adjustedAverage >= remuneration.monthlyMin && adjustedAverage <= remuneration.monthlyMax) {
         return {
           employeeId,
           currentGrade,
           calculatedGrade: remuneration.grade,
-          averageSalary,
+          averageSalary: adjustedAverage,
+          baseAverageSalary: averageSalary.baseAverageSalary,
+          bonusAnnualTotal: averageSalary.bonusAnnualTotal,
+          bonusMonthlyAmount: averageSalary.bonusMonthlyAmount,
           targetPayrolls: this.toCalculationBasePayrolls(targetSalaries),
           status: '計算済み',
         };
@@ -231,10 +296,37 @@ export class EmployeeLogicService {
     return {
       employeeId,
       currentGrade,
-      averageSalary,
+      averageSalary: adjustedAverage,
+      baseAverageSalary: averageSalary.baseAverageSalary,
+      bonusAnnualTotal: averageSalary.bonusAnnualTotal,
+      bonusMonthlyAmount: averageSalary.bonusMonthlyAmount,
       targetPayrolls: this.toCalculationBasePayrolls(targetSalaries),
       status: '判定不能',
-      reason: '平均報酬月額に該当する標準報酬等級がありません',
+      reason: remunerationData.length === 0
+        ? `${masterYear}年度の標準報酬月額マスタが登録されていません`
+        : '平均報酬月額に該当する標準報酬等級がありません',
+    };
+  }
+
+  private applyCalculationBaseBonusIfNeeded(
+    baseAverage: number,
+    options?: CalculationBaseOptions,
+  ): {
+    adjustedAverage: number;
+    baseAverageSalary?: number;
+    bonusAnnualTotal?: number;
+    bonusMonthlyAmount?: number;
+  } {
+    if (!options?.applyFourOrMoreBonus || options.annualBonusTotal === undefined) {
+      return { adjustedAverage: baseAverage };
+    }
+
+    const bonusMonthlyAmount = calculateCalculationBaseBonusMonthlyAmount(options.annualBonusTotal);
+    return {
+      adjustedAverage: baseAverage + bonusMonthlyAmount,
+      baseAverageSalary: baseAverage,
+      bonusAnnualTotal: options.annualBonusTotal,
+      bonusMonthlyAmount,
     };
   }
 

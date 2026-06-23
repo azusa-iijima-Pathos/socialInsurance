@@ -152,20 +152,12 @@ export class InsuranceFormService {
     return null;
   }
 
-  /** 介護保険番号を健康保険番号に合わせ、厚生年金番号を必要に応じて自動入力する */
-  syncSharedInsuranceNumbers(form: FormGroup, forcePensionNumber = false) {
+  /** 介護保険番号を健康保険番号に合わせる（厚生年金番号は別入力） */
+  syncSharedInsuranceNumbers(form: FormGroup) {
     const healthNumber = String(form.get('healthInsurance.number')?.value ?? '');
     const nursingStatus = form.get('nursingCareInsurance.joined')?.value as InsuranceStatus | undefined;
     if (nursingStatus === 'joined' || nursingStatus === 'lost') {
       form.get('nursingCareInsurance.number')?.setValue(healthNumber, { emitEvent: false });
-    }
-
-    const pensionStatus = form.get('employeePensionInsurance.joined')?.value as InsuranceStatus | undefined;
-    const pensionNumberControl = form.get('employeePensionInsurance.number');
-    if ((pensionStatus === 'joined' || pensionStatus === 'lost') && pensionNumberControl) {
-      if (forcePensionNumber || !pensionNumberControl.value) {
-        pensionNumberControl.setValue(healthNumber, { emitEvent: false });
-      }
     }
   }
 
@@ -177,10 +169,6 @@ export class InsuranceFormService {
     form.get('nursingCareInsurance.joined')?.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe(() => this.syncSharedInsuranceNumbers(form));
-
-    form.get('employeePensionInsurance.joined')?.valueChanges
-      .pipe(takeUntilDestroyed(destroyRef))
-      .subscribe(status => this.syncSharedInsuranceNumbers(form, status === 'joined'));
   }
 
   createEmployeeInsuranceForSave(

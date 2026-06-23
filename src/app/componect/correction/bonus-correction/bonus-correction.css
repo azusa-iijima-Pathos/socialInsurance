@@ -12,8 +12,12 @@
   gap: var(--im-size-8);
 }
 
-.bonus-correction-toolbar a {
-  text-decoration: underline;
+.bonus-correction-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--im-size-12);
+  margin-bottom: var(--im-size-16);
 }
 
 .bonus-correction-table-wrap {
@@ -56,15 +60,6 @@
 
 .bonus-correction-table input[type="number"] {
   width: 120px;
-}
-
-.bonus-correction-edit {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--im-size-8);
-  margin-top: 6px;
-  font-weight: 400;
 }
 
 .bonus-correction-preview-modal .employee-edit-modal__panel {

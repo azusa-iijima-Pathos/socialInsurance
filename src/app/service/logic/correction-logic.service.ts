@@ -22,7 +22,7 @@ import {
 import { CalculationRun } from '../../model/calculation-run';
 import { Payroll } from '../../model/payroll';
 import { parseDateInputValue } from '../common/date-input.util';
-import { buildPayrollPeriodBounds, parseMonthlyPayrollId, wasEmployedInPeriod, wasEmployedOnDate } from './employee-enrollment.util';
+import { buildBonusEligibilityPeriodBounds, buildPayrollPeriodBounds, parseMonthlyPayrollId, wasEmployedInPeriod, wasEmployedOnDate } from './employee-enrollment.util';
 
 export type MonthlyInsuranceDiff = {
   payrollId: string;
@@ -147,6 +147,9 @@ export class CorrectionLogicService {
     payrollId: string,
   ): Promise<string | null> {
     if (!employee) return '従業員が見つかりません';
+    if (payrollId.endsWith('_bonus')) {
+      return this.validateBonusEnrollment(employee, payrollId);
+    }
     const bounds = await this.getPayrollPeriodBounds(payrollId);
     if (!this.wasEmployedInPayrollPeriod(employee, bounds.periodStart, bounds.periodEnd)) {
       return '該当社員はこの期間に在籍していません';
@@ -154,29 +157,29 @@ export class CorrectionLogicService {
     return null;
   }
 
-  isTargetPeriodStartInPayrollMonth(targetPeriodStart: string, payrollId: string): boolean {
-    const { year, month } = this.parsePayrollId(payrollId);
-    const date = parseDateInputValue(targetPeriodStart);
-    if (Number.isNaN(date.getTime())) return false;
-    return date.getFullYear() === year && date.getMonth() + 1 === month;
-  }
-
-  /** 月額給与修正：対象期間開始日のバリデーション */
-  async validateSalaryCorrectionTargetPeriod(targetPeriodStart: string): Promise<string | null> {
-    if (!targetPeriodStart) return null;
-    const isBefore = await this.isDateBeforeCurrentWorkingMonth(new Date(targetPeriodStart));
-    if (!isBefore) {
-      return '対象期間開始日は現在の作業月より前の日付を指定してください';
+  validateBonusEnrollment(employee: Employee, payrollId: string): string | null {
+    const parsed = parseMonthlyPayrollId(payrollId);
+    if (!parsed) return '賞与IDが不正です';
+    const bounds = buildBonusEligibilityPeriodBounds(parsed.year, parsed.month);
+    if (!wasEmployedInPeriod(employee, bounds.periodStart, bounds.periodEnd)) {
+      return '該当社員は賞与支給月またはその3か月前まで在籍していません';
     }
     return null;
   }
 
-  /** 月額給与修正：対象期間開始日が対象月に含まれるか */
+  isTargetPeriodStartInPayrollMonth(targetPeriodStart: string, payrollId: string): boolean {
+    const date = parseDateInputValue(targetPeriodStart);
+    if (Number.isNaN(date.getTime())) return false;
+
+    const selected = this.parsePayrollId(payrollId);
+    const targetPeriodStartDay = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const targetWorkMonth = getWorkMonthForDate(date, targetPeriodStartDay);
+    return targetWorkMonth.year === selected.year && targetWorkMonth.month === selected.month;
+  }
+
+  /** 月額給与修正：対象期間開始日がプルダウンで選択した対象作業月に属するか */
   async validateSalaryCorrectionTargetPeriodStart(targetPeriodStart: string, payrollId: string): Promise<string | null> {
     if (!targetPeriodStart) return null;
-
-    const beforeError = await this.validateSalaryCorrectionTargetPeriod(targetPeriodStart);
-    if (beforeError) return beforeError;
 
     if (!this.isTargetPeriodStartInPayrollMonth(targetPeriodStart, payrollId)) {
       return '対象期間開始日は対象月の日付で入力してください';
@@ -236,6 +239,101 @@ export class CorrectionLogicService {
       year = prev.year;
       month = prev.month;
     }
+    return options;
+  }
+
+  /** 月別イベント一覧用：作業月の翌月 + 作業月から過去Nか月 */
+  getMonthlyEventListMonthOptions(count = 24): { label: string; year: number; month: number; payrollId: string }[] {
+    const working = getWorkingYearMonth();
+    const next = addMonths(working.year, working.month, 1);
+    return [
+      {
+        label: `${next.year}年${next.month}月`,
+        year: next.year,
+        month: next.month,
+        payrollId: this.getPayrollId(next.year, next.month),
+      },
+      ...this.getPastYearMonthOptions(count),
+    ];
+  }
+
+  /** 過去Nか月分の賞与支給月オプション（会社設定のボーナス月のみ） */
+  getPastYearBonusMonthOptions(count = 12): { label: string; year: number; month: number; payrollId: string }[] {
+    const bonusMonths = this.companyService.company()?.settings?.bonusMonths ?? [];
+    if (bonusMonths.length === 0) return [];
+
+    const options: { label: string; year: number; month: number; payrollId: string }[] = [];
+    const working = getWorkingYearMonth();
+    let year = working.year;
+    let month = working.month;
+
+    for (let i = 0; i < count; i++) {
+      if (bonusMonths.includes(month)) {
+        const payrollId = `${year}-${String(month).padStart(2, '0')}_bonus`;
+        options.push({
+          label: this.formatBonusPayrollDisplayLabel(payrollId),
+          year,
+          month,
+          payrollId,
+        });
+      }
+      const prev = addMonths(year, month, -1);
+      year = prev.year;
+      month = prev.month;
+    }
+    return options;
+  }
+
+  /** 当年度（4月〜3月）の賞与支給月（トップの賞与入力用） */
+  getCurrentFiscalYearBonusMonthOptions(): { label: string; year: number; month: number; payrollId: string }[] {
+    const bonusMonths = this.companyService.company()?.settings?.bonusMonths ?? [];
+    if (bonusMonths.length === 0) return [];
+
+    const working = getWorkingYearMonth();
+    const fiscalStartYear = working.month >= 4 ? working.year : working.year - 1;
+    return this.buildBonusMonthOptionsForFiscalYear(fiscalStartYear, bonusMonths);
+  }
+
+  /** 前年度（4月〜3月）の賞与支給月（賞与修正・過去賞与入力用） */
+  getPreviousFiscalYearBonusMonthOptions(): { label: string; year: number; month: number; payrollId: string }[] {
+    const bonusMonths = this.companyService.company()?.settings?.bonusMonths ?? [];
+    if (bonusMonths.length === 0) return [];
+
+    const working = getWorkingYearMonth();
+    const fiscalStartYear = working.month >= 4 ? working.year : working.year - 1;
+    return this.buildBonusMonthOptionsForFiscalYear(fiscalStartYear - 1, bonusMonths);
+  }
+
+  formatBonusPayrollDisplayLabel(payrollId: string): string {
+    const match = payrollId.match(/^(\d{4})-(\d{2})_bonus$/);
+    if (!match) return payrollId.replace('_bonus', '').replace('-', '_');
+    return `${match[1]}_${match[2]}`;
+  }
+
+  private buildBonusMonthOptionsForFiscalYear(
+    fiscalStartYear: number,
+    bonusMonths: number[],
+  ): { label: string; year: number; month: number; payrollId: string }[] {
+    const options: { label: string; year: number; month: number; payrollId: string }[] = [];
+    let year = fiscalStartYear;
+    let month = 4;
+    const endKey = (fiscalStartYear + 1) * 12 + 3;
+
+    while (year * 12 + month <= endKey) {
+      if (bonusMonths.includes(month)) {
+        const payrollId = `${year}-${String(month).padStart(2, '0')}_bonus`;
+        options.push({
+          label: this.formatBonusPayrollDisplayLabel(payrollId),
+          year,
+          month,
+          payrollId,
+        });
+      }
+      const next = addMonths(year, month, 1);
+      year = next.year;
+      month = next.month;
+    }
+
     return options;
   }
 
@@ -614,22 +712,20 @@ export class CorrectionLogicService {
     return this.insuranceRates.getApplicableRateData(masterYear, targetYearMonth).find(rate => rate.prefecture === prefecture) ?? null;
   }
 
-  private async getPreviousHealthStandardBonusTotal(employeeId: string, payrollId: string, targetYearMonth: string) {
+  private async getPreviousHealthStandardBonusTotal(employeeId: string, _payrollId: string, targetYearMonth: string) {
     const [yearText, monthText] = targetYearMonth.split('-');
     const year = Number(yearText);
     const month = Number(monthText);
     const fiscalStartYear = month >= 4 ? year : year - 1;
     const fiscalStartYearMonth = `${fiscalStartYear}-04`;
-    const fiscalEndYearMonth = `${fiscalStartYear + 1}-03`;
 
     const payrollList = await this.payrollService.getPayrollListForEmployee(employeeId);
     const adjustmentRuns = await this.getDifferenceAdjustmentRuns();
     return payrollList
       .filter(payroll => payroll.type === '賞与')
-      .filter(payroll => payroll.payrollId !== payrollId)
       .filter(payroll => {
         const payrollYearMonth = payroll.payrollId?.slice(0, 7) ?? '';
-        return fiscalStartYearMonth <= payrollYearMonth && payrollYearMonth <= fiscalEndYearMonth;
+        return fiscalStartYearMonth <= payrollYearMonth && payrollYearMonth < targetYearMonth;
       })
       .reduce((total, payroll) => {
         const amount = this.getAdjustedBonusAmount(adjustmentRuns, employeeId, payroll.payrollId ?? '', payroll.actualPaymentAmount ?? 0);

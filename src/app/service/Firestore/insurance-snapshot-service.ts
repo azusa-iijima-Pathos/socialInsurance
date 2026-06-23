@@ -50,6 +50,17 @@ export class InsuranceSnapshotService {
     return snapshots.length > 0;
   }
 
+  /** 月次給与の対象社員全員分の保険料スナップショットが揃っているか */
+  async hasCompleteMonthlyInsuranceSnapshot(payrollId: string, employeeIds: string[]): Promise<boolean> {
+    if (employeeIds.length === 0) return false;
+
+    for (const employeeId of employeeIds) {
+      const snapshot = await this.getSnapshot(employeeId, payrollId);
+      if (!snapshot) return false;
+    }
+    return true;
+  }
+
   /** 社員の確定済み保険料スナップショット一覧 */
   async getSnapshotsForEmployee(employeeId: string): Promise<InsuranceSnapshot[]> {
     return await this.crudService.getAll<InsuranceSnapshot>(

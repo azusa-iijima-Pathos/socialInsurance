@@ -3,13 +3,13 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
-import { CorrectionLogicService } from '../../../service/logic/correction-logic.service';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { Employee } from '../../../model/employee';
 import { parseDateInputValue } from '../../../service/common/date-input.util';
 import { Timestamp } from '@angular/fire/firestore';
-import { addMonths } from '../../../service/logic/event-id-service';
+import { getAdHocRevisionWorkMonth } from '../../../service/logic/event-id-service';
 import { UPDATE_MESSAGES } from '../../../constants/constants';
+import { CompanyService } from '../../../service/Firestore/company-service';
 
 @Component({
   selector: 'app-fix-salary-correction',
@@ -21,8 +21,8 @@ export class FixSalaryCorrection {
 
   private fb = inject(FormBuilder);
   private employeeService = inject(EmployeeService);
-  private correctionLogicService = inject(CorrectionLogicService);
   private calculationRunService = inject(CalculationRunService);
+  private companyService = inject(CompanyService);
   commonService = inject(CommonService);
 
   message = '';
@@ -56,8 +56,9 @@ export class FixSalaryCorrection {
     }
 
     const applyDate = parseDateInputValue(this.form.value.applyDate!);
-    const applyMonth = await this.correctionLogicService.getWorkMonthForInputDate(applyDate);
-    const revisionMonth = addMonths(applyMonth.year, applyMonth.month, 3);
+    await this.companyService.getCompany();
+    const targetPeriodStart = this.companyService.company()?.settings?.targetPeriod[0] ?? 1;
+    const revisionMonth = getAdHocRevisionWorkMonth(applyDate, targetPeriodStart);
     const before = { ...employee };
     const after: Employee = {
       ...employee,

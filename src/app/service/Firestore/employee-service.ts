@@ -4,6 +4,7 @@ import { Employee, EmployeeInsurance } from '../../model/employee';
 import { deleteField } from '@angular/fire/firestore';
 import { CompanyService } from './company-service';
 import {
+  buildBonusEligibilityPeriodBounds,
   buildPayrollPeriodBounds,
   parseMonthlyPayrollId,
   wasEmployedInPeriod,
@@ -119,6 +120,20 @@ export class EmployeeService {
     return this.allEmployees().filter(employee =>
       wasEmployedInPeriod(employee, bounds.periodStart, bounds.periodEnd),
     );
+  }
+
+  /** 賞与支給月の入力・表示対象社員（支給月またはその3か月前まで在籍） */
+  employeesEligibleForBonusPeriod(payrollId: string): Employee[] {
+    const parsed = parseMonthlyPayrollId(payrollId);
+    if (!parsed) return [];
+    const bounds = buildBonusEligibilityPeriodBounds(parsed.year, parsed.month);
+    return this.allEmployees().filter(employee =>
+      wasEmployedInPeriod(employee, bounds.periodStart, bounds.periodEnd),
+    );
+  }
+
+  getBonusEligibleEmployeeIdSet(payrollId: string): Set<string> {
+    return new Set(this.employeesEligibleForBonusPeriod(payrollId).map(employee => employee.employeeId));
   }
 
   getPayrollEligibleEmployeeIdSet(payrollId: string): Set<string> {

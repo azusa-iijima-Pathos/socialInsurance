@@ -2,11 +2,16 @@ import { Injectable, inject, signal } from '@angular/core';
 import { CrudService } from '../common/crud-service';
 import { Payroll } from '../../model/payroll';
 import { PayrollLockService } from './payroll-lock-service';
+import { CREATE_MESSAGES } from '../../constants/constants';
 
 /**
  * 給与・勤務実績サービス
  */
 //PATH: companies/{companyId}/employees/{employeeId}/payroll/{payrollId}
+
+export type PayrollRegisterResult =
+  | { ok: true }
+  | { ok: false; reason: 'locked' | 'duplicate' | 'invalid' | 'storage' };
 
 @Injectable({
   providedIn: 'root',
@@ -23,6 +28,19 @@ export class PayrollService {
 
   private get companyId(): string | null {
     return sessionStorage.getItem('companyId');
+  }
+
+  getRegisterErrorMessage(result: Extract<PayrollRegisterResult, { ok: false }>): string {
+    switch (result.reason) {
+      case 'locked':
+        return '対象月は確定済みのため、新規登録できません。給与修正画面から登録してください。';
+      case 'duplicate':
+        return '同じ対象月の給与・勤務実績は既に登録済みです';
+      case 'invalid':
+        return '登録データが不正です。数値や日付を確認してください。';
+      case 'storage':
+        return CREATE_MESSAGES.FAILED;
+    }
   }
 
   //給与・勤務実績IDを作成
@@ -52,6 +70,47 @@ export class PayrollService {
     return `${year}-${month}`;
   }
 
+  private toPayrollNumber(value: unknown): number {
+    if (value === null || value === undefined || value === '') {
+      return 0;
+    }
+    const num = Number(value);
+    if (!Number.isFinite(num)) {
+      throw new Error('Invalid payroll number');
+    }
+    return num;
+  }
+
+  private buildPayrollPayload(
+    employeeId: string,
+    payroll: Partial<Payroll>,
+    payrollId: string,
+  ): Partial<Payroll> | null {
+    const companyId = this.companyId;
+    if (!companyId) {
+      return null;
+    }
+
+    const payload: Partial<Payroll> = {
+      ...payroll,
+      payrollId,
+      employeeId,
+      companyId,
+    };
+
+    if (payroll.type !== '賞与') {
+      payload.actualWorkingDays = this.toPayrollNumber(payroll.actualWorkingDays);
+      payload.actualWorkingHours = this.toPayrollNumber(payroll.actualWorkingHours);
+      payload.fixedSalary = this.toPayrollNumber(payroll.fixedSalary);
+    }
+
+    if (payroll.actualPaymentAmount !== undefined && payroll.actualPaymentAmount !== null) {
+      payload.actualPaymentAmount = this.toPayrollNumber(payroll.actualPaymentAmount);
+    }
+
+    return payload;
+  }
+
   //給与・勤務実績を1件取得（すでにデータがあるか確認用）
   async getPayroll(employeeId: string, payroll: Partial<Payroll>): Promise<Payroll | null> {
     const payrollId = this.createPayrollId(payroll);
@@ -59,46 +118,63 @@ export class PayrollService {
   }
 
   //新規作成
-  async registerPayroll(employeeId: string, payroll: Partial<Payroll>) {
-    const payrollId = this.createPayrollId(payroll);
-    if (await this.payrollLockService.isPayrollLocked(payrollId)) {
-      return false;
-    }
-    const existingPayroll = await this.getPayroll(employeeId, payroll);
-    if (existingPayroll) {
-      return false;
-    }
-
-    return await this.crudService.create<Payroll>(
-      `${this.path}/${employeeId}/payroll/${payrollId}`,
-      {
-        ...payroll,
-        payrollId,
-        employeeId,
+  async registerPayroll(employeeId: string, payroll: Partial<Payroll>): Promise<PayrollRegisterResult> {
+    try {
+      const payrollId = this.createPayrollId(payroll);
+      if (await this.payrollLockService.isPayrollLocked(payrollId)) {
+        return { ok: false, reason: 'locked' };
       }
-    );
+      const existingPayroll = await this.getPayroll(employeeId, payroll);
+      if (existingPayroll) {
+        return { ok: false, reason: 'duplicate' };
+      }
+
+      const payload = this.buildPayrollPayload(employeeId, payroll, payrollId);
+      if (!payload) {
+        return { ok: false, reason: 'invalid' };
+      }
+
+      const created = await this.crudService.create<Payroll>(
+        `${this.path}/${employeeId}/payroll/${payrollId}`,
+        payload,
+      );
+      if (!created) {
+        return { ok: false, reason: 'storage' };
+      }
+      return { ok: true };
+    } catch (error) {
+      console.error(error);
+      return { ok: false, reason: 'invalid' };
+    }
   }
 
   /** 確定済み月の給与修正用新規登録（ロック済みでも登録可能） */
-  async registerPayrollForCorrection(employeeId: string, payroll: Partial<Payroll>) {
-    const payrollId = this.createPayrollId(payroll);
-    const existingPayroll = await this.getPayroll(employeeId, payroll);
-    if (existingPayroll) {
-      return false;
-    }
+  async registerPayrollForCorrection(employeeId: string, payroll: Partial<Payroll>): Promise<PayrollRegisterResult> {
+    try {
+      const payrollId = this.createPayrollId(payroll);
+      const existingPayroll = await this.getPayroll(employeeId, payroll);
+      if (existingPayroll) {
+        return { ok: false, reason: 'duplicate' };
+      }
 
-    const result = await this.crudService.create<Payroll>(
-      `${this.path}/${employeeId}/payroll/${payrollId}`,
-      {
-        ...payroll,
-        payrollId,
-        employeeId,
-      },
-    );
-    if (result) {
+      const payload = this.buildPayrollPayload(employeeId, payroll, payrollId);
+      if (!payload) {
+        return { ok: false, reason: 'invalid' };
+      }
+
+      const created = await this.crudService.create<Payroll>(
+        `${this.path}/${employeeId}/payroll/${payrollId}`,
+        payload,
+      );
+      if (!created) {
+        return { ok: false, reason: 'storage' };
+      }
       await this.getAllPayrollListForMonth(payrollId, true);
+      return { ok: true };
+    } catch (error) {
+      console.error(error);
+      return { ok: false, reason: 'invalid' };
     }
-    return result;
   }
 
   //全従業員の該当月の給与・勤務実績一覧を取得

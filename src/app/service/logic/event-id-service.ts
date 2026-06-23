@@ -66,6 +66,39 @@ export function getWorkMonthForDate(date: Date, targetPeriodStart: number): Year
   return { year, month: month - 1 };
 }
 
+/** 固定給変更日から随時改定の作業月（変更月+3か月）を返す */
+export function getAdHocRevisionWorkMonth(changeDate: Date, targetPeriodStart: number): YearMonth {
+  const changeMonth = getWorkMonthForDate(changeDate, targetPeriodStart);
+  return addMonths(changeMonth.year, changeMonth.month, 3);
+}
+
+/** 日付の前日（0時0分0秒） */
+export function getDayBefore(date: Date): Date {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  result.setDate(result.getDate() - 1);
+  return result;
+}
+
+/** 一定年齢到達タイプ（例: 40歳）から年齢数値を取得 */
+export function parseReachAgeFromType(reachAgeType?: string | null): number | null {
+  const reachAge = Number.parseInt(String(reachAgeType ?? '').replace('歳', ''), 10);
+  return Number.isFinite(reachAge) && reachAge > 0 ? reachAge : null;
+}
+
+/** 到達年の誕生日 */
+export function getReachAgeBirthdayOnReachYear(birthDate: Date, reachAge: number): Date {
+  const normalized = new Date(birthDate);
+  normalized.setHours(0, 0, 0, 0);
+  const reachYear = normalized.getFullYear() + reachAge;
+  return new Date(reachYear, normalized.getMonth(), normalized.getDate(), 0, 0, 0, 0);
+}
+
+/** 一定年齢到達時の保険取得日・喪失日（到達年の誕生日の前日） */
+export function getReachAgeInsuranceChangeDate(birthDate: Date, reachAge: number): Date {
+  return getDayBefore(getReachAgeBirthdayOnReachYear(birthDate, reachAge));
+}
+
 export function addMonths(year: number, month: number, delta: number): YearMonth {
   const date = new Date(year, month - 1 + delta, 1);
   return { year: date.getFullYear(), month: date.getMonth() + 1 };
@@ -403,4 +436,81 @@ export function isWorkMonthAfterCurrent(date: Date, targetPeriodStart: number): 
 export function buildWorkMonthEventId(eventType: EmployeeEventType, date: Date, targetPeriodStart: number): string {
   const workMonth = getWorkMonthForDate(date, targetPeriodStart);
   return `${eventType}_${formatYearMonth(workMonth.year, workMonth.month)}`;
+}
+
+/** 日付が今日以前か（時刻は無視） */
+export function isDateOnOrBeforeToday(date: Date): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  return target.getTime() <= today.getTime();
+}
+
+/** 日付が今日より前か（今日は含めない） */
+export function isDateStrictlyBeforeToday(date: Date): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  return target.getTime() < today.getTime();
+}
+
+/** 日付が今日より後か（今日は含めない） */
+export function isDateAfterToday(date: Date): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  return target.getTime() > today.getTime();
+}
+
+/** 従業員詳細の管理者申請：適用日のタイミング */
+export type AdminEffectiveDateTiming = 'future' | 'in_or_before_period_past' | 'after_period_past';
+
+/**
+ * 適用日が未来 / 過去かつ作業期間内または以前 / 過去かつ作業期間より後（今日以前）を判定する。
+ */
+export function resolveAdminEffectiveDateTiming(
+  date: Date,
+  bounds: { periodStart: Date; periodEnd: Date } | null | undefined,
+): AdminEffectiveDateTiming {
+  if (isDateAfterToday(date)) return 'future';
+  if (!bounds) return 'in_or_before_period_past';
+
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  const periodEnd = new Date(bounds.periodEnd);
+  periodEnd.setHours(23, 59, 59, 999);
+  if (normalized > periodEnd) return 'after_period_past';
+  return 'in_or_before_period_past';
+}
+
+/** Firestore Timestamp 相当の値を Date に変換 */
+export function resolveTimestampDate(
+  value?: { toDate?: () => Date; seconds?: number } | null,
+): Date | null {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+  return null;
+}
+
+/** 発生日が今日以前か */
+export function isOccurrenceDateOnOrBeforeToday(
+  occurredDate?: { toDate?: () => Date; seconds?: number } | null,
+): boolean {
+  const date = resolveTimestampDate(occurredDate);
+  if (!date) return false;
+  return isDateOnOrBeforeToday(date);
+}
+
+/** IDの対象月が作業月以前か（反映可能） */
+export function canApplyInWorkingPeriod(
+  itemId: string,
+  workingYear: number,
+  workingMonth: number,
+  appliedDate?: { toDate?: () => Date; seconds?: number } | null,
+): boolean {
+  return isEventAtOrBeforeWorkingMonth(itemId, workingYear, workingMonth, appliedDate);
 }

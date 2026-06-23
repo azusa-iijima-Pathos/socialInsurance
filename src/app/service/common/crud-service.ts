@@ -16,8 +16,8 @@ export class CrudService {
       const ref = doc(this.firestore, path);
       await setDoc(ref, stripUndefinedValues({
         ...data,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
       }));
       return true;
     } catch (e) {
@@ -126,7 +126,7 @@ export class CrudService {
       const ref = doc(this.firestore, path);
       await updateDoc(ref, stripUndefinedValues({
         ...data,
-        updatedAt: new Date(),
+        updatedAt: Timestamp.now(),
       }));
       return true;
     } catch (e) {

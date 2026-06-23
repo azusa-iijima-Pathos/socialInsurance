@@ -14,6 +14,7 @@ import { InsuranceDraft } from '../../../model/insurance-draft';
 import { InsuranceSnapshotService } from '../../../service/Firestore/insurance-snapshot-service';
 import { InsuranceSnapshot } from '../../../model/insurance-snapshot';
 import { PayrollLockService } from '../../../service/Firestore/payroll-lock-service';
+import { InsuranceLockService } from '../../../service/Firestore/insurance-lock-service';
 import { InsuranceConfirmCsvService } from '../../../service/CSV/insurance-confirm-csv-service';
 import { SocialInsuranceFormCsvService } from '../../../service/CSV/social-insurance-form-csv.service';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
@@ -94,6 +95,7 @@ export class InsuranceForBonus {
   private insuranceDraftService = inject(InsuranceDraftService);
   private insuranceSnapshotService = inject(InsuranceSnapshotService);
   private payrollLockService = inject(PayrollLockService);
+  private insuranceLockService = inject(InsuranceLockService);
   private insuranceConfirmCsvService = inject(InsuranceConfirmCsvService);
   private formCsvService = inject(SocialInsuranceFormCsvService);
   private calculationRunService = inject(CalculationRunService);
@@ -147,12 +149,12 @@ export class InsuranceForBonus {
     this.insuranceDraftMap = {};
 
     this.targetYearMonth = this.payrollId.replace('_bonus', '');
-    this.editButtonDisabled = this.isOutputMode || await this.payrollLockService.isPayrollLocked(this.payrollId);
+    this.editButtonDisabled = this.isOutputMode || await this.insuranceLockService.isInsuranceLocked(this.payrollId);
     await this.payrollService.getAllPayrollListForMonth(this.payrollId);
     this.bonusData = this.payrollService.allPayrollListForMonth().find(item => item.payrollId === this.payrollId)?.payrollList ?? [];
     await this.companyService.getCompany();
     await this.employeeService.getAllEmployees();
-    this.employeeData = this.employeeService.employeesEligibleForPayrollPeriod(this.payrollId);
+    this.employeeData = this.employeeService.employeesEligibleForBonusPeriod(this.payrollId);
     const drafts = await this.insuranceDraftService.getDrafts(this.payrollId);
     this.insuranceDraftMap = drafts.reduce<Record<string, InsuranceDraft>>((map, draft) => {
       map[draft.employeeId] = draft;
@@ -223,7 +225,11 @@ export class InsuranceForBonus {
     const actualPaymentAmount = amountOverride ?? bonus?.actualPaymentAmount ?? 0;
     const standardBonusAmount = this.toStandardBonusAmount(actualPaymentAmount);
     const previousHealthStandardBonus = await this.getPreviousHealthStandardBonusTotal(employee.employeeId, useAdjustedPreviousBonus);
-    const annualStandardBonusAmount = previousHealthStandardBonus + standardBonusAmount;
+    const annualStandardBonusAmount = await this.getAnnualStandardBonusAmount(
+      employee.employeeId,
+      standardBonusAmount,
+      useAdjustedPreviousBonus,
+    );
     const healthStandardBonusAmount = Math.min(standardBonusAmount, Math.max(5730000 - previousHealthStandardBonus, 0));
     const pensionStandardBonusAmount = Math.min(standardBonusAmount, 1500000);
     const calculatedValues = {
@@ -344,6 +350,9 @@ export class InsuranceForBonus {
 
     const defaultPeriodBounds = await this.correctionLogicService.getPayrollPeriodBounds(this.targetYearMonth);
 
+    this.differenceAdjustmentRuns = (await this.calculationRunService.getAllCalculationRuns())
+      .filter(run => run.type === '差額調整');
+
     for (const employee of employees) {
       const bonus = this.bonusData.find(item => item.employeeId === employee.employeeId);
       const hasBonusData = Boolean(bonus);
@@ -352,8 +361,8 @@ export class InsuranceForBonus {
       const hasInsuranceGrade = Boolean(employee.insurance?.currentGrade);
       const actualPaymentAmount = bonus?.actualPaymentAmount ?? 0;
       const standardBonusAmount = this.toStandardBonusAmount(actualPaymentAmount);
-      const previousHealthStandardBonus = await this.getPreviousHealthStandardBonusTotal(employee.employeeId);
-      const annualStandardBonusAmount = previousHealthStandardBonus + standardBonusAmount;
+      const previousHealthStandardBonus = await this.getPreviousHealthStandardBonusTotal(employee.employeeId, true);
+      const annualStandardBonusAmount = await this.getAnnualStandardBonusAmount(employee.employeeId, standardBonusAmount, true);
       const healthStandardBonusAmount = Math.min(standardBonusAmount, Math.max(5730000 - previousHealthStandardBonus, 0));
       const pensionStandardBonusAmount = Math.min(standardBonusAmount, 1500000);
       const isHealthBonusLimitExceeded = healthStandardBonusAmount < standardBonusAmount;
@@ -490,14 +499,13 @@ export class InsuranceForBonus {
   }
 
   private async getPreviousHealthStandardBonusTotal(employeeId: string, useAdjusted = false) {
-    const { fiscalStartYearMonth, fiscalEndYearMonth } = this.getFiscalYearRange();
+    const { fiscalStartYearMonth } = this.getFiscalYearRange();
     const payrollList = await this.payrollService.getPayrollListForEmployee(employeeId);
     return payrollList
       .filter(payroll => payroll.type === '賞与')
-      .filter(payroll => payroll.payrollId !== this.payrollId)
       .filter(payroll => {
         const payrollYearMonth = this.getPayrollYearMonth(payroll.payrollId);
-        return fiscalStartYearMonth <= payrollYearMonth && payrollYearMonth <= fiscalEndYearMonth;
+        return fiscalStartYearMonth <= payrollYearMonth && payrollYearMonth < this.targetYearMonth;
       })
       .reduce((total, payroll) => {
         const amount = useAdjusted
@@ -505,6 +513,35 @@ export class InsuranceForBonus {
           : payroll.actualPaymentAmount ?? 0;
         return total + this.toStandardBonusAmount(amount);
       }, 0);
+  }
+
+  private async getAnnualStandardBonusAmount(
+    employeeId: string,
+    currentStandardBonus: number,
+    useAdjusted = false,
+  ): Promise<number> {
+    const previous = await this.getPreviousHealthStandardBonusTotal(employeeId, useAdjusted);
+    if (previous === 0) {
+      return currentStandardBonus;
+    }
+
+    const priorCount = await this.countPriorBonusesInFiscalYear(employeeId);
+    if (priorCount === 1) {
+      return previous + currentStandardBonus;
+    }
+    return previous;
+  }
+
+  private async countPriorBonusesInFiscalYear(employeeId: string): Promise<number> {
+    const { fiscalStartYearMonth } = this.getFiscalYearRange();
+    const payrollList = await this.payrollService.getPayrollListForEmployee(employeeId);
+    return payrollList
+      .filter(payroll => payroll.type === '賞与')
+      .filter(payroll => {
+        const payrollYearMonth = this.getPayrollYearMonth(payroll.payrollId);
+        return fiscalStartYearMonth <= payrollYearMonth && payrollYearMonth < this.targetYearMonth;
+      })
+      .length;
   }
 
   private getAdjustedBonusAmount(employeeId: string, payrollId: string, originalAmount: number): number {
@@ -674,9 +711,14 @@ export class InsuranceForBonus {
         return;
       }
     }
-    const lockResult = await this.payrollLockService.lockPayroll(this.payrollId, '賞与');
+    const lockResult = await this.payrollLockService.ensurePayrollLocked(this.payrollId, '賞与');
     if (!lockResult) {
       console.error('賞与の編集ロックを保存できませんでした');
+      return;
+    }
+    const insuranceLockResult = await this.insuranceLockService.ensureInsuranceLocked(this.payrollId, '賞与');
+    if (!insuranceLockResult) {
+      console.error('賞与保険料の確定ロックを保存できませんでした');
       return;
     }
     await this.announcementLogicService.createFromBonusConfirmation(this.payrollId);

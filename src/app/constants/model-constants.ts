@@ -123,13 +123,13 @@ export type CalculationType = typeof CALCULATION_TYPES[number];
 /**
  * 届け出チェックリスト
  */
-export const ANNOUNCEMENT_TYPES = ['保険変更', '産休', '育休', '扶養変更', '随時改定', '賞与保険', '算定基礎'] as const;
+export const ANNOUNCEMENT_TYPES = ['保険変更', '産休', '育休', '扶養変更', '随時改定', '賞与保険', '算定基礎','傷病手当金','出産手当金','氏名変更'] as const;
 export type AnnouncementType = typeof ANNOUNCEMENT_TYPES[number];
 
 export const ANNOUNCEMENT_SUB_TYPES = ['取得', '喪失', '変更', '開始', '終了'] as const;
 export type AnnouncementSubType = typeof ANNOUNCEMENT_SUB_TYPES[number];
 
-export const ANNOUNCEMENT_REASONS = ['入社', '退社', '雇用契約情報変更', '結婚', '離婚', '出産', '育児'] as const;
+export const ANNOUNCEMENT_REASONS = ['入社', '退社', '雇用契約情報変更', '結婚', '離婚', '出産', '育児', '療養','その他'] as const;
 export type AnnouncementReason = typeof ANNOUNCEMENT_REASONS[number];
 
 /**

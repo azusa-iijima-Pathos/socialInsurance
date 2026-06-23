@@ -4,9 +4,10 @@ import { CalculationRun } from '../../model/calculation-run';
 import { CrudService } from '../common/crud-service';
 import { EmployeeService } from './employee-service';
 import { EmployeeLogicService } from '../logic/employee-logic-service';
+import { CompanyService } from './company-service';
 import { EmployeeEventType } from '../../constants/model-constants';
 import { Event } from '../../model/event';
-import { addMonths, buildHireQualificationAcquisitionRunId, buildRetireQualificationLossRunId, decodeAppliedFromMonth, getCurrentAppliedFromMonth, getCurrentApprovedWorkingMonth, getQualificationLossDate, getWorkingYearMonth, isApprovedInTargetWorkingMonth, isEmploymentChangeSystemRun, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth, buildAdHocRevisionRunId, parseEventYearMonth, YearMonth } from '../logic/event-id-service';
+import { addMonths, buildHireQualificationAcquisitionRunId, buildRetireQualificationLossRunId, decodeAppliedFromMonth, getCurrentAppliedFromMonth, getCurrentApprovedWorkingMonth, getQualificationLossDate, getWorkingYearMonth, isApprovedInTargetWorkingMonth, isDateInWorkPeriod, isEmploymentChangeSystemRun, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth, buildAdHocRevisionRunId, parseEventYearMonth, YearMonth } from '../logic/event-id-service';
 import { MonthlyInsuranceDiff, MonthlyInsuranceComparisonRow } from '../logic/correction-logic.service';
 
 export type SystemCalculationRunItem = CalculationRun & {
@@ -24,6 +25,7 @@ export class CalculationRunService {
   private crudService = inject(CrudService);
   private employeeService = inject(EmployeeService);
   private employeeLogicService = inject(EmployeeLogicService);
+  private companyService = inject(CompanyService);
 
   private get path() {
     const companyId = sessionStorage.getItem('companyId');
@@ -35,9 +37,14 @@ export class CalculationRunService {
     return `companies/${companyId}/employees`;
   }
 
-  async calculateBaseForAllEmployees(year: number): Promise<boolean> {
+  async calculateBaseForAllEmployees(
+    year: number,
+    bonusTotalsByEmployeeId?: Record<string, number>,
+  ): Promise<boolean> {
+    await this.companyService.getCompany();
     await this.employeeService.getAllEmployees(true);
     const employees = this.employeeService.allEmployees();
+    const applyFourOrMoreBonus = this.companyService.isCalculationBaseFourOrMoreBonusCompany();
     const calculationBaseCreated = await this.crudService.create<CalculationRun>(
       this.calculationBaseDocumentPath(year),
       {
@@ -50,6 +57,9 @@ export class CalculationRunService {
         payload: {
           year,
           status: '申請中',
+          ...(applyFourOrMoreBonus && bonusTotalsByEmployeeId
+            ? { bonusTotalsByEmployeeId }
+            : {}),
         },
       },
     );
@@ -58,7 +68,12 @@ export class CalculationRunService {
     }
 
     for (const employee of employees) {
-      const result = await this.employeeLogicService.getCalculationBaseResult(employee, year);
+      const annualBonusTotal = applyFourOrMoreBonus
+        ? Number(bonusTotalsByEmployeeId?.[employee.employeeId] ?? 0)
+        : undefined;
+      const result = await this.employeeLogicService.getCalculationBaseResult(employee, year, applyFourOrMoreBonus
+        ? { applyFourOrMoreBonus: true, annualBonusTotal }
+        : undefined);
       const runId = employee.employeeId;
       const payload: Record<string, unknown> = {
         year,
@@ -67,6 +82,9 @@ export class CalculationRunService {
         currentGrade: result.currentGrade ?? null,
         calculatedGrade: result.calculatedGrade ?? null,
         averageSalary: result.averageSalary ?? null,
+        baseAverageSalary: result.baseAverageSalary ?? null,
+        bonusAnnualTotal: result.bonusAnnualTotal ?? null,
+        bonusMonthlyAmount: result.bonusMonthlyAmount ?? null,
         targetPayrolls: result.targetPayrolls,
         status: result.status,
         reason: result.reason ?? '',
@@ -273,6 +291,20 @@ export class CalculationRunService {
     return created ? runId : null;
   }
 
+  /** 申請中の入社資格取得（作業月不問・承認一覧用） */
+  async getPendingHireQualificationRunsForApproval(): Promise<SystemCalculationRunItem[]> {
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run =>
+        run.type === '資格取得'
+        && run.approval?.approvalStatus === '申請中'
+        && run.payload?.['source'] === '入社',
+      )
+      .map(run => this.toHireQualificationItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
   /** 申請中の入社資格取得（作業月以前） */
   async getPendingHireQualificationRunsUpToWorkingMonth(): Promise<SystemCalculationRunItem[]> {
     const { year, month } = getWorkingYearMonth();
@@ -319,6 +351,20 @@ export class CalculationRunService {
 
     const created = await this.crudService.create<CalculationRun>(`${this.path}/${runId}`, run);
     return created ? runId : null;
+  }
+
+  /** 申請中の退社資格喪失（作業月不問・承認一覧用） */
+  async getPendingRetireQualificationRunsForApproval(): Promise<SystemCalculationRunItem[]> {
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run =>
+        run.type === '資格喪失'
+        && run.approval?.approvalStatus === '申請中'
+        && run.payload?.['source'] === '退社',
+      )
+      .map(run => this.toRetireQualificationItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
   }
 
   /** 申請中の退社資格喪失（作業月以前） */
@@ -510,6 +556,60 @@ export class CalculationRunService {
     return created ? runId : null;
   }
 
+  /** 等級変更の承認済み・未適用システム計算（その他） */
+  async createApprovedGradeChangeRun(
+    employeeId: string,
+    runId: string,
+    payload: Record<string, unknown>,
+    detectedDate: Timestamp,
+    loginEmployeeId: string,
+  ): Promise<string | null> {
+    const run: Partial<CalculationRun> = {
+      runId,
+      targetEmployeeIds: employeeId,
+      detectedDate,
+      type: 'その他',
+      approval: {
+        approvalStatus: '承認済み',
+        approvedDate: Timestamp.now(),
+        approvedBy: loginEmployeeId,
+        approvedWorkingMonth: getCurrentApprovedWorkingMonth(),
+      },
+      payload: {
+        employeeId,
+        source: '保険情報変更',
+        ...payload,
+      },
+    };
+
+    const created = await this.crudService.create<CalculationRun>(`${this.path}/${runId}`, run);
+    return created ? runId : null;
+  }
+
+  /** 等級変更の申請中システム計算（その他） */
+  async createPendingGradeChangeRun(
+    employeeId: string,
+    runId: string,
+    payload: Record<string, unknown>,
+    detectedDate: Timestamp,
+  ): Promise<string | null> {
+    const run: Partial<CalculationRun> = {
+      runId,
+      targetEmployeeIds: employeeId,
+      detectedDate,
+      type: 'その他',
+      approval: { approvalStatus: '申請中' },
+      payload: {
+        employeeId,
+        source: '保険情報変更',
+        ...payload,
+      },
+    };
+
+    const created = await this.crudService.create<CalculationRun>(`${this.path}/${runId}`, run);
+    return created ? runId : null;
+  }
+
   /** 社員の等級変更システム計算（同一作業月ベースID） */
   async getEmployeeGradeChangeRuns(employeeId: string, baseRunId: string): Promise<CalculationRun[]> {
     const escapedBase = baseRunId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -545,30 +645,111 @@ export class CalculationRunService {
     return `${baseRunId}_${maxSeq + 1}`;
   }
 
+  /** 従業員詳細の保険情報編集に伴うシステム計算（資格取得/喪失・等級変更） */
+  isInsuranceInfoChangeRun(run: { type?: string; payload?: Record<string, unknown> }): boolean {
+    return run.payload?.['source'] === '保険情報変更';
+  }
+
+  /** 雇用形態変更に伴う資格取得/喪失 */
+  isEmploymentChangeQualificationRun(run: CalculationRun): boolean {
+    return this.isEmploymentChangeRun(run);
+  }
+
   /** 保険情報変更の申請中資格取得/喪失 */
   async getPendingInsuranceChangeRunsForEmployee(employeeId: string): Promise<CalculationRun[]> {
     const runs = await this.getAllCalculationRuns();
     return runs.filter(run =>
       run.targetEmployeeIds === employeeId
-      && this.isQualificationApprovalRun(run)
+      && this.isInsuranceInfoChangeRun(run)
       && run.approval?.approvalStatus === '申請中',
     );
   }
 
-  /** 保険情報変更・雇用形態変更の申請中（作業月以前） */
-  async getPendingInsuranceChangeRunsUpToWorkingMonth(): Promise<SystemCalculationRunItem[]> {
+  /** 算定基礎の承認済み・未適用（社員別・最新年） */
+  async getPendingApprovedCalculationBaseRunForEmployee(employeeId: string): Promise<CalculationRun | null> {
+    const topLevelRuns = await this.getAllCalculationRuns();
+    const years = topLevelRuns
+      .filter(run => run.runId?.startsWith('calculationBase_'))
+      .filter(run => run.approval?.approvalStatus === '承認済み')
+      .map(run => Number(run.runId!.replace('calculationBase_', '')))
+      .filter(year => Number.isFinite(year))
+      .sort((left, right) => right - left);
+
+    for (const year of years) {
+      const run = await this.crudService.getById<CalculationRun>(
+        `${this.calculationBaseEmployeePath(year)}/${employeeId}`,
+        'runId',
+      );
+      if (!run || run.approval?.approvalStatus === '適用済み') continue;
+      if (String(run.payload?.['status'] ?? '') === '対象外') continue;
+      return run;
+    }
+
+    return null;
+  }
+
+  /** 雇用形態変更の申請中（作業月不問・承認一覧用） */
+  async getPendingEmploymentChangeRunsForApproval(): Promise<SystemCalculationRunItem[]> {
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run =>
+        this.isEmploymentChangeQualificationRun(run)
+        && run.approval?.approvalStatus === '申請中',
+      )
+      .map(run => this.toQualificationApprovalItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  /** @deprecated getPendingEmploymentChangeRunsForApproval を使用 */
+  async getPendingInsuranceChangeRunsForApproval(): Promise<SystemCalculationRunItem[]> {
+    return this.getPendingEmploymentChangeRunsForApproval();
+  }
+
+  /** 保険情報編集の申請中（作業月不問・予定登録イベント用） */
+  async getPendingInsuranceInfoChangeRunsForApproval(): Promise<SystemCalculationRunItem[]> {
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run =>
+        this.isInsuranceInfoChangeRun(run)
+        && run.approval?.approvalStatus === '申請中',
+      )
+      .map(run => this.toInsuranceInfoChangeScheduledItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  /** 雇用形態変更の申請中（作業月以前） */
+  async getPendingEmploymentChangeRunsUpToWorkingMonth(): Promise<SystemCalculationRunItem[]> {
     const { year, month } = getWorkingYearMonth();
     if (!year || !month) return [];
 
     const runs = await this.getAllCalculationRuns();
     return runs
       .filter(run =>
-        this.isQualificationApprovalRun(run)
+        this.isEmploymentChangeQualificationRun(run)
         && run.approval?.approvalStatus === '申請中',
       )
       .filter(run => run.runId && isEventAtOrBeforeWorkingMonth(run.runId, year, month))
       .map(run => this.toQualificationApprovalItem(run))
       .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  /** @deprecated getPendingEmploymentChangeRunsUpToWorkingMonth を使用 */
+  async getPendingInsuranceChangeRunsUpToWorkingMonth(): Promise<SystemCalculationRunItem[]> {
+    return this.getPendingEmploymentChangeRunsUpToWorkingMonth();
+  }
+
+  /** 申請中の予定登録システム計算（作業月不問・承認一覧用） */
+  async getPendingScheduledSystemRunsForApproval(): Promise<SystemCalculationRunItem[]> {
+    const runs = await this.getAllCalculationRuns();
+    const eventRuns = runs
+      .filter(run => run.type === 'イベント' && run.approval?.approvalStatus === '申請中')
+      .map(run => this.toSystemItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null);
+    const insuranceInfoRuns = await this.getPendingInsuranceInfoChangeRunsForApproval();
+    return [...eventRuns, ...insuranceInfoRuns]
       .sort((left, right) => right.runId.localeCompare(left.runId));
   }
 
@@ -852,15 +1033,25 @@ export class CalculationRunService {
     });
   }
 
-  /** 社員の申請中システム計算結果（作業月より後＝予定） */
+  /** 社員のシステム計算予定（申請中＝将来作業月、承認済み＝未適用は作業月不問） */
   async getFuturePendingSystemRunsForEmployee(employeeId: string): Promise<SystemCalculationRunItem[]> {
     const { year, month } = getWorkingYearMonth();
     if (!year || !month) return [];
 
     const runs = await this.getAllCalculationRuns();
     return runs
-      .filter(run => run.targetEmployeeIds === employeeId && run.approval?.approvalStatus === '申請中')
-      .filter(run => run.runId && !isEventAtOrBeforeWorkingMonth(run.runId, year, month))
+      .filter(run => run.targetEmployeeIds === employeeId)
+      .filter(run => {
+        if (this.isInsuranceInfoChangeRun(run)) return false;
+        const status = run.approval?.approvalStatus;
+        if (status === '申請中') {
+          return run.runId && !isEventAtOrBeforeWorkingMonth(run.runId, year, month);
+        }
+        if (status === '承認済み') {
+          return true;
+        }
+        return false;
+      })
       .map(run =>
         this.toSystemItem(run)
         ?? this.toQualificationApprovalItem(run)
@@ -909,8 +1100,8 @@ export class CalculationRunService {
       .sort((left, right) => (right.detectedDate?.toMillis() ?? 0) - (left.detectedDate?.toMillis() ?? 0));
   }
 
-  /** 社員の保険情報変更・雇用形態変更システム計算（申請中・作業月以前） */
-  async getPendingInsuranceChangeRunsForEmployeeUpToWorkingMonth(employeeId: string): Promise<SystemCalculationRunItem[]> {
+  /** 社員の雇用形態変更システム計算（申請中・作業月以前） */
+  async getPendingEmploymentChangeRunsForEmployeeUpToWorkingMonth(employeeId: string): Promise<SystemCalculationRunItem[]> {
     const { year, month } = getWorkingYearMonth();
     if (!year || !month) return [];
 
@@ -918,13 +1109,18 @@ export class CalculationRunService {
     return runs
       .filter(run =>
         run.targetEmployeeIds === employeeId
-        && this.isQualificationApprovalRun(run)
+        && this.isEmploymentChangeQualificationRun(run)
         && run.approval?.approvalStatus === '申請中',
       )
       .filter(run => run.runId && isEventAtOrBeforeWorkingMonth(run.runId, year, month))
       .map(run => this.toQualificationApprovalItem(run))
       .filter((item): item is SystemCalculationRunItem => item !== null)
       .sort((left, right) => (right.detectedDate?.toMillis() ?? 0) - (left.detectedDate?.toMillis() ?? 0));
+  }
+
+  /** @deprecated getPendingEmploymentChangeRunsForEmployeeUpToWorkingMonth を使用 */
+  async getPendingInsuranceChangeRunsForEmployeeUpToWorkingMonth(employeeId: string): Promise<SystemCalculationRunItem[]> {
+    return this.getPendingEmploymentChangeRunsForEmployeeUpToWorkingMonth(employeeId);
   }
 
   /** 社員の予定登録システム計算（申請中・作業月以前） */
@@ -1016,15 +1212,11 @@ export class CalculationRunService {
       return !isEventAtOrBeforeWorkingMonth(run.runId, workingYear, workingMonth);
     }
     if ((run.type === '資格取得' || run.type === '資格喪失') && run.payload?.['source'] === '保険情報変更') {
-      if (run.approval?.approvalStatus !== '申請中') return true;
-      if (!run.runId) return true;
-      return !isEventAtOrBeforeWorkingMonth(run.runId, workingYear, workingMonth);
+      return true;
     }
     if ((run.type === '資格取得' || run.type === '資格喪失')
       && (run.payload?.['source'] === '入社' || run.payload?.['source'] === '退社')) {
-      if (run.approval?.approvalStatus !== '申請中') return true;
-      if (!run.runId) return true;
-      return isEventAtOrBeforeWorkingMonth(run.runId, workingYear, workingMonth);
+      return true;
     }
     if (this.isEmploymentChangeRun(run)) {
       return true;
@@ -1144,6 +1336,99 @@ export class CalculationRunService {
     }
 
     return `${baseId}_${maxSeq + 1}`;
+  }
+
+  /** 申請中の随時改定（作業月不問・承認一覧用） */
+  async getPendingFixedSalaryRunsForApproval(): Promise<SystemCalculationRunItem[]> {
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.type === '随時改定' && run.approval?.approvalStatus === '申請中')
+      .map(run => this.toSystemItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  /** 承認済み・未適用のシステム計算（作業月以前のID） */
+  async getApprovedSystemRunsInWorkingPeriod(
+    filter: (run: CalculationRun) => boolean,
+    mapper: (run: CalculationRun) => SystemCalculationRunItem | null,
+  ): Promise<SystemCalculationRunItem[]> {
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return [];
+
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.approval?.approvalStatus === '承認済み')
+      .filter(filter)
+      .filter(run => run.runId && isEventAtOrBeforeWorkingMonth(run.runId, year, month))
+      .map(mapper)
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  async getApprovedHireQualificationRunsInWorkingPeriod(): Promise<SystemCalculationRunItem[]> {
+    const bounds = this.employeeService.currentWorkPeriodBounds();
+    if (!bounds) return [];
+
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.approval?.approvalStatus === '承認済み')
+      .filter(run => run.type === '資格取得' && run.payload?.['source'] === '入社')
+      .filter(run => {
+        const occurred = (run.payload?.['occurredDate'] as Timestamp | undefined)?.toDate();
+        if (!occurred) return false;
+        return isDateInWorkPeriod(occurred, bounds.periodStart, bounds.periodEnd);
+      })
+      .map(run => this.toHireQualificationItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  async getApprovedRetireQualificationRunsInWorkingPeriod(): Promise<SystemCalculationRunItem[]> {
+    const bounds = this.employeeService.currentWorkPeriodBounds();
+    if (!bounds) return [];
+
+    const runs = await this.getAllCalculationRuns();
+    return runs
+      .filter(run => run.approval?.approvalStatus === '承認済み')
+      .filter(run => run.type === '資格喪失' && run.payload?.['source'] === '退社')
+      .filter(run => {
+        const occurred = (run.payload?.['occurredDate'] as Timestamp | undefined)?.toDate();
+        if (!occurred) return false;
+        return isDateInWorkPeriod(occurred, bounds.periodStart, bounds.periodEnd);
+      })
+      .map(run => this.toRetireQualificationItem(run))
+      .filter((item): item is SystemCalculationRunItem => item !== null)
+      .sort((left, right) => right.runId.localeCompare(left.runId));
+  }
+
+  async getApprovedEmploymentChangeRunsInWorkingPeriod(): Promise<SystemCalculationRunItem[]> {
+    return this.getApprovedSystemRunsInWorkingPeriod(
+      run => this.isEmploymentChangeQualificationRun(run),
+      run => this.toQualificationApprovalItem(run),
+    );
+  }
+
+  /** @deprecated getApprovedEmploymentChangeRunsInWorkingPeriod を使用 */
+  async getApprovedInsuranceChangeRunsInWorkingPeriod(): Promise<SystemCalculationRunItem[]> {
+    return this.getApprovedEmploymentChangeRunsInWorkingPeriod();
+  }
+
+  async getApprovedInsuranceInfoChangeRunsInWorkingPeriod(): Promise<SystemCalculationRunItem[]> {
+    return this.getApprovedSystemRunsInWorkingPeriod(
+      run => this.isInsuranceInfoChangeRun(run),
+      run => this.toInsuranceInfoChangeScheduledItem(run),
+    );
+  }
+
+  async getApprovedScheduledSystemRunsInWorkingPeriod(): Promise<SystemCalculationRunItem[]> {
+    const eventRuns = await this.getApprovedSystemRunsInWorkingPeriod(
+      run => run.type === 'イベント',
+      run => this.toSystemItem(run),
+    );
+    const insuranceInfoRuns = await this.getApprovedInsuranceInfoChangeRunsInWorkingPeriod();
+    return [...eventRuns, ...insuranceInfoRuns]
+      .sort((left, right) => right.runId.localeCompare(left.runId));
   }
 
   /** 作業月の前月までに改定月が到来した、未適用の承認済み随時改定 */
@@ -1315,6 +1600,10 @@ export class CalculationRunService {
       eventType: '雇用形態変更',
       eventId: run.runId,
     };
+  }
+
+  private toInsuranceInfoChangeScheduledItem(run: CalculationRun): SystemCalculationRunItem | null {
+    return this.toInsuranceChangeHistoryItem(run);
   }
 
   private toInsuranceChangeItem(run: CalculationRun): SystemCalculationRunItem | null {

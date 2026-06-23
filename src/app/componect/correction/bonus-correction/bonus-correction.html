@@ -1,72 +1,179 @@
 <div class="im-page-shell">
-<h1 class="page-title">賞与修正（遡及）</h1>
-<div class="information-area">
-  <p>確定済み賞与の金額を変更し、保険料差額調整を作成します。</p>
-  <p>下のプルダウンから変更する賞与を選択してください。</p>
-</div>
+  <h1 class="page-title">賞与修正・過去賞与入力</h1>
 
-<p *ngIf="message" class="im-action-message">{{ message }}</p>
-
-<div class="im-correction-toolbar bonus-correction-toolbar">
-  <label>対象賞与
-    <select [(ngModel)]="selectedPayrollId" (change)="onBonusPayrollIdChange()">
-      <option value="">選択</option>
-      <option *ngFor="let id of bonusPayrollIds" [value]="id">{{ displayBonusPayrollId(id) }}</option>
-    </select>
-  </label>
-  <button type="button" class="im-btn-soft" (click)="toCorrectionBonusList()"
-    style="margin-left: auto;">賞与保険料差額一覧へ▶</button>
-</div>
-
-<div *ngIf="!selectedPayrollId" style="text-align: center; margin-top: 20px; color: var(--im-color-black);">
-  <p>選択中の賞与データがありません</p>
-</div>
-
-
-<section *ngIf="selectedPayrollId">
-  <h3>{{ displayBonusPayrollId(selectedPayrollId) }} 賞与一覧</h3>
-  <div class="bonus-correction-table-wrap">
-    <table class="bonus-correction-table">
-      <thead>
-        <tr>
-          <th>社員ID</th>
-          <th>名前</th>
-          <th>対象月</th>
-          <th>賞与額</th>
-          <th>健康保険</th>
-          <th>介護保険</th>
-          <th>厚生年金</th>
-          <th>合計</th>
-          <th>登録日</th>
-          <th>賞与額修正</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let row of rows">
-          <td>{{ row.payroll.employeeId }}</td>
-          <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: row.payroll.employeeId }">{{ row.employeeName }}</a></td>
-          <td>{{ displayBonusPayrollId(selectedPayrollId) }}</td>
-          <td> <span *ngIf="!row.editing" style="font-weight: bold;">{{ row.adjustedAmount | number }}円</span>
-            <input *ngIf="row.editing" type="number" min="0" [(ngModel)]="row.editAmount">
-          </td>
-          <td>{{ row.health | number }}円</td>
-          <td>{{ row.nursing | number }}円</td>
-          <td>{{ row.pension | number }}円</td>
-          <td class="bonus-correction-total">{{ row.total | number }}円</td>
-          <td>{{ commonService.formatDate(row.payroll.createdAt) }}</td>
-          <td>
-            <button *ngIf="!row.editing" type="button" class="im-btn-soft im-btn-sm"
-              (click)="startEdit(row)">修正</button>
-            <button *ngIf="row.editing" type="button" class="im-btn-primary im-btn-sm"
-              (click)="confirmInsurance(row)">保険料確認</button>
-            <button *ngIf="row.editing" type="button" class="im-btn-soft im-btn-sm"
-              (click)="cancelEdit(row)">キャンセル</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="information-area">
+    <p *ngIf="!isInputMode">確定済み賞与の金額を変更し、保険料差額調整を作成します。</p>
+    <p *ngIf="isInputMode">未確定の過去賞与を登録します。対象者は賞与支給月に在籍しているか、支給月の3か月前まで在籍している従業員です。</p>
+    <p>対象の賞与支給月を下のプルダウンから選択してください。</p>
   </div>
-</section>
+
+  <p *ngIf="message" class="im-action-message">{{ message }}</p>
+
+  <div class="im-correction-toolbar bonus-correction-toolbar">
+    <label>対象賞与
+      <select [(ngModel)]="selectedPayrollId" (change)="onBonusPayrollIdChange()">
+        <option value="">選択</option>
+        <option *ngFor="let option of payrollOptions" [value]="option.payrollId">{{ option.label }}</option>
+      </select>
+    </label>
+    <button type="button" class="im-btn-soft" (click)="toCorrectionBonusList()"
+      style="margin-left: auto;">賞与保険料差額一覧へ▶</button>
+  </div>
+
+  <div *ngIf="payrollOptions.length === 0" style="text-align: center; margin-top: 20px; color: var(--im-color-black);">
+    <p>選択可能な賞与がありません。</p>
+  </div>
+
+  <ng-container *ngIf="selectedPayrollId && !isInputMode">
+    <h3>{{ displayBonusPayrollId(selectedPayrollId) }} 賞与一覧</h3>
+    <div class="bonus-correction-table-wrap">
+      <table class="bonus-correction-table">
+        <thead>
+          <tr>
+            <th>社員ID</th>
+            <th>名前</th>
+            <th>対象月</th>
+            <th>賞与額</th>
+            <th>健康保険</th>
+            <th>介護保険</th>
+            <th>厚生年金</th>
+            <th>合計</th>
+            <th>登録日</th>
+            <th>賞与額修正</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of rows">
+            <td>{{ row.payroll.employeeId }}</td>
+            <td><a [routerLink]="['/employee-detail']" [queryParams]="{ employeeId: row.payroll.employeeId }">{{ row.employeeName }}</a></td>
+            <td>{{ displayBonusPayrollId(selectedPayrollId) }}</td>
+            <td><span *ngIf="!row.editing" style="font-weight: bold;">{{ row.adjustedAmount | number }}円</span>
+              <input *ngIf="row.editing" type="number" min="0" [(ngModel)]="row.editAmount">
+            </td>
+            <td>{{ showInsuranceCalculationExcluded(row) ? '計算対象外' : ((row.health | number) + '円') }}</td>
+            <td>{{ showInsuranceCalculationExcluded(row) ? '計算対象外' : ((row.nursing | number) + '円') }}</td>
+            <td>{{ showInsuranceCalculationExcluded(row) ? '計算対象外' : ((row.pension | number) + '円') }}</td>
+            <td class="bonus-correction-total">{{ showInsuranceCalculationExcluded(row) ? '計算対象外' : ((row.total | number) + '円') }}</td>
+            <td>{{ commonService.formatDate(row.payroll.createdAt) }}</td>
+            <td>
+              <button *ngIf="!row.editing" type="button" class="im-btn-soft im-btn-sm"
+                (click)="startEdit(row)">修正</button>
+              <button *ngIf="row.editing" type="button" class="im-btn-primary im-btn-sm"
+                (click)="confirmInsurance(row)">保険料確認</button>
+              <button *ngIf="row.editing" type="button" class="im-btn-soft im-btn-sm"
+                (click)="cancelEdit(row)">キャンセル</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="selectedPayrollId && isInputMode">
+    <h3>{{ displayBonusPayrollId(selectedPayrollId) }}月支払い分</h3>
+
+    <div class="bonus-correction-confirm-actions">
+      <p *ngIf="confirmLockMessage" class="im-action-message">{{ confirmLockMessage }}</p>
+      <button type="button" class="im-btn-primary" (click)="confirmBonusMonth()">確定</button>
+    </div>
+
+    <div class="bonus-registration-layout">
+      <section class="bonus-registration-card bonus-registration-card--csv">
+        <app-bonus-csv
+          [payrollId]="selectedPayrollId"
+          [correctionMode]="true"
+          (payrollRegistered)="onBonusRegistered()">
+        </app-bonus-csv>
+      </section>
+
+      <section class="bonus-registration-card bonus-registration-card--individual">
+        <form [formGroup]="registerForm" (ngSubmit)="registerBonus()">
+          <section class="bonus-container__content__form__section im-fields-grid bonus-basic-section">
+            <h2 class="section-title">個別登録</h2>
+            <div class="bonus-container__content__message">
+              <p *ngIf="registerMessage" class="im-action-message">{{ registerMessage }}</p>
+            </div>
+
+            <div class="im-field-block im-field-row bonus-basic-field">
+              <div class="im-field-row__label">
+                <label for="bonusCorrectionEmployeeId">社員ID</label>
+              </div>
+              <div class="im-field-row__control">
+                <input type="text" id="bonusCorrectionEmployeeId" formControlName="employeeId">
+                <div class="error">
+                  <p *ngIf="registerForm.get('employeeId')?.errors?.['required'] && registerForm.get('employeeId')?.touched">社員IDは必須です</p>
+                  <p *ngIf="registerForm.get('employeeId')?.errors?.['pattern'] && registerForm.get('employeeId')?.touched">半角で入力してください</p>
+                  <p *ngIf="registerForm.get('employeeId')?.errors?.['employeeIdIncorrect'] && registerForm.get('employeeId')?.touched">社員IDが存在しません</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="im-field-block im-field-row bonus-basic-field">
+              <div class="im-field-row__label">
+                <label for="bonusCorrectionTargetPeriodStart">対象期間</label>
+              </div>
+              <div class="im-field-row__control bonus-period-control">
+                <input type="date" id="bonusCorrectionTargetPeriodStart" formControlName="targetPeriodStart">
+                <span class="bonus-separator">～</span>
+                <input type="date" id="bonusCorrectionTargetPeriodEnd" formControlName="targetPeriodEnd">
+                <div class="error bonus-period-error">
+                  <p *ngIf="registerForm.get('targetPeriodStart')?.errors?.['required'] && registerForm.get('targetPeriodStart')?.touched">対象期間開始日は必須です</p>
+                  <p *ngIf="registerForm.get('targetPeriodEnd')?.errors?.['required'] && registerForm.get('targetPeriodEnd')?.touched">対象期間終了日は必須です</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="bonus-basic-pair">
+              <div class="im-field-block im-field-row bonus-basic-field">
+                <div class="im-field-row__label">
+                  <label for="bonusCorrectionPaymentDate">支給日</label>
+                </div>
+                <div class="im-field-row__control">
+                  <input type="date" id="bonusCorrectionPaymentDate" formControlName="paymentDate">
+                  <div class="error">
+                    <p *ngIf="registerForm.get('paymentDate')?.errors?.['required'] && registerForm.get('paymentDate')?.touched">支給日は必須です</p>
+                    <p *ngIf="registerForm.get('paymentDate')?.errors?.['paymentMonthMismatch'] && registerForm.get('paymentDate')?.touched">支給日は {{ displayBonusPayrollId(selectedPayrollId) }} の月で入力してください</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="im-field-block im-field-row bonus-basic-field">
+                <div class="im-field-row__label">
+                  <label for="bonusCorrectionActualPaymentAmount">賞与支給額</label>
+                </div>
+                <div class="im-field-row__control">
+                  <div class="bonus-inline-control">
+                    <input type="number" id="bonusCorrectionActualPaymentAmount" formControlName="actualPaymentAmount">
+                    <span class="bonus-unit">円</span>
+                  </div>
+                  <div class="error">
+                    <p *ngIf="registerForm.get('actualPaymentAmount')?.errors?.['required'] && registerForm.get('actualPaymentAmount')?.touched">賞与支給額は必須です</p>
+                    <p *ngIf="registerForm.get('actualPaymentAmount')?.errors?.['min'] && registerForm.get('actualPaymentAmount')?.touched">賞与支給額は1円以上で入力してください</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="bonus-form-actions">
+            <button type="submit" class="im-btn-primary">登録</button>
+            <button type="button" class="im-btn-soft" (click)="resetRegisterForm()">リセット</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <section class="bonus-list-area">
+      <div class="bonus-list-header">
+        <h3>賞与一覧</h3>
+      </div>
+      <app-salary-list
+        [payrollId]="selectedPayrollId"
+        [isBonus]="true"
+        [showAllEnrolledEmployees]="true">
+      </app-salary-list>
+    </section>
+  </ng-container>
 </div>
 
 <div class="employee-edit-modal bonus-correction-preview-modal" *ngIf="previewOpen && previewComparison"

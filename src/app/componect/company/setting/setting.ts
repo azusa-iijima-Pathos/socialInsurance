@@ -39,9 +39,7 @@ export class Setting {
     paymentMonth: ['翌月' as '当月' | '翌月'],
     paymentDate: [25, [Validators.required, Validators.min(1), Validators.max(31)]],
     targetPeriodStart: [1, [Validators.required, Validators.min(1), Validators.max(31)]],
-    // insuranceCloseingMonth: ['翌月' as '当月' | '翌月'],
-    // insuranceCloseingDate: [15, [Validators.required, Validators.min(1), Validators.max(31)]],
-    bonus: [true],
+    bonusType: ['none' as 'none' | 'oneToThree' | 'fourOrMore'],
     bonusMonth1: [null as number | null, [Validators.min(1), Validators.max(12)]],
     bonusMonth2: [null as number | null, [Validators.min(1), Validators.max(12)]],
     bonusMonth3: [null as number | null, [Validators.min(1), Validators.max(12)]],
@@ -52,20 +50,26 @@ export class Setting {
 
     if (this.companyService.company()?.settings) {
       const settings = this.companyService.company()?.settings;
+      const bonusType = settings?.bonusFourOrMore
+        ? 'fourOrMore'
+        : settings?.bonus
+          ? 'oneToThree'
+          : 'none';
       this.form.patchValue({
         ...settings,
         targetPeriodStart: settings?.targetPeriod[0],
+        bonusType,
         bonusMonth1: settings?.bonusMonths?.[0] ?? null,
         bonusMonth2: settings?.bonusMonths?.[1] ?? null,
         bonusMonth3: settings?.bonusMonths?.[2] ?? null,
       });
     }
 
-    this.updateBonusMonthControls(this.form.value.bonus!);
-    this.form.controls.bonus.valueChanges
+    this.updateBonusMonthControls(this.form.value.bonusType ?? 'none');
+    this.form.controls.bonusType.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(bonus => {
-        this.updateBonusMonthControls(bonus);
+      .subscribe(bonusType => {
+        this.updateBonusMonthControls(bonusType);
         this.form.updateValueAndValidity();
       });
 
@@ -77,7 +81,7 @@ export class Setting {
   }
 
   private bonusMonthsGroupValidator(group: AbstractControl): ValidationErrors | null {
-    if (!group.get('bonus')?.value) return null;
+    if (group.get('bonusType')?.value !== 'oneToThree') return null;
 
     const raw = group.getRawValue();
     const hasValidMonth = [raw.bonusMonth1, raw.bonusMonth2, raw.bonusMonth3].some(month => {
@@ -89,7 +93,7 @@ export class Setting {
     return hasValidMonth ? null : { bonusMonthsRequired: true };
   }
 
-  private updateBonusMonthControls(bonus: boolean) {
+  private updateBonusMonthControls(bonusType: 'none' | 'oneToThree' | 'fourOrMore') {
     const bonusMonthControls = [
       this.form.controls.bonusMonth1,
       this.form.controls.bonusMonth2,
@@ -97,7 +101,7 @@ export class Setting {
     ];
 
     for (const control of bonusMonthControls) {
-      if (bonus) {
+      if (bonusType === 'oneToThree') {
         control.enable({ emitEvent: false });
       } else {
         control.disable({ emitEvent: false });
@@ -118,14 +122,14 @@ export class Setting {
     }
 
     const raw = this.form.getRawValue();
-    const bonusMonths = raw.bonus
+    const bonusMonths = raw.bonusType === 'oneToThree'
       ? [raw.bonusMonth1, raw.bonusMonth2, raw.bonusMonth3]
         .filter((month): month is number => month !== null && month !== undefined)
         .map(month => Number(month))
         .filter(month => month >= 1 && month <= 12)
       : [];
 
-    if (raw.bonus && bonusMonths.length === 0) {
+    if (raw.bonusType === 'oneToThree' && bonusMonths.length === 0) {
       this.form.markAllAsTouched();
       this.message = 'ボーナスありの場合、ボーナス支払い月を1つ以上入力してください';
       this.commonService.showTimedMessage(this.message, value => this.message = value, this.messageTimer);
@@ -140,9 +144,8 @@ export class Setting {
         raw.targetPeriodStart,
         this.calculateTargetPeriodEnd(raw.targetPeriodStart),
       ],
-      // insuranceCloseingMonth: this.form.value.insuranceCloseingMonth! as '当月' | '翌月',
-      // insuranceCloseingDate: this.form.value.insuranceCloseingDate!,
-      bonus: raw.bonus,
+      bonus: raw.bonusType === 'oneToThree',
+      bonusFourOrMore: raw.bonusType === 'fourOrMore',
       bonusMonths,
     };
     const result = await this.companyService.updateCompanySettings(this.companyId!, setting);

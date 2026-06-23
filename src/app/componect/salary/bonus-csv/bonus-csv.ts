@@ -31,6 +31,7 @@ export class BonusCsv {
 
   @Input() payrollId = '';
   @Input() disabled = false;
+  @Input() correctionMode = false;
   @Output() payrollRegistered = new EventEmitter<void>();
 
   private payrollService = inject(PayrollService);
@@ -128,8 +129,10 @@ export class BonusCsv {
 
     let successCount = 0;
     for (const row of selectedRows) {
-      const result = await this.payrollService.registerPayroll(row.employeeId, row.payroll!);
-      if (result) successCount++;
+      const result = this.correctionMode
+        ? await this.payrollService.registerPayrollForCorrection(row.employeeId, row.payroll!)
+        : await this.payrollService.registerPayroll(row.employeeId, row.payroll!);
+      if (result.ok) successCount++;
     }
 
     await this.payrollService.getAllPayrollListForMonth(this.payrollId, true);
@@ -255,7 +258,9 @@ export class BonusCsv {
       if (employeeId && payroll) {
         try {
           const employee = await this.employeeService.getEmployeeByEmployeeId(employeeId);
-          const enrollmentError = await this.correctionLogicService.validatePayrollEnrollment(employee, this.payrollId);
+          const enrollmentError = this.correctionMode
+            ? (employee ? this.correctionLogicService.validateBonusEnrollment(employee, this.payrollId) : '従業員が見つかりません')
+            : await this.correctionLogicService.validatePayrollEnrollment(employee, this.payrollId);
           if (enrollmentError) {
             errors.push(`${rowNumber}行目：${enrollmentError}`);
           }

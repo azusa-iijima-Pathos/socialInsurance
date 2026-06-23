@@ -6,13 +6,16 @@
         <div class="information-area">
             <p>
                 従業員の給与・勤務実績を登録してください。<br>
+                全従業員の給与を入力の上、確定ボタンを押してください。<br>
                 ・固定給は基本給、固定手当、通勤手当の合計です。<br>
                 ・総支給額は固定給と変動給（残業代など）の合計です。<br>
                 @if(inputFormat === 1) {
             <p>※固定給、総支給額は自動計算されます。</p>
             }
             </p>
+            <p *ngIf="isPayrollLocked">給与は確定済みです。修正は給与修正画面から行ってください。</p>
         </div>
+
 
         <div style="display: flex; gap: 10px; justify-content: flex-end;">
             <button class="im-btn-soft" (click)="toInsuranceConfirm()">保険料確認へ▶▶</button>
@@ -20,7 +23,13 @@
 
         </div>
 
-        <div class="monthly-salary-registration-layout">
+        <div style="display: flex; gap: 10px; margin-left: auto;" *ngIf="!isPayrollLocked">
+            <p *ngIf="confirmLockMessage" class="im-action-message">{{ confirmLockMessage }}</p>
+            <button type="button" class="im-btn-primary" (click)="confirmPayrollMonth()">確定</button>
+        </div>
+
+
+        <div class="monthly-salary-registration-layout" *ngIf="!isPayrollLocked">
             <section class="monthly-salary-registration-card monthly-salary-registration-card--csv">
                 <app-monthly-salary-csv [payrollId]="payrollId" [inputFormat]="inputFormat"></app-monthly-salary-csv>
             </section>
@@ -69,8 +78,6 @@
                                         <p
                                             *ngIf="form.get('actualWorkingDays')?.errors?.['min'] && form.get('actualWorkingDays')?.touched">
                                             勤務日数は0日以上で入力してください</p>
-                                        <p *ngIf="form.hasError('invalidWorkingDays') ">
-                                            勤務時間がある場合、勤務日数は1日以上で入力してください</p>
                                     </div>
                                 </div>
                             </div>
@@ -91,8 +98,6 @@
                                         <p
                                             *ngIf="form.get('actualWorkingHours')?.errors?.['min'] && form.get('actualWorkingHours')?.touched">
                                             勤務時間は0時間以上で入力してください</p>
-                                        <p *ngIf="form.hasError('invalidWorkingHours')">
-                                            勤務日数がある場合、勤務時間は1時間以上で入力してください</p>
                                     </div>
                                 </div>
                             </div>
@@ -206,7 +211,6 @@
                             </div>
                         </div>
                         <div class="monthly-salary-form-error">
-                            <p *ngIf="form.hasError('invalidSalary')">勤務実績がある場合、総支給額は1円以上で入力してください</p>
                             <p *ngIf="form.hasError('invalidActualPaymentAmount')">総支給額は固定給以上で入力してください</p>
                         </div>
                     </section>
@@ -220,14 +224,19 @@
         </div>
 
         <section class="monthly-salary-list-area">
+            <div class="monthly-salary-confirm-actions" *ngIf="!isPayrollLocked">
+                <p *ngIf="confirmLockMessage" class="im-action-message">{{ confirmLockMessage }}</p>
+                <button type="button" class="im-btn-primary" (click)="confirmPayrollMonth()">確定</button>
+            </div>
             <h3>給与・勤務実績一覧</h3>
-            <app-salary-list *ngIf="payrollId" [payrollId]="payrollId" [showAllEnrolledEmployees]="true"></app-salary-list>
+            <app-salary-list *ngIf="payrollId" [payrollId]="payrollId" [showAllEnrolledEmployees]="true"
+                [disabled]="isPayrollLocked"></app-salary-list>
         </section>
     </div>
 
     <div style="display: flex; gap: 10px; justify-content: flex-end;">
-        <button class="im-btn-primary" (click)="toApplicationList()">今月の申請一覧へ▶</button>
         <button class="im-btn-soft" (click)="toInsuranceConfirm()">保険料確認へ▶▶</button>
+        <button class="im-btn-primary" (click)="toApplicationList()">今月の申請一覧へ▶</button>
     </div>
 
 </div>

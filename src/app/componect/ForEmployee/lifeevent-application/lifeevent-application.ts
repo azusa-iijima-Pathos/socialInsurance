@@ -118,6 +118,7 @@ export class LifeeventApplication {
 
   nameChangeForm = this.fb.nonNullable.group({
     name: ['', [Validators.required]],
+    appliedDate: ['', [Validators.required]],
   });
 
   dependentChangeForm = this.fb.nonNullable.group({
@@ -138,6 +139,9 @@ export class LifeeventApplication {
     this.initMarriageDependents();
     this.initBirthDependents();
     this.nameChangeForm.patchValue({ name: employee.firstName ?? '' });
+    this.nameChangeForm.get('appliedDate')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshNameChangeAppliedDateValidation());
     this.initDependentChangeDependents();
 
     this.birthForm.get('type')?.valueChanges
@@ -286,11 +290,12 @@ export class LifeeventApplication {
     let failed = false;
 
     if (nameChanged) {
+      const nameAppliedDate = timestampFromDateInput(occurredDate);
       const nameEvent: Partial<Event> = {
-        occurredDate: timestampFromDateInput(occurredDate),
+        occurredDate: nameAppliedDate,
         eventType: '氏名変更',
         lifeEventType,
-        appliedDate: Timestamp.now(),
+        appliedDate: nameAppliedDate,
         applicantType: '社員',
         approval: { approvalStatus: '申請中' },
         payload: {
@@ -460,8 +465,12 @@ export class LifeeventApplication {
 
   /** 氏名変更申請 */
   async submitNameChangeForm() {
+    this.refreshNameChangeAppliedDateValidation();
     if (this.nameChangeForm.invalid) {
       this.nameChangeForm.markAllAsTouched();
+      if (this.nameChangeForm.get('appliedDate')?.errors?.['appliedDateInsurancePeriod']) {
+        this.showMessage('適用日の入力内容を確認してください');
+      }
       return;
     }
 
@@ -471,11 +480,12 @@ export class LifeeventApplication {
       return;
     }
 
+    const appliedDate = timestampFromDateInput(this.nameChangeForm.get('appliedDate')!.value);
     const nameEvent: Partial<Event> = {
-      occurredDate: Timestamp.now(),
+      occurredDate: appliedDate,
       eventType: '氏名変更',
       lifeEventType: 'その他',
-      appliedDate: Timestamp.now(),
+      appliedDate,
       applicantType: '社員',
       approval: { approvalStatus: '申請中' },
       payload: {
@@ -1068,8 +1078,28 @@ export class LifeeventApplication {
   }
 
   private resetNameChangeForm() {
-    this.nameChangeForm.patchValue({ name: this.employee?.firstName ?? '' });
+    this.nameChangeForm.patchValue({ name: this.employee?.firstName ?? '', appliedDate: '' });
     this.clearFormState(this.nameChangeForm);
+  }
+
+  private refreshNameChangeAppliedDateValidation() {
+    const control = this.nameChangeForm.get('appliedDate');
+    if (!control) return;
+
+    const appliedDate = control.value;
+    const insuranceError = appliedDate
+      ? this.validationService.validateDependentAppliedDateInInsurancePeriod(
+        this.employee?.insurance?.healthInsurance,
+        appliedDate,
+      )
+      : null;
+
+    const errors = { ...(control.errors ?? {}) };
+    delete errors['appliedDateInsurancePeriod'];
+    if (insuranceError) {
+      errors['appliedDateInsurancePeriod'] = insuranceError;
+    }
+    control.setErrors(Object.keys(errors).length > 0 ? errors : null);
   }
 
   private resetDependentChangeForm() {

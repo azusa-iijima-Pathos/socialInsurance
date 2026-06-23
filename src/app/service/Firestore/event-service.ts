@@ -3,7 +3,7 @@ import { CrudService } from '../common/crud-service';
 import { Event } from '../../model/event';
 import { CompanyService } from './company-service';
 import { EmployeeService } from './employee-service';
-import { buildEventId, getWorkingYearMonth, isApprovedInTargetWorkingMonth, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth } from '../logic/event-id-service';
+import { buildEventId, canApplyInWorkingPeriod, getWorkingYearMonth, isApprovedInTargetWorkingMonth, isEventAtOrBeforeWorkingMonth, isEventInTargetMonth } from '../logic/event-id-service';
 import { ApplicantType, EmployeeEventType } from '../../constants/model-constants';
 
 export type EmployeeEventItem = Event & { employeeId: string };
@@ -15,6 +15,33 @@ export function compareEventsByAppliedDateDesc(left: Event, right: Event): numbe
     return rightTime - leftTime;
   }
   return String(right.eventId ?? '').localeCompare(String(left.eventId ?? ''));
+}
+
+/** 反映順の制御用（発生日の早い順） */
+export function compareEventsByOccurredDateAsc(left: Event, right: Event): number {
+  const leftTime = getEventOccurredDateMillis(left);
+  const rightTime = getEventOccurredDateMillis(right);
+  if (leftTime !== rightTime) {
+    return leftTime - rightTime;
+  }
+  const leftEmployee = (left as EmployeeEventItem).employeeId ?? '';
+  const rightEmployee = (right as EmployeeEventItem).employeeId ?? '';
+  if (leftEmployee !== rightEmployee) {
+    return leftEmployee.localeCompare(rightEmployee);
+  }
+  return String(left.eventId ?? '').localeCompare(String(right.eventId ?? ''));
+}
+
+function getEventOccurredDateMillis(event: Event): number {
+  const occurredDate = event.occurredDate as { toMillis?: () => number; seconds?: number } | undefined;
+  if (!occurredDate) return 0;
+  if (typeof occurredDate.toMillis === 'function') {
+    return occurredDate.toMillis();
+  }
+  if (typeof occurredDate.seconds === 'number') {
+    return occurredDate.seconds * 1000;
+  }
+  return 0;
 }
 
 function getEventAppliedDateMillis(event: Event): number {
@@ -143,6 +170,54 @@ export class EventService {
         event.appliedDate as { toDate?: () => Date; seconds?: number } | undefined,
       ))
       .sort(compareEventsByAppliedDateDesc);
+  }
+
+  /** 全社員の申請中イベント（作業月不問・承認一覧用） */
+  async getAllPendingEventsForApproval(): Promise<EmployeeEventItem[]> {
+    await this.employeeService.getAllEmployees();
+    const results: EmployeeEventItem[] = [];
+
+    for (const employee of this.employeeService.allEmployees()) {
+      const events = await this.getEmployeeEvents(employee.employeeId);
+      for (const event of events) {
+        if (event.approval?.approvalStatus !== '申請中') continue;
+        if (event.applicantType === '社員') continue;
+        results.push({ ...event, employeeId: employee.employeeId });
+      }
+    }
+
+    return results.sort(compareEventsByAppliedDateDesc);
+  }
+
+  /** 全社員の承認済み・未適用イベント（作業月以前のID） */
+  async getAllApprovedEventsInWorkingPeriod(
+    filter?: (event: Event) => boolean,
+  ): Promise<EmployeeEventItem[]> {
+    const { year, month } = getWorkingYearMonth();
+    if (!year || !month) return [];
+
+    await this.employeeService.getAllEmployees();
+    const results: EmployeeEventItem[] = [];
+
+    for (const employee of this.employeeService.allEmployees()) {
+      const events = await this.getEmployeeEvents(employee.employeeId);
+      for (const event of events) {
+        if (event.approval?.approvalStatus !== '承認済み') continue;
+        if (!event.eventId) continue;
+        if (filter && !filter(event)) continue;
+        if (!canApplyInWorkingPeriod(
+          event.eventId,
+          year,
+          month,
+          event.appliedDate as { toDate?: () => Date; seconds?: number } | undefined,
+        )) {
+          continue;
+        }
+        results.push({ ...event, employeeId: employee.employeeId });
+      }
+    }
+
+    return results.sort(compareEventsByAppliedDateDesc);
   }
 
   /** 全社員の申請中イベント（作業月以前） */

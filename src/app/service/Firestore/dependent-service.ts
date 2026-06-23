@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Firestore, doc, getDoc, setDoc } from '@angular/fire/firestore';
+import { deleteField, Firestore, doc, getDoc, setDoc } from '@angular/fire/firestore';
 import { Dependent } from '../../model/dependent';
 import { CrudService } from '../common/crud-service';
 import { stripUndefinedValues } from '../common/firestore-data.util';
@@ -39,12 +39,15 @@ export class DependentService {
       const path = `${this.path}/${employeeId}/dependents/${dependentId}`;
       const ref = doc(this.firestore, path);
       const snap = await getDoc(ref);
-      const data = stripUndefinedValues({
+      const data: Record<string, unknown> = stripUndefinedValues({
         ...dependent,
         dependentId,
         updatedAt: new Date(),
         ...(snap.exists() ? {} : { createdAt: new Date() }),
       });
+      if (dependent.dependentEndDate === null) {
+        data['dependentEndDate'] = deleteField();
+      }
       await setDoc(ref, data, { merge: true });
       return true;
     } catch (e) {

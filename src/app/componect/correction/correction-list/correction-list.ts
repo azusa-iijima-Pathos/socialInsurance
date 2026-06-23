@@ -331,7 +331,7 @@ export class CorrectionList {
   }
 
   displayBonusPayrollId(payrollId: string): string {
-    return payrollId.replace('_bonus', '');
+    return this.correctionLogicService.formatBonusPayrollDisplayLabel(payrollId);
   }
 
   private getComparison(run: CalculationRun): Record<string, unknown> | undefined {

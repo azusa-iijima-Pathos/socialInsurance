@@ -5,7 +5,7 @@ import { AnnouncementReason, AnnouncementSubType, AnnouncementType } from '../co
 export type Announcement = {
   announcementId: string;
   type: AnnouncementType;
-  subType: AnnouncementSubType;
+  subType?: AnnouncementSubType;
   reason?: AnnouncementReason;
   occurredDate: Timestamp;
   checked: boolean;

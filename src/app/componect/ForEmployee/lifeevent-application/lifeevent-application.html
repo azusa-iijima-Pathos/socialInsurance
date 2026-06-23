@@ -416,6 +416,19 @@
                         </div>
                     </div>
                 </div>
+                <div class="im-field-block im-field-row employee-edit-field">
+                    <div class="im-field-row__label"><label for="nameChangeAppliedDate">適用日</label></div>
+                    <div class="im-field-row__control">
+                        <input id="nameChangeAppliedDate" type="date" formControlName="appliedDate">
+                        <div class="error">
+                            <p *ngIf="nameChangeForm.get('appliedDate')?.errors?.['required'] && nameChangeForm.get('appliedDate')?.touched">
+                                適用日は必須です</p>
+                            <p *ngIf="nameChangeForm.get('appliedDate')?.errors?.['appliedDateInsurancePeriod']">
+                                {{ nameChangeForm.get('appliedDate')?.errors?.['appliedDateInsurancePeriod'] }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="employee-edit-actions">
                 <button type="submit" class="im-btn-primary">申請</button>

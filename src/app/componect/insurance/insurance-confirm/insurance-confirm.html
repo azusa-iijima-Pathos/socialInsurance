@@ -77,8 +77,8 @@
                 <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()">CSV出力（保険料）</button>
 
                 <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()">CSV出力（給与含む）</button>
-                <button *ngIf="!editMode && !isDone" class="im-btn-primary" (click)="editInsurance()">保険料修正</button>
-                <button *ngIf="!editMode && !isDone" class="im-btn-primary" (click)="confirmInsurance()"
+                <button *ngIf="!editMode && !isInsuranceLocked" class="im-btn-primary" (click)="editInsurance()">保険料修正</button>
+                <button *ngIf="!editMode && !isInsuranceLocked" class="im-btn-primary" (click)="confirmInsurance()"
                     style="margin-left: auto;">保険料確定</button>
             </div>
         </div>
@@ -246,8 +246,8 @@
             <button *ngIf="editMode" class="im-btn-soft" (click)="cancelEditInsurance()">キャンセル</button>
             <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()">CSV出力（保険料）</button>
             <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()">CSV出力（給与含む）</button>
-            <button *ngIf="!editMode && !isDone" class="im-btn-primary" (click)="editInsurance()">保険料修正</button>
-            <button *ngIf="!editMode && !isDone" class="im-btn-primary" (click)="confirmInsurance()">保険料確定</button>
+            <button *ngIf="!editMode && !isInsuranceLocked" class="im-btn-primary" (click)="editInsurance()">保険料修正</button>
+            <button *ngIf="!editMode && !isInsuranceLocked" class="im-btn-primary" (click)="confirmInsurance()">保険料確定</button>
         </div>
 
         <div style="display: flex; justify-content: space-between; margin-top: 10px;">

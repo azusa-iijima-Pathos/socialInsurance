@@ -3,11 +3,14 @@ import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { CalculationRun } from '../../../model/calculation-run';
+import { Employee } from '../../../model/employee';
 import { CalculationRunService } from '../../../service/Firestore/calculation-run-service';
 import { CommonService, MessageTimer } from '../../../service/common/common-service';
 import { EmployeeService } from '../../../service/Firestore/employee-service';
+import { CompanyService } from '../../../service/Firestore/company-service';
 import { SocialInsuranceFormCsvService } from '../../../service/CSV/social-insurance-form-csv.service';
 import { AnnouncementLogicService } from '../../../service/logic/announcement-logic.service';
+import { formatCalculationBaseBonusPeriodLabel } from '../../../service/logic/calculation-base-bonus.util';
 
 @Component({
   selector: 'app-calculation-base-pending-list',
@@ -20,10 +23,14 @@ export class CalculationBasePendingList {
   private calculationRunService = inject(CalculationRunService);
   private commonService = inject(CommonService);
   private employeeService = inject(EmployeeService);
+  private companyService = inject(CompanyService);
   private formCsvService = inject(SocialInsuranceFormCsvService);
   private announcementLogicService = inject(AnnouncementLogicService);
 
   runs: CalculationRun[] = [];
+  targetEmployees: Employee[] = [];
+  bonusAmountMap: Record<string, number> = {};
+  isFourOrMoreBonusCompany = false;
   approvedGradeMap: Record<string, number> = {};
   calculationBaseRun: CalculationRun | null = null;
   targetYear = Number(sessionStorage.getItem('workingYear')) || new Date().getFullYear();
@@ -56,6 +63,18 @@ export class CalculationBasePendingList {
   get targetYearOptions(): number[] {
     const workingYear = Number(sessionStorage.getItem('workingYear')) || new Date().getFullYear();
     return Array.from({ length: 10 }, (_, index) => workingYear - index);
+  }
+
+  get bonusPeriodLabel(): string {
+    return formatCalculationBaseBonusPeriodLabel(this.displayYear);
+  }
+
+  get showFourOrMoreBonusInput(): boolean {
+    return this.isFourOrMoreBonusCompany && this.runs.length === 0;
+  }
+
+  get showFourOrMoreBonusResultColumns(): boolean {
+    return this.isFourOrMoreBonusCompany && this.runs.length > 0;
   }
 
   async ngOnInit() {
@@ -91,7 +110,10 @@ export class CalculationBasePendingList {
     if (!confirmed) return;
 
     this.calculating = true;
-    const result = await this.calculationRunService.calculateBaseForAllEmployees(this.displayYear);
+    const result = await this.calculationRunService.calculateBaseForAllEmployees(
+      this.displayYear,
+      this.isFourOrMoreBonusCompany ? this.bonusAmountMap : undefined,
+    );
     this.calculating = false;
 
     if (!result) {
@@ -112,9 +134,51 @@ export class CalculationBasePendingList {
   }
 
   private async loadRuns() {
+    await this.companyService.getCompany();
+    this.isFourOrMoreBonusCompany = this.companyService.isCalculationBaseFourOrMoreBonusCompany();
+    await this.loadTargetEmployees();
     this.calculationBaseRun = await this.calculationRunService.getCalculationBaseRun(this.displayYear);
     this.runs = await this.calculationRunService.getPendingCalculationBaseRuns(this.displayYear);
     this.resetApprovedGradeMap();
+    this.resetBonusAmountMap();
+  }
+
+  private async loadTargetEmployees() {
+    await this.employeeService.getAllEmployees(true);
+    this.targetEmployees = [...this.employeeService.allEmployees()]
+      .sort((a, b) => String(a.employeeId).localeCompare(String(b.employeeId)));
+  }
+
+  private resetBonusAmountMap() {
+    const savedTotals = this.calculationBaseRun?.payload?.['bonusTotalsByEmployeeId'] as Record<string, number> | undefined;
+    this.bonusAmountMap = this.targetEmployees.reduce<Record<string, number>>((map, employee) => {
+      const fromRun = this.runs.find(run => this.getEmployeeId(run) === employee.employeeId);
+      const fromEmployeePayload = fromRun
+        ? Number(this.getPayload(fromRun)['bonusAnnualTotal'] ?? NaN)
+        : NaN;
+      const saved = savedTotals?.[employee.employeeId];
+      const value = Number.isFinite(fromEmployeePayload)
+        ? fromEmployeePayload
+        : Number.isFinite(Number(saved))
+          ? Number(saved)
+          : 0;
+      map[employee.employeeId] = value;
+      return map;
+    }, {});
+  }
+
+  getEmployeeDisplayName(employee: Employee): string {
+    return `${employee.firstName ?? ''} ${employee.lastName ?? ''}`.trim();
+  }
+
+  getBonusAnnualTotal(run: CalculationRun): number | null {
+    const value = this.getPayload(run)['bonusAnnualTotal'];
+    return value === null || value === undefined ? null : Number(value);
+  }
+
+  getBaseAverageSalary(run: CalculationRun): number | null {
+    const value = this.getPayload(run)['baseAverageSalary'];
+    return value === null || value === undefined ? null : Number(value);
   }
 
   private resetApprovedGradeMap() {

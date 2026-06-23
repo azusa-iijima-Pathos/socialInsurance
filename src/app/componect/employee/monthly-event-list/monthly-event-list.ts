@@ -36,7 +36,7 @@ export class MonthlyEventList {
   private route = inject(ActivatedRoute);
   commonService = inject(CommonService);
 
-  monthOptions = this.correctionLogicService.getPastYearMonthOptions(24);
+  monthOptions = this.correctionLogicService.getMonthlyEventListMonthOptions(24);
   selectedMonthKey = `${getWorkingYearMonth().year}-${getWorkingYearMonth().month}`;
   groupingMode: MonthlyEventGroupingMode = 'occurred';
 
