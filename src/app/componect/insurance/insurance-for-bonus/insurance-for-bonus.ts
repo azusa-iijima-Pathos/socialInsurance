@@ -521,27 +521,7 @@ export class InsuranceForBonus {
     useAdjusted = false,
   ): Promise<number> {
     const previous = await this.getPreviousHealthStandardBonusTotal(employeeId, useAdjusted);
-    if (previous === 0) {
-      return currentStandardBonus;
-    }
-
-    const priorCount = await this.countPriorBonusesInFiscalYear(employeeId);
-    if (priorCount === 1) {
-      return previous + currentStandardBonus;
-    }
-    return previous;
-  }
-
-  private async countPriorBonusesInFiscalYear(employeeId: string): Promise<number> {
-    const { fiscalStartYearMonth } = this.getFiscalYearRange();
-    const payrollList = await this.payrollService.getPayrollListForEmployee(employeeId);
-    return payrollList
-      .filter(payroll => payroll.type === '賞与')
-      .filter(payroll => {
-        const payrollYearMonth = this.getPayrollYearMonth(payroll.payrollId);
-        return fiscalStartYearMonth <= payrollYearMonth && payrollYearMonth < this.targetYearMonth;
-      })
-      .length;
+    return previous + currentStandardBonus;
   }
 
   private getAdjustedBonusAmount(employeeId: string, payrollId: string, originalAmount: number): number {
@@ -791,7 +771,7 @@ export class InsuranceForBonus {
   }
 
   exportBonusFormCsv() {
-    const rows = this.confirmedOutputRows
+    const rows = this.dataForShow
       .filter(row => row.hasBonusData)
       .map(row => {
         const bonus = this.bonusData.find(item => item.employeeId === row.employeeId);

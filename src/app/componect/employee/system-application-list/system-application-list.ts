@@ -1218,7 +1218,13 @@ export class SystemApplicationList {
 
   async confirmApprovalModal() {
     if (!this.approvingSystemRun && !this.approvingEvent) return;
-    if (!window.confirm('システム計算結果を承認しますか？')) {
+    const isExcludedFixedSalaryConfirmation = this.approvalModalType === 'fixedSalary'
+      && !!this.fixedSalaryDraft
+      && !this.fixedSalaryDraft.canRevise
+      && !!this.approvingSystemRun;
+    if (!window.confirm(isExcludedFixedSalaryConfirmation
+      ? '随時改定の結果を確定しますか？'
+      : 'システム計算結果を承認しますか？')) {
       return;
     }
 
@@ -1263,7 +1269,16 @@ export class SystemApplicationList {
       }
     }
 
-    await this.afterApproval(approved);
+    if (approved) {
+      if (isExcludedFixedSalaryConfirmation) {
+        this.showMessage('随時改定を確定しました');
+        await this.loadEvents();
+      } else {
+        await this.afterApproval(approved);
+      }
+    } else {
+      await this.afterApproval(approved);
+    }
     this.cancelApprovalModal();
   }
 

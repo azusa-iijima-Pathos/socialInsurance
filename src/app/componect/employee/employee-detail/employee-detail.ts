@@ -2389,7 +2389,13 @@ export class EmployeeDetail {
 
   async confirmApprovalModal() {
     if (!this.approvingSystemRun && !this.approvingEvent) return;
-    if (!window.confirm('システム計算結果を承認しますか？')) {
+    const isExcludedFixedSalaryConfirmation = this.approvalModalType === 'fixedSalary'
+      && !!this.fixedSalaryDraft
+      && !this.fixedSalaryDraft.canRevise
+      && !!this.approvingSystemRun;
+    if (!window.confirm(isExcludedFixedSalaryConfirmation
+      ? '随時改定の結果を確定しますか？'
+      : 'システム計算結果を承認しますか？')) {
       return;
     }
 
@@ -2434,7 +2440,9 @@ export class EmployeeDetail {
     }
 
     if (approved) {
-      this.showMessage('イベントを承認しました（反映は作業期間内に行ってください）');
+      this.showMessage(isExcludedFixedSalaryConfirmation
+        ? '随時改定を確定しました'
+        : 'イベントを承認しました（反映は作業期間内に行ってください）');
       await this.selectEmployee(false);
     } else {
       this.showMessage('イベントの承認に失敗しました');

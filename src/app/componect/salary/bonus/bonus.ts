@@ -85,50 +85,20 @@ export class Bonus {
 
   private async resolvePriorBonusBlock(): Promise<{ month: number; payrollId: string } | null> {
     const bonusMonths = this.companyService.company()?.settings?.bonusMonths ?? [];
-    if (bonusMonths.length !== 2) return null;
+    if (bonusMonths.length < 2) return null;
 
-    const bonusPayrollIds = bonusMonths
-      .map(month => this.buildBonusPayrollId(month))
-      .sort((left, right) => left.localeCompare(right));
-
-    const currentIndex = bonusPayrollIds.indexOf(this.payrollId);
+    const options = this.correctionLogicService.getCurrentFiscalYearBonusMonthOptions();
+    const currentIndex = options.findIndex(option => option.payrollId === this.payrollId);
     if (currentIndex <= 0) return null;
 
-    for (let index = 0; index < currentIndex; index++) {
-      const priorPayrollId = bonusPayrollIds[index];
-      const isLocked = await this.payrollLockService.isPayrollLocked(priorPayrollId);
-      if (isLocked) continue;
+    const priorOption = options[currentIndex - 1];
+    const isLocked = await this.payrollLockService.isPayrollLocked(priorOption.payrollId);
+    if (isLocked) return null;
 
-      return {
-        month: this.parseBonusMonth(priorPayrollId),
-        payrollId: priorPayrollId,
-      };
-    }
-
-    return null;
-  }
-
-  private buildBonusPayrollId(month: number): string {
-    const year = this.getBonusPaymentYear(month);
-    return `${year}-${String(month).padStart(2, '0')}_bonus`;
-  }
-
-  private getBonusPaymentYear(month: number): number {
-    const settings = this.companyService.company()?.settings;
-    const workingYear = settings?.workingYear ?? Number(sessionStorage.getItem('workingYear'));
-    const workingMonth = settings?.workingMonth ?? Number(sessionStorage.getItem('workingMonth'));
-    if (workingMonth >= 1 && workingMonth <= 3) {
-      return workingYear;
-    }
-    if (month >= 4 && month <= 12) {
-      return workingYear;
-    }
-    return workingYear + 1;
-  }
-
-  private parseBonusMonth(payrollId: string): number {
-    const match = payrollId.match(/^\d{4}-(\d{2})_bonus$/);
-    return match ? Number(match[1]) : 0;
+    return {
+      month: priorOption.month,
+      payrollId: priorOption.payrollId,
+    };
   }
 
   // 支給日の年月が、トップから渡された賞与IDの年月と一致するか確認する

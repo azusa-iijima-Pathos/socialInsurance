@@ -1007,6 +1007,10 @@ export class EmployeeEventApprovalService {
       const run = await this.calculationRunService.getSystemCalculationRunById(runId);
       if (!run || !this.canApproveAdHocRevisionRun(run)) return false;
 
+      if (!draft.canRevise) {
+        return this.calculationRunService.markRunExcludedFromApplication(runId, { revisionSummary });
+      }
+
       const approved = await this.calculationRunService.markRunApproved(runId, loginEmployeeId, { revisionSummary });
       if (approved) {
         const run = await this.calculationRunService.getSystemCalculationRunById(runId);

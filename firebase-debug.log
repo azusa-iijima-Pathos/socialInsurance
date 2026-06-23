@@ -1,0 +1,46 @@
+[debug] [2026-06-23T08:54:50.560Z] ----------------------------------------------------------------------
+[debug] [2026-06-23T08:54:50.564Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\azusa.iijima\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy
+[debug] [2026-06-23T08:54:50.564Z] CLI Version:   15.20.0
+[debug] [2026-06-23T08:54:50.564Z] Platform:      win32
+[debug] [2026-06-23T08:54:50.565Z] Node Version:  v22.22.2
+[debug] [2026-06-23T08:54:50.565Z] Time:          Tue Jun 23 2026 17:54:50 GMT+0900 (日本標準時)
+[debug] [2026-06-23T08:54:50.565Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-23T08:54:50.568Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-06-23T08:54:53.715Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-23T08:54:53.715Z] > authorizing via signed-in user (azusa.iijima@pathoslogos.co.jp)
+[debug] [2026-06-23T08:54:53.715Z] [iam] checking project kensyu10140 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-06-23T08:54:53.716Z] Checked if tokens are valid: false, expires at: 1782108328394
+[debug] [2026-06-23T08:54:53.716Z] Checked if tokens are valid: false, expires at: 1782108328394
+[debug] [2026-06-23T08:54:53.716Z] > refreshing access token with scopes: []
+[debug] [2026-06-23T08:54:53.717Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-06-23T08:54:53.717Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-23T08:54:53.845Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-06-23T08:54:53.846Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-06-23T08:54:53.847Z] [iam] error while checking permissions, command may fail: Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-06-23T08:54:53.847Z] Checked if tokens are valid: false, expires at: 1782108328394
+[debug] [2026-06-23T08:54:53.847Z] Checked if tokens are valid: false, expires at: 1782108328394
+[debug] [2026-06-23T08:54:53.847Z] > refreshing access token with scopes: []
+[debug] [2026-06-23T08:54:53.847Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-06-23T08:54:53.847Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-23T08:54:53.933Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-06-23T08:54:53.933Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-06-23T08:54:53.934Z] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[error] 
+[error] Error: Assertion failed: resolving hosting target of a site with no site name or target name. This should have caused an error earlier

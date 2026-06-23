@@ -65,7 +65,7 @@
             <button *ngIf="editMode" class="im-btn-primary" (click)="saveInsuranceDrafts()"
                 [disabled]="insuranceEditErrors.length > 0">修正内容を一時保存</button>
             <button *ngIf="editMode" class="im-btn-soft" (click)="cancelEditInsurance()">キャンセル</button>
-            <button *ngIf="!editMode" class="im-btn-soft" (click)="exportBonusFormCsv()">CSV出力（届け出用）</button>
+            <button *ngIf="!editMode && editButtonDisabled" class="im-btn-soft" (click)="exportBonusFormCsv()">CSV出力（届け出用）</button>
             <button *ngIf="!editMode" class="im-btn-soft" (click)="exportInsuranceOnlyCsv()">CSV出力（保険料）</button>
             <button *ngIf="!editMode" class="im-btn-soft" (click)="exportWithSalaryCsv()">CSV出力（賞与含む）</button>
             <button *ngIf="!editMode && !editButtonDisabled && !isOutputMode" class="im-btn-primary"

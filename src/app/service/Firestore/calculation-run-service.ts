@@ -1532,6 +1532,27 @@ export class CalculationRunService {
     return this.updateCalculationRun(runId, update);
   }
 
+  async markRunExcludedFromApplication(
+    runId: string,
+    payloadExtension?: Record<string, unknown>,
+  ): Promise<boolean> {
+    const update: Partial<CalculationRun> = {
+      approval: {
+        approvalStatus: '適用対象外',
+      },
+    };
+
+    if (payloadExtension) {
+      const existing = await this.getCalculationRunById(runId);
+      update.payload = {
+        ...existing?.payload,
+        ...payloadExtension,
+      };
+    }
+
+    return this.updateCalculationRun(runId, update);
+  }
+
   /** CalculationRun を Event 互換ビューに変換（承認サービス用） */
   toEventView(run: SystemCalculationRunItem): Event {
     return {
